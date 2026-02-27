@@ -1,0 +1,5 @@
+venv/
+backend/python-ml/venv/
+__pycache__/
+*.pyc
+node_modules/
