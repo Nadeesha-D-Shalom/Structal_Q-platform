@@ -4,7 +4,19 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="73978067-b5a3-4b9e-bce9-b1f97c06eaa6" name="Changes" comment="feat: implement hybrid semantic retrieval with TOC filtering and rubric-driven scoring" />
+    <list default="true" id="73978067-b5a3-4b9e-bce9-b1f97c06eaa6" name="Changes" comment="feat: implement hybrid semantic retrieval with TOC filtering and rubric-driven scoring">
+      <change beforePath="$PROJECT_DIR$/../node-api/sample.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/common/sample.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/config/sample.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/sample.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/routes/sample.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/sample.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/python-ml.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/python-ml.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/api.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/api.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sample.txt" beforeDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -18,6 +30,11 @@
     </option>
   </component>
   <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$/../.." value="main" />
+      </map>
+    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/../.." />
   </component>
   <component name="GitHubPullRequestSearchHistory">{
@@ -60,9 +77,9 @@
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
     "RunOnceActivity.git.unshallow": "true",
     "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "git-widget-placeholder": "feature/hybrid-structured-grading",
+    "git-widget-placeholder": "feature/nadeesha-OCR-scanDiagrams",
     "junie.onboarding.icon.badge.shown": "true",
-    "last_opened_file_path": "E:/SLIIT_Bacholer/_2_Year_sem2/IT_Project/Structal_Q-platform/backend/python-ml",
+    "last_opened_file_path": "E:/SLIIT_Bacholer/_2_Year_sem2/IT_Project/Structal_Q-platform/backend/python-ml/test_files/students",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -73,7 +90,12 @@
   }
 }]]></component>
   <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="E:\SLIIT_Bacholer\_2_Year_sem2\IT_Project\Structal_Q-platform\backend\python-ml\test_files\students" />
+      <recent name="E:\SLIIT_Bacholer\_2_Year_sem2\IT_Project\Structal_Q-platform\backend\python-ml\test_files\lecturer" />
+    </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="E:\SLIIT_Bacholer\_2_Year_sem2\IT_Project\Structal_Q-platform\backend\python-ml\app" />
       <recent name="E:\SLIIT_Bacholer\_2_Year_sem2\IT_Project\Structal_Q-platform\backend\python-ml\test_files" />
       <recent name="E:\SLIIT_Bacholer\_2_Year_sem2\IT_Project\Structal_Q-platform\backend\python-ml" />
     </key>
@@ -95,6 +117,7 @@
       <updated>1771828749650</updated>
       <workItem from="1771828750908" duration="12557000" />
       <workItem from="1771909086221" duration="1221000" />
+      <workItem from="1772261902151" duration="9190000" />
     </task>
     <task id="LOCAL-00001" summary="feat: implement hybrid semantic retrieval with TOC filtering and rubric-driven scoring">
       <option name="closed" value="true" />

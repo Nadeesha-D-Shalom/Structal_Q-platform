@@ -1,6 +1,6 @@
 const express = require('express');
 const sql = require('mssql');
-const config = require('./config/db');   // ✅ fixed path
+const config = require('./config/db');   
 
 const subjectRoutes = require('./modules/subject/subject.routes');
 const assessmentRoutes = require('./modules/assessment/assessment.routes');
