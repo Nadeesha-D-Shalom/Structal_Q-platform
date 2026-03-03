@@ -9,4 +9,9 @@ router.use('/subjects', subjectRoutes);
 router.use('/assessments', assessmentRoutes);
 router.use('/marking-guides', markingGuideRoutes);
 
+
+// Member 05 - Evaluation
+const evaluationRoutes = require('../modules/evaluation/evaluation.routes');
+router.use('/evaluation', evaluationRoutes);
+
 module.exports = router;
