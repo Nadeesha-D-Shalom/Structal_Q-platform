@@ -1,4 +1,3 @@
-from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
 
@@ -9,7 +8,13 @@ class SimilarityService:
 
     def compute_similarity(self, text1: str, text2: str) -> float:
 
-        if not text1.strip() or not text2.strip():
+        if not text1 or not text2:
+            return 0.0
+
+        text1 = text1.strip()
+        text2 = text2.strip()
+
+        if not text1 or not text2:
             return 0.0
 
         emb1 = self.model.encode([text1])
