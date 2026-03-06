@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sentence_transformers import SentenceTransformer
+
 from app.api import router
 
-app = FastAPI()
+app = FastAPI(title="StructaIQ Evaluation Service", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,

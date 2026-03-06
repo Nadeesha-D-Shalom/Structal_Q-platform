@@ -5,6 +5,7 @@ const config = require('./config/db');
 const subjectRoutes = require('./modules/subject/subject.routes');
 const assessmentRoutes = require('./modules/assessment/assessment.routes');
 const markingGuideRoutes = require('./modules/marking-guide/markingGuide.routes');
+const concernRoutes = require('./modules/concern/concern.routes')
 
 const app = express();
 const PORT = 3000;
@@ -24,6 +25,7 @@ sql.connect(config)
 app.use('/api/subjects', subjectRoutes);
 app.use('/api/assessments', assessmentRoutes);
 app.use('/api/marking-guides', markingGuideRoutes);
+app.use('/api/concern', concernRoutes);
 
 // Health Check
 app.get('/health', (req, res) => {
