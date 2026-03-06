@@ -8,7 +8,11 @@
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/api.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/api.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/models/sample.txt" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/app/pipelines/evaluation_pipeline.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/pipelines/evaluation_pipeline.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/sample.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/services/similarity_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/services/similarity_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test_files/students/Group 1.docx" beforeDir="false" afterPath="$PROJECT_DIR$/test_files/students/Group 1.docx" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -125,6 +129,17 @@
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="feat: implement hybrid semantic retrieval with TOC filtering and rubric-driven scoring" />
