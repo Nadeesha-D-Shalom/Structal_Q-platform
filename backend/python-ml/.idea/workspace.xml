@@ -4,9 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="73978067-b5a3-4b9e-bce9-b1f97c06eaa6" name="Changes" comment="feat: implement hybrid semantic retrieval with TOC filtering and rubric-driven scoring">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-    </list>
+    <list default="true" id="73978067-b5a3-4b9e-bce9-b1f97c06eaa6" name="Changes" comment="feat: implement hybrid semantic retrieval with TOC filtering and rubric-driven scoring" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
