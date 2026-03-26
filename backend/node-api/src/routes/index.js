@@ -5,11 +5,14 @@ const subjectRoutes = require('../modules/subject/subject.routes');
 const assessmentRoutes = require('../modules/assessment/assessment.routes');
 const markingGuideRoutes = require('../modules/marking-guide/markingGuide.routes');
 const concernRoutes = require('../modules/concern/concern.routes')
+const aiAnalysisRoutes = require("../modules/ai-analysis/aiAnalysis.routes");
+
 
 router.use('/subjects', subjectRoutes);
 router.use('/assessments', assessmentRoutes);
 router.use('/marking-guides', markingGuideRoutes);
 router.use('/concern', concernRoutes);
+router.use("/ai-analysis", aiAnalysisRoutes);
 
 
 // Member 05 - Evaluation
