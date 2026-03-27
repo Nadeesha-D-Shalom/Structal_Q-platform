@@ -4,6 +4,20 @@ const {
 } = require("./aiAnalysis.service");
 
 
+function normalizeAIResponse(result) {
+    if (!result) return null;
+
+    // Case 1: { data: {...} }
+    if (result.data) return result.data;
+
+    // Case 2: { result: {...} }
+    if (result.result) return result.result;
+
+    // Case 3: direct object
+    return result;
+}
+
+
 async function analyzeSubmission(req, res) {
     try {
         const {
@@ -13,7 +27,6 @@ async function analyzeSubmission(req, res) {
             guide_file
         } = req.body;
 
-        // ===== VALIDATION =====
         if (
             !submission_id ||
             !marking_guide_id ||
@@ -22,7 +35,7 @@ async function analyzeSubmission(req, res) {
         ) {
             return res.status(400).json({
                 success: false,
-                error: "submission_id, marking_guide_id, submission_path, and guide_file are required"
+                error: "All fields are required"
             });
         }
 
@@ -32,21 +45,22 @@ async function analyzeSubmission(req, res) {
             guide_file
         });
 
-        // ===== CRITICAL FIX =====
-        if (!result || !result.data) {
-            throw new Error("Invalid AI response format");
+        console.log("AI RAW RESPONSE:", result);
+
+        // ===== NORMALIZE =====
+        const aiData = normalizeAIResponse(result);
+
+        if (!aiData) {
+            throw new Error("AI response is empty");
         }
 
-        const aiData = result.data;
-
-        // ===== SAVE TO DB =====
+        // ===== SAVE =====
         await saveAnalysisToDB({
             submission_id,
             marking_guide_id,
             aiResult: aiData
         });
 
-        // ===== RESPONSE =====
         return res.status(200).json({
             success: true,
             message: "AI analysis completed & saved",
@@ -58,7 +72,7 @@ async function analyzeSubmission(req, res) {
 
         return res.status(500).json({
             success: false,
-            error: error.message || "AI analysis failed"
+            error: error.message
         });
     }
 }
