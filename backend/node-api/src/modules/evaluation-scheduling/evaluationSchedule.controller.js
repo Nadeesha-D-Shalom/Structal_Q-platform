@@ -1,73 +1,193 @@
-const sql = require('mssql');
+const sql    = require('mssql');
+const config = require('../../config/db');
 
+let sendEmail = async () => {};
+try {
+    sendEmail = require('../../services/emailService').sendEmail;
+} catch (_) {
+    console.warn('[evalSchedule] emailService not found — email notifications disabled');
+}
 
-// Create location
-exports.createLocation = async (req, res) => {
-    const {
-        location_name,
-        building_name,
-        room_number,
-        capacity,
-        available_from,
-        available_to
-    } = req.body;
+// ───────── HELPERS ─────────
+const toSqlTime = (t) => {
+    if (!t) return null;
+    const parts = t.split(':');
+    if (parts.length === 2) t += ':00';
+    return t;
+};
 
-    if (!location_name)
-        return res.status(400).json({ message: "location_name is required" });
+const toMinutes = (t) => {
+    if (!t) return 0;
+    const parts = String(t).split(':').map(Number);
+    return (parts[0] || 0) * 60 + (parts[1] || 0);
+};
 
+const toTime = (mins) =>
+    `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}:00`;
+
+// ───────── ASSESSMENTS ─────────
+
+// FIX: was duplicated and misplaced under SCHEDULE MANAGEMENT section
+exports.getAllAssessments = async (req, res) => {
     try {
-        const pool = await sql.connect();
+        const pool   = await sql.connect(config);
+        const result = await pool.request()
+            .query(`SELECT assessment_id, assessment_title FROM Assessments ORDER BY assessment_title`);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('[getAllAssessments]', err);
+        res.status(500).json({ error: err.message });
+    }
+};
 
+// ───────── LOCATION MANAGEMENT ─────────
+
+exports.createLocation = async (req, res) => {
+    try {
+        const { location_name, building_name, room_number, capacity, available_from, available_to } = req.body;
+
+        if (!location_name?.trim() || !building_name?.trim() || !room_number?.trim()) {
+            return res.status(400).json({ message: 'location_name, building_name, and room_number are required.' });
+        }
+
+        const fromTime = toSqlTime(available_from);
+        const toSqlT   = toSqlTime(available_to);
+
+        if (!fromTime || !toSqlT) {
+            return res.status(400).json({ message: 'Invalid available_from or available_to time.' });
+        }
+
+        const pool = await sql.connect(config);
         await pool.request()
-            .input('location_name', sql.VarChar(150), location_name)
-            .input('building_name', sql.VarChar(150), building_name)
-            .input('room_number', sql.VarChar(50), room_number)
-            .input('capacity', sql.Int, capacity)
-            .input('available_from', sql.Time, available_from)
-            .input('available_to', sql.Time, available_to)
+            .input('location_name',  sql.VarChar(255), location_name.trim())
+            .input('building_name',  sql.VarChar(255), building_name.trim())
+            .input('room_number',    sql.VarChar(50),  room_number.trim())
+            .input('capacity',       sql.Int,          capacity ? Number(capacity) : null)
+            .input('available_from', sql.Time,         fromTime)
+            .input('available_to',   sql.Time,         toSqlT)
+            .input('status',         sql.VarChar(20),  'ACTIVE')
             .query(`
                 INSERT INTO evaluation_location
-                (location_name, building_name, room_number,
-                 capacity, available_from, available_to)
+                    (location_name, building_name, room_number, capacity, available_from, available_to, status)
                 VALUES
-                (@location_name, @building_name, @room_number,
-                 @capacity, @available_from, @available_to)
+                    (@location_name, @building_name, @room_number, @capacity, @available_from, @available_to, @status)
             `);
 
-        res.status(201).json({ message: "Location created successfully" });
-
+        res.status(201).json({ message: 'Location created' });
     } catch (err) {
+        console.error('[createLocation]', err);
         res.status(500).json({ error: err.message });
     }
 };
 
-
-// Get all active locations
 exports.getAllLocations = async (req, res) => {
     try {
-        const pool = await sql.connect();
-
+        const pool = await sql.connect(config);
         const result = await pool.request()
             .query(`
-                SELECT * FROM evaluation_location
-                WHERE status = 'ACTIVE'
-                ORDER BY location_name ASC
+                SELECT
+                    location_id,
+                    location_name,
+                    building_name,
+                    room_number,
+                    capacity,
+                    CONVERT(VARCHAR, available_from, 108) AS available_from,
+                    CONVERT(VARCHAR, available_to,   108) AS available_to,
+                    status
+                FROM evaluation_location
+                ORDER BY location_name
             `);
-
         res.json(result.recordset);
-
     } catch (err) {
+        console.error('[getAllLocations]', err);
         res.status(500).json({ error: err.message });
     }
 };
 
+exports.updateLocation = async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!id) return res.status(400).json({ message: 'Invalid location ID.' });
 
+        const { location_name, building_name, room_number, capacity, available_from, available_to } = req.body;
 
-//Managing schedules
+        if (!location_name?.trim() || !building_name?.trim() || !room_number?.trim()) {
+            return res.status(400).json({ message: 'location_name, building_name, and room_number are required.' });
+        }
 
-// Create schedule + Auto slot generation
+        const fromTime = toSqlTime(available_from);
+        const toSqlT   = toSqlTime(available_to);
+
+        if (!fromTime || !toSqlT) {
+            return res.status(400).json({ message: 'Invalid available_from or available_to time.' });
+        }
+
+        const pool  = await sql.connect(config);
+        const check = await pool.request()
+            .input('id', sql.Int, id)
+            .query(`SELECT location_id FROM evaluation_location WHERE location_id = @id`);
+
+        if (!check.recordset.length) return res.status(404).json({ message: 'Location not found.' });
+
+        await pool.request()
+            .input('id',             sql.Int,          id)
+            .input('location_name',  sql.VarChar(255), location_name.trim())
+            .input('building_name',  sql.VarChar(255), building_name.trim())
+            .input('room_number',    sql.VarChar(50),  room_number.trim())
+            .input('capacity',       sql.Int,          capacity ? Number(capacity) : null)
+            .input('available_from', sql.Time,         fromTime)
+            .input('available_to',   sql.Time,         toSqlT)
+            .query(`
+                UPDATE evaluation_location SET
+                    location_name  = @location_name,
+                    building_name  = @building_name,
+                    room_number    = @room_number,
+                    capacity       = @capacity,
+                    available_from = @available_from,
+                    available_to   = @available_to
+                WHERE location_id = @id
+            `);
+
+        res.json({ message: 'Location updated' });
+    } catch (err) {
+        console.error('[updateLocation]', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+exports.deleteLocation = async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!id) return res.status(400).json({ message: 'Invalid location ID.' });
+
+        const pool = await sql.connect(config);
+
+        const check = await pool.request()
+            .input('id', sql.Int, id)
+            .query(`
+                SELECT COUNT(*) AS cnt
+                FROM evaluation_schedule
+                WHERE location_id = @id AND status IN ('DRAFT', 'PUBLISHED')
+            `);
+
+        if (check.recordset[0].cnt > 0) {
+            return res.status(400).json({ message: 'Cannot delete: location is used in active schedules.' });
+        }
+
+        await pool.request()
+            .input('id', sql.Int, id)
+            .query(`UPDATE evaluation_location SET status = 'INACTIVE' WHERE location_id = @id`);
+
+        res.json({ message: 'Location deactivated', status: 'INACTIVE' });
+    } catch (err) {
+        console.error('[deleteLocation]', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// ───────── SCHEDULE MANAGEMENT ─────────
+
 exports.createSchedule = async (req, res) => {
-
     const {
         assessment_id,
         location_id,
@@ -76,245 +196,438 @@ exports.createSchedule = async (req, res) => {
         start_time,
         end_time,
         duration_per_group_minutes,
-        buffer_minutes = 5,
+        buffer_minutes,
         total_groups,
         created_by
     } = req.body;
 
-    if (!assessment_id || !location_id || !date || !start_time || !end_time || !total_groups || !created_by)
-        return res.status(400).json({ message: "Missing required fields" });
-
     try {
-        const pool = await sql.connect();
+        const pool = await sql.connect(config);
 
-        //Location conflict chcek
+        // Check for location conflicts
         const conflict = await pool.request()
-            .input('location_id', sql.Int, location_id)
-            .input('date', sql.Date, date)
-            .input('start_time', sql.Time, start_time)
-            .input('end_time', sql.Time, end_time)
+            .input('location_id', sql.Int,  location_id)
+            .input('date',        sql.Date, date)
+            .input('start_time',  sql.Time, start_time)
+            .input('end_time',    sql.Time, end_time)
             .query(`
-                SELECT evaluation_schedule_id
+                SELECT COUNT(*) AS cnt
                 FROM evaluation_schedule
                 WHERE location_id = @location_id
                   AND date = @date
-                  AND status IN ('DRAFT','PUBLISHED')
-                  AND NOT (@end_time <= start_time OR @start_time >= end_time)
+                  AND status <> 'CANCELLED'
+                  AND (start_time < @end_time AND end_time > @start_time)
             `);
 
-        if (conflict.recordset.length > 0) {
-
-            await pool.request()
-                .input('evaluation_schedule_id', sql.Int, conflict.recordset[0].evaluation_schedule_id)
-                .input('conflict_type', sql.VarChar(50), 'LOCATION_CONFLICT')
-                .input('conflict_description', sql.VarChar(500),
-                    `Location already booked on ${date}`)
-                .query(`
-                    INSERT INTO evaluation_conflict_log
-                    (evaluation_schedule_id, conflict_type, conflict_description)
-                    VALUES
-                    (@evaluation_schedule_id, @conflict_type, @conflict_description)
-                `);
-
-            return res.status(409).json({ message: "Location conflict detected" });
+        if (conflict.recordset[0].cnt > 0) {
+            return res.status(409).json({ message: 'Location conflict detected for the selected date and time.' });
         }
 
-        //Insert scehdule
-        const result = await pool.request()
-            .input('assessment_id', sql.Int, assessment_id)
-            .input('location_id', sql.Int, location_id)
-            .input('schedule_title', sql.VarChar(200), schedule_title)
-            .input('date', sql.Date, date)
-            .input('start_time', sql.Time, start_time)
-            .input('end_time', sql.Time, end_time)
-            .input('duration', sql.Int, duration_per_group_minutes)
-            .input('buffer', sql.Int, buffer_minutes)
-            .input('total_groups', sql.Int, total_groups)
-            .input('created_by', sql.Int, created_by)
+        // Insert schedule
+        const insert = await pool.request()
+            .input('assessment_id',             sql.Int,           assessment_id)
+            .input('location_id',               sql.Int,           location_id)
+            .input('schedule_title',            sql.NVarChar(200), schedule_title)
+            .input('date',                      sql.Date,          date)
+            .input('start_time',                sql.Time,          start_time)
+            .input('end_time',                  sql.Time,          end_time)
+            .input('duration_per_group_minutes',sql.Int,           duration_per_group_minutes)
+            .input('buffer_minutes',            sql.Int,           buffer_minutes)
+            .input('total_groups',              sql.Int,           total_groups)
+            .input('created_by',                sql.Int,           created_by)
             .query(`
                 INSERT INTO evaluation_schedule
-                (assessment_id, location_id, schedule_title,
-                 date, start_time, end_time,
-                 duration_per_group_minutes,
-                 buffer_minutes, total_groups, created_by)
-                OUTPUT INSERTED.evaluation_schedule_id
+                (assessment_id, location_id, schedule_title, date, start_time, end_time,
+                 duration_per_group_minutes, buffer_minutes, total_groups, created_by, status, draft_version_no)
                 VALUES
-                (@assessment_id, @location_id, @schedule_title,
-                 @date, @start_time, @end_time,
-                 @duration, @buffer, @total_groups, @created_by)
+                (@assessment_id, @location_id, @schedule_title, @date, @start_time, @end_time,
+                 @duration_per_group_minutes, @buffer_minutes, @total_groups, @created_by, 'DRAFT', 1);
+
+                SELECT SCOPE_IDENTITY() AS scheduleId;
             `);
 
-        const scheduleId = result.recordset[0].evaluation_schedule_id;
+        const scheduleId = insert.recordset[0].scheduleId;
 
-        //Auto slot generation
-        const toMinutes = t => {
-            const [h, m] = t.split(':').map(Number);
-            return h * 60 + m;
-        };
+        // Auto-generate time slots
+        const startMins = toMinutes(start_time);
+        const slotSize  = Number(duration_per_group_minutes) + Number(buffer_minutes);
+        const count     = Number(total_groups);
 
-        const toTime = mins =>
-            `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+        for (let i = 0; i < count; i++) {
+            const slotStart = startMins + i * slotSize;
+            const slotEnd   = slotStart + Number(duration_per_group_minutes);
 
-        let current = toMinutes(start_time);
-        const end = toMinutes(end_time);
-
-        for (let i = 1; i <= total_groups; i++) {
-
-            const slotEnd = current + duration_per_group_minutes;
-            if (slotEnd > end) break;
-
+            // FIX: buffer_applied is a BIT column — store 1 or 0, not the minute count
             await pool.request()
-                .input('sid', sql.Int, scheduleId)
-                .input('seq', sql.Int, i)
-                .input('st', sql.Time, toTime(current))
-                .input('et', sql.Time, toTime(slotEnd))
+                .input('schedule_id',      sql.Int,         scheduleId)
+                .input('slot_sequence_no', sql.Int,         i + 1)
+                .input('slot_start_time',  sql.VarChar(8),  toTime(slotStart))
+                .input('slot_end_time',    sql.VarChar(8),  toTime(slotEnd))
+                .input('buffer_applied',   sql.Bit,         i < count - 1 ? 1 : 0)
+                .input('slot_status',      sql.VarChar(20), 'AVAILABLE')
                 .query(`
                     INSERT INTO evaluation_slot
-                    (evaluation_schedule_id, slot_sequence_no,
-                     slot_start_time, slot_end_time)
+                        (evaluation_schedule_id, slot_sequence_no, slot_start_time,
+                         slot_end_time, buffer_applied, slot_status)
                     VALUES
-                    (@sid, @seq, @st, @et)
+                        (@schedule_id, @slot_sequence_no, @slot_start_time,
+                         @slot_end_time, @buffer_applied, @slot_status)
                 `);
-
-            current = slotEnd + buffer_minutes;
         }
 
-        res.status(201).json({
-            message: "Schedule created with slots",
-            schedule_id: scheduleId
-        });
-
+        res.json({ scheduleId });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error('[createSchedule]', err);
+        res.status(500).json({ message: 'Failed to create schedule.', error: err.message });
     }
 };
 
+// FIX: removed broken joins on a.offering_id (column does not exist in Assessments table)
+exports.getSchedules = async (req, res) => {
+    try {
+        const pool   = await sql.connect(config);
+        const result = await pool.request().query(`
+            SELECT
+                es.evaluation_schedule_id,
+                es.schedule_title,
+                es.date,
+                CONVERT(VARCHAR, es.start_time, 108) AS start_time,
+                CONVERT(VARCHAR, es.end_time,   108) AS end_time,
+                es.total_groups,
+                es.status,
+                es.draft_version_no,
+                es.published_by,
+                es.published_at,
+                ISNULL(a.assessment_title, '—') AS assessment_name,
+                ISNULL(el.location_name,   '—') AS location_name,
+                ISNULL(el.room_number,     '—') AS room_number,
+                (
+                    SELECT COUNT(*)
+                    FROM evaluation_slot sl
+                    WHERE sl.evaluation_schedule_id = es.evaluation_schedule_id
+                      AND sl.slot_status = 'ASSIGNED'
+                ) AS assigned_count
+            FROM evaluation_schedule es
+            LEFT JOIN evaluation_location el ON es.location_id   = el.location_id
+            LEFT JOIN Assessments          a  ON es.assessment_id = a.assessment_id
+            ORDER BY es.date DESC
+        `);
 
-
-//Publish schedule
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('[getSchedules]', err);
+        res.status(500).json({ message: 'Failed to load schedules.', error: err.message });
+    }
+};
 
 exports.publishSchedule = async (req, res) => {
-
-    const { published_by } = req.body;
-
-    if (!published_by)
-        return res.status(400).json({ message: "published_by required" });
-
     try {
-        const pool = await sql.connect();
+        const scheduleId  = Number(req.params.id);
+        const publishedBy = req.body.published_by ? Number(req.body.published_by) : null;
 
-        // Update Schedule
+        if (!scheduleId) return res.status(400).json({ message: 'Invalid schedule ID.' });
+
+        const pool = await sql.connect(config);
+
+        const check = await pool.request()
+            .input('id', sql.Int, scheduleId)
+            .query(`SELECT evaluation_schedule_id, status FROM evaluation_schedule WHERE evaluation_schedule_id = @id`);
+
+        if (!check.recordset.length) return res.status(404).json({ message: 'Schedule not found.' });
+
+        const schedule = check.recordset[0];
+        if (schedule.status !== 'DRAFT') {
+            return res.status(400).json({ message: `Schedule is already ${schedule.status}.` });
+        }
+
         await pool.request()
-            .input('id', sql.Int, req.params.id)
-            .input('published_by', sql.Int, published_by)
+            .input('id',   sql.Int, scheduleId)
+            .input('user', sql.Int, publishedBy)
             .query(`
                 UPDATE evaluation_schedule
-                SET is_published = 1,
+                SET status       = 'PUBLISHED',
+                    is_published = 1,
                     published_at = GETDATE(),
-                    published_by = @published_by,
-                    status = 'PUBLISHED',
-                    draft_version_no = draft_version_no + 1
+                    published_by = @user
                 WHERE evaluation_schedule_id = @id
             `);
 
-        // Record publication history
-        await pool.request()
-            .input('id', sql.Int, req.params.id)
-            .input('published_by', sql.Int, published_by)
-            .query(`
-                INSERT INTO evaluation_publication_status
-                (evaluation_schedule_id, published_by)
-                VALUES (@id, @published_by)
-            `);
+        let emailsSent = 0;
 
-        res.json({ message: "Schedule published successfully" });
+        try {
+            const students = await pool.request()
+                .query(`SELECT user_id, email FROM [user] WHERE role = 'STUDENT' AND status = 'ACTIVE'`);
+
+            for (const student of students.recordset) {
+                let deliveryStatus = 'SENT';
+                try {
+                    await sendEmail(
+                        student.email,
+                        'Evaluation Schedule Published',
+                        'Your evaluation schedule is now available. Please log in to view your assigned slot.'
+                    );
+                    emailsSent++;
+                } catch (emailErr) {
+                    console.error(`[publishSchedule] Email failed for ${student.email}:`, emailErr.message);
+                    deliveryStatus = 'FAILED';
+                }
+
+                try {
+                    await pool.request()
+                        .input('sid',    sql.Int,         scheduleId)
+                        .input('uid',    sql.Int,         student.user_id)
+                        .input('status', sql.VarChar(20), deliveryStatus)
+                        .query(`
+                            INSERT INTO evaluation_email_log
+                                (evaluation_schedule_id, recipient_user_id, email_type, sent_at, delivery_status, retry_count)
+                            VALUES (@sid, @uid, 'SCHEDULE_PUBLISHED', GETDATE(), @status, 0)
+                        `);
+                } catch (logErr) {
+                    console.error('[publishSchedule] Email log insert failed:', logErr.message);
+                }
+            }
+        } catch (studentErr) {
+            console.error('[publishSchedule] Failed to query students:', studentErr.message);
+        }
+
+        res.json({ message: 'Schedule published', emailsSent });
 
     } catch (err) {
+        console.error('[publishSchedule]', err);
         res.status(500).json({ error: err.message });
     }
 };
-
-
-
-//Assign groups to slot
-
-exports.assignGroupToSlot = async (req, res) => {
-
-    const { group_id, assigned_by } = req.body;
-
-    if (!group_id || !assigned_by)
-        return res.status(400).json({ message: "group_id and assigned_by required" });
-
-    try {
-        const pool = await sql.connect();
-
-        await pool.request()
-            .input('slot_id', sql.Int, req.params.slotId)
-            .input('group_id', sql.Int, group_id)
-            .input('assigned_by', sql.Int, assigned_by)
-            .query(`
-                INSERT INTO evaluation_group_assignment
-                (evaluation_slot_id, group_id, assigned_by)
-                VALUES (@slot_id, @group_id, @assigned_by)
-            `);
-
-        await pool.request()
-            .input('slot_id', sql.Int, req.params.slotId)
-            .query(`
-                UPDATE evaluation_slot
-                SET slot_status = 'ASSIGNED'
-                WHERE evaluation_slot_id = @slot_id
-            `);
-
-        res.status(201).json({ message: "Group assigned successfully" });
-
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-};
-
-
-
-//Cancel schedule
 
 exports.cancelSchedule = async (req, res) => {
     try {
-        const pool = await sql.connect();
+        const scheduleId = Number(req.params.id);
+        if (!scheduleId) return res.status(400).json({ message: 'Invalid schedule ID.' });
+
+        const pool = await sql.connect(config);
+
+        const check = await pool.request()
+            .input('id', sql.Int, scheduleId)
+            .query(`SELECT evaluation_schedule_id, status FROM evaluation_schedule WHERE evaluation_schedule_id = @id`);
+
+        if (!check.recordset.length) return res.status(404).json({ message: 'Schedule not found.' });
+
+        if (check.recordset[0].status === 'CANCELLED') {
+            return res.status(400).json({ message: 'Schedule is already cancelled.' });
+        }
 
         await pool.request()
-            .input('id', sql.Int, req.params.id)
-            .query(`
-                UPDATE evaluation_schedule
-                SET status = 'CANCELLED',
-                    updated_at = GETDATE()
-                WHERE evaluation_schedule_id = @id
-            `);
+            .input('id', sql.Int, scheduleId)
+            .query(`UPDATE evaluation_schedule SET status = 'CANCELLED' WHERE evaluation_schedule_id = @id`);
 
-        res.json({ message: "Schedule cancelled successfully" });
+        res.json({ message: 'Schedule cancelled' });
 
     } catch (err) {
+        console.error('[cancelSchedule]', err);
         res.status(500).json({ error: err.message });
     }
 };
 
+// ───────── SLOT + GROUP ASSIGNMENT ─────────
 
-//Get conflicts
+exports.getSlotsBySchedule = async (req, res) => {
+    try {
+        const scheduleId = Number(req.params.id);
+
+        if (!scheduleId) {
+            return res.status(400).json({ message: 'Missing schedule id.' });
+        }
+
+        const pool   = await sql.connect(config);
+        const result = await pool.request()
+            .input('schedule_id', sql.Int, scheduleId)
+            .query(`
+                SELECT
+                    sl.evaluation_slot_id,
+                    sl.evaluation_schedule_id,
+                    sl.slot_sequence_no,
+                    CONVERT(VARCHAR, sl.slot_start_time, 108) AS slot_start_time,
+                    CONVERT(VARCHAR, sl.slot_end_time,   108) AS slot_end_time,
+                    sl.buffer_applied,
+                    sl.slot_status,
+                    ga.group_id,
+                    ga.attendance_status,
+                    ga.evaluation_completed,
+                    ga.remarks
+                FROM evaluation_slot sl
+                LEFT JOIN evaluation_group_assignment ga
+                    ON ga.evaluation_slot_id = sl.evaluation_slot_id
+                WHERE sl.evaluation_schedule_id = @schedule_id
+                ORDER BY sl.slot_sequence_no
+            `);
+
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('[getSlotsBySchedule]', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+exports.assignGroupToSlot = async (req, res) => {
+    try {
+        const slotId = Number(req.params.slotId);
+        const { group_id, assigned_by, remarks } = req.body;
+
+        if (!slotId || !group_id) {
+            return res.status(400).json({ message: 'slotId and group_id are required.' });
+        }
+
+        const pool = await sql.connect(config);
+
+        const slotCheck = await pool.request()
+            .input('slot', sql.Int, slotId)
+            .query(`SELECT slot_status, evaluation_schedule_id FROM evaluation_slot WHERE evaluation_slot_id = @slot`);
+
+        if (!slotCheck.recordset.length) {
+            return res.status(404).json({ message: 'Slot not found.' });
+        }
+        if (slotCheck.recordset[0].slot_status !== 'AVAILABLE') {
+            return res.status(400).json({ message: 'Slot is already assigned or unavailable.' });
+        }
+
+        const scheduleId = slotCheck.recordset[0].evaluation_schedule_id;
+
+        const dupCheck = await pool.request()
+            .input('scheduleId', sql.Int, scheduleId)
+            .input('groupId',    sql.Int, Number(group_id))
+            .query(`
+                SELECT COUNT(*) AS cnt
+                FROM evaluation_slot sl
+                JOIN evaluation_group_assignment ga ON ga.evaluation_slot_id = sl.evaluation_slot_id
+                WHERE sl.evaluation_schedule_id = @scheduleId
+                  AND ga.group_id = @groupId
+            `);
+
+        if (dupCheck.recordset[0].cnt > 0) {
+            return res.status(400).json({ message: 'This group is already assigned to a slot in this schedule.' });
+        }
+
+        await pool.request()
+            .input('slot', sql.Int, slotId)
+            .query(`UPDATE evaluation_slot SET slot_status = 'ASSIGNED' WHERE evaluation_slot_id = @slot`);
+
+        await pool.request()
+            .input('slot',    sql.Int,          slotId)
+            .input('group',   sql.Int,          Number(group_id))
+            .input('user',    sql.Int,          assigned_by ? Number(assigned_by) : null)
+            .input('remarks', sql.VarChar(500),  remarks || null)
+            .query(`
+                INSERT INTO evaluation_group_assignment
+                    (evaluation_slot_id, group_id, assigned_by, remarks)
+                VALUES
+                    (@slot, @group, @user, @remarks)
+            `);
+
+        // Send email to group members (non-blocking)
+        try {
+            const students = await pool.request()
+                .input('gid', sql.Int, Number(group_id))
+                .query(`
+                    SELECT u.user_id, u.email
+                    FROM group_member gm
+                    JOIN [user] u ON u.user_id = gm.student_id
+                    WHERE gm.group_id = @gid
+                `);
+
+            for (const s of students.recordset) {
+                let deliveryStatus = 'SENT';
+                try {
+                    await sendEmail(
+                        s.email,
+                        'Evaluation Slot Assigned',
+                        'Your evaluation slot has been assigned. Please log in to view your schedule.'
+                    );
+                } catch (emailErr) {
+                    console.error(`[assignGroupToSlot] Email failed for ${s.email}:`, emailErr.message);
+                    deliveryStatus = 'FAILED';
+                }
+
+                try {
+                    await pool.request()
+                        .input('sid',    sql.Int,         scheduleId)
+                        .input('uid',    sql.Int,         s.user_id)
+                        .input('status', sql.VarChar(20), deliveryStatus)
+                        .query(`
+                            INSERT INTO evaluation_email_log
+                                (evaluation_schedule_id, recipient_user_id, email_type, sent_at, delivery_status, retry_count)
+                            VALUES (@sid, @uid, 'SLOT_ASSIGNED', GETDATE(), @status, 0)
+                        `);
+                } catch (logErr) {
+                    console.error('[assignGroupToSlot] Email log failed:', logErr.message);
+                }
+            }
+        } catch (studentErr) {
+            console.error('[assignGroupToSlot] Student fetch failed:', studentErr.message);
+        }
+
+        res.json({ message: 'Group assigned successfully.' });
+
+    } catch (err) {
+        console.error('[assignGroupToSlot]', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// ───────── CONFLICT LOG ─────────
 
 exports.getConflicts = async (req, res) => {
     try {
-        const pool = await sql.connect();
+        const id = Number(req.params.id);
+        if (!id) return res.status(400).json({ message: 'Invalid schedule ID.' });
 
+        const pool   = await sql.connect(config);
         const result = await pool.request()
-            .input('id', sql.Int, req.params.id)
+            .input('id', sql.Int, id)
             .query(`
-                SELECT * FROM evaluation_conflict_log
+                SELECT *
+                FROM evaluation_conflict_log
                 WHERE evaluation_schedule_id = @id
                 ORDER BY detected_at DESC
             `);
 
         res.json(result.recordset);
-
     } catch (err) {
+        console.error('[getConflicts]', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// ───────── EMAIL NOTIFICATION LOG ─────────
+
+exports.getEmailLogs = async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!id) return res.status(400).json({ message: 'Invalid schedule ID.' });
+
+        const pool   = await sql.connect(config);
+        const result = await pool.request()
+            .input('id', sql.Int, id)
+            .query(`
+                SELECT
+                    el.email_log_id,
+                    el.evaluation_schedule_id,
+                    el.recipient_user_id,
+                    el.email_type,
+                    el.sent_at,
+                    el.delivery_status,
+                    el.retry_count,
+                    u.email      AS recipient_email,
+                    u.first_name,
+                    u.last_name,
+                    u.role       AS recipient_role
+                FROM evaluation_email_log el
+                LEFT JOIN [user] u ON u.user_id = el.recipient_user_id
+                WHERE el.evaluation_schedule_id = @id
+                ORDER BY el.sent_at DESC
+            `);
+
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('[getEmailLogs]', err);
         res.status(500).json({ error: err.message });
     }
 };

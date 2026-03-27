@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const controller = require('../controllers/markingGuide.controller');
+const controller = require('./markingGuide.controller');
 
 router.post('/', controller.createGuide);
 router.get('/', controller.getGuides);

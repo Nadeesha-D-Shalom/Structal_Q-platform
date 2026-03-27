@@ -1,15 +1,20 @@
+
+
 const express = require('express');
 const sql = require('mssql');
 const config = require('./config/db');   
+const cors = require("cors"); 
 
 const subjectRoutes = require('./modules/subject/subject.routes');
 const assessmentRoutes = require('./modules/assessment/assessment.routes');
 const markingGuideRoutes = require('./modules/marking-guide/markingGuide.routes');
+const evaluationRoutes = require('./modules/evaluation-scheduling/evaluationSchedule.routes');
 
 const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+app.use(cors());
 
 // Database Connection
 sql.connect(config)
@@ -24,6 +29,7 @@ sql.connect(config)
 app.use('/api/subjects', subjectRoutes);
 app.use('/api/assessments', assessmentRoutes);
 app.use('/api/marking-guides', markingGuideRoutes);
+app.use('/api/evaluation-scheduling', evaluationRoutes);
 
 // Health Check
 app.get('/health', (req, res) => {
@@ -51,3 +57,5 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
+
+
