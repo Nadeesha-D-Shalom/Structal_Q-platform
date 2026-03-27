@@ -1,5 +1,7 @@
+const sql = require('mssql');
+
 const config = {
-    user: 'structa_user',
+    user: 'structa_user_N',
     password: 'Structa@123',
     server: 'localhost',
     port: 1433,
@@ -10,4 +12,15 @@ const config = {
     }
 };
 
-module.exports = config;
+const poolPromise = new sql.ConnectionPool(config)
+    .connect()
+    .then(pool => {
+        console.log("✅ DB Connected");
+        return pool;
+    })
+    .catch(err => console.log("❌ DB Error:", err));
+
+module.exports = {
+    sql,
+    poolPromise
+};

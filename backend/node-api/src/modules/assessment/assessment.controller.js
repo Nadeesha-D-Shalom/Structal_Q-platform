@@ -1,7 +1,7 @@
-const sql = require('mssql');
+const { sql, poolPromise } = require('../../config/db');
 
-//CREATE ASSESSMENT
-exports.createAssessment = async (req, res) => {
+// CREATE ASSESSMENT
+const createAssessment = async (req, res) => {
     const {
         subject_id,
         assessment_title,
@@ -12,22 +12,31 @@ exports.createAssessment = async (req, res) => {
         allow_resubmission,
         max_resubmissions,
         late_policy_enabled,
-        grace_minutes
+        grace_minutes,
+        created_by
     } = req.body;
 
+    // Validation
     if (!subject_id || !assessment_title || !assessment_type) {
         return res.status(400).json({
             message: "subject_id, assessment_title, assessment_type are required"
         });
     }
 
+    const validTypes = ['EXAM', 'LAB', 'REPORT'];
+    if (!validTypes.includes(assessment_type)) {
+        return res.status(400).json({
+            message: "Invalid assessment_type (EXAM, LAB, REPORT only)"
+        });
+    }
+
     try {
-        const pool = await sql.connect();
+        const pool = await poolPromise;
 
         await pool.request()
             .input('subject_id', sql.Int, subject_id)
             .input('assessment_title', sql.VarChar(150), assessment_title)
-            .input('assessment_type', sql.VarChar(30), assessment_type)
+            .input('assessment_type', sql.VarChar(20), assessment_type)
             .input('total_marks', sql.Int, total_marks)
             .input('start_date', sql.DateTime, start_date)
             .input('due_date', sql.DateTime, due_date)
@@ -35,6 +44,7 @@ exports.createAssessment = async (req, res) => {
             .input('max_resubmissions', sql.Int, max_resubmissions)
             .input('late_policy_enabled', sql.Bit, late_policy_enabled)
             .input('grace_minutes', sql.Int, grace_minutes)
+            .input('created_by', sql.Int, created_by || null)
             .query(`
                 INSERT INTO assessment (
                     subject_id,
@@ -46,7 +56,8 @@ exports.createAssessment = async (req, res) => {
                     allow_resubmission,
                     max_resubmissions,
                     late_policy_enabled,
-                    grace_minutes
+                    grace_minutes,
+                    created_by
                 )
                 VALUES (
                     @subject_id,
@@ -58,7 +69,8 @@ exports.createAssessment = async (req, res) => {
                     @allow_resubmission,
                     @max_resubmissions,
                     @late_policy_enabled,
-                    @grace_minutes
+                    @grace_minutes,
+                    @created_by
                 )
             `);
 
@@ -72,19 +84,18 @@ exports.createAssessment = async (req, res) => {
 };
 
 
-//GET ALL ASSESSMENTS
-exports.getAssessments = async (req, res) => {
+// GET ALL
+const getAssessments = async (req, res) => {
     try {
-        const pool = await sql.connect();
+        const pool = await poolPromise;
 
-        const result = await pool.request()
-            .query(`
-                SELECT a.*, s.subject_name
-                FROM assessment a
-                JOIN subject s ON a.subject_id = s.subject_id
-                WHERE a.status = 'ACTIVE'
-                ORDER BY a.created_at DESC
-            `);
+        const result = await pool.request().query(`
+            SELECT a.*, s.subject_name
+            FROM assessment a
+            JOIN subject s ON a.subject_id = s.subject_id
+            WHERE a.status = 'ACTIVE'
+            ORDER BY a.created_at DESC
+        `);
 
         res.json(result.recordset);
 
@@ -94,10 +105,10 @@ exports.getAssessments = async (req, res) => {
 };
 
 
-//GET ASSESSMENT BY ID
-exports.getAssessmentById = async (req, res) => {
+// GET BY ID
+const getAssessmentById = async (req, res) => {
     try {
-        const pool = await sql.connect();
+        const pool = await poolPromise;
 
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
@@ -121,8 +132,8 @@ exports.getAssessmentById = async (req, res) => {
 };
 
 
-//UPDATE ASSESSMENT
-exports.updateAssessment = async (req, res) => {
+// UPDATE
+const updateAssessment = async (req, res) => {
     const {
         assessment_title,
         total_marks,
@@ -131,7 +142,7 @@ exports.updateAssessment = async (req, res) => {
     } = req.body;
 
     try {
-        const pool = await sql.connect();
+        const pool = await poolPromise;
 
         await pool.request()
             .input('id', sql.Int, req.params.id)
@@ -159,10 +170,10 @@ exports.updateAssessment = async (req, res) => {
 };
 
 
-   //SOFT DELETE
-exports.deleteAssessment = async (req, res) => {
+// DELETE (SOFT)
+const deleteAssessment = async (req, res) => {
     try {
-        const pool = await sql.connect();
+        const pool = await poolPromise;
 
         await pool.request()
             .input('id', sql.Int, req.params.id)
@@ -180,4 +191,14 @@ exports.deleteAssessment = async (req, res) => {
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
+};
+
+
+// EXPORT
+module.exports = {
+    createAssessment,
+    getAssessments,
+    getAssessmentById,
+    updateAssessment,
+    deleteAssessment
 };

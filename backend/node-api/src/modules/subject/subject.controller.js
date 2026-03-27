@@ -1,7 +1,7 @@
-const sql = require('mssql');
+const { sql, poolPromise } = require('../../config/db');
 
-//CREATE SUBJECT
-exports.createSubject = async (req, res) => {
+// CREATE SUBJECT
+const createSubject = async (req, res) => {
     const {
         subject_code,
         subject_name,
@@ -17,14 +17,14 @@ exports.createSubject = async (req, res) => {
     }
 
     try {
-        const pool = await sql.connect();
+        const pool = await poolPromise;
 
         await pool.request()
             .input('subject_code', sql.VarChar(20), subject_code)
             .input('subject_name', sql.VarChar(100), subject_name)
-            .input('program_id', sql.Int, program_id)
-            .input('term_id', sql.Int, term_id)
-            .input('credit_value', sql.Int, credit_value)
+            .input('program_id', sql.Int, program_id || null)
+            .input('term_id', sql.Int, term_id || null)
+            .input('credit_value', sql.Decimal(3,1), credit_value || null)
             .query(`
                 INSERT INTO subject 
                 (subject_code, subject_name, program_id, term_id, credit_value)
@@ -32,20 +32,19 @@ exports.createSubject = async (req, res) => {
                 (@subject_code, @subject_name, @program_id, @term_id, @credit_value)
             `);
 
-        res.status(201).json({
-            message: "Subject created successfully"
-        });
+        res.status(201).json({ message: "Subject created successfully" });
 
     } catch (err) {
+        console.error(err); // 🔥 important for debug
         res.status(500).json({ error: err.message });
     }
 };
 
 
-//GET ALL SUBJECTS
-exports.getSubjects = async (req, res) => {
+// GET ALL SUBJECTS
+const getSubjects = async (req, res) => {
     try {
-        const pool = await sql.connect();
+        const pool = await poolPromise;
 
         const result = await pool.request()
             .query(`
@@ -58,15 +57,16 @@ exports.getSubjects = async (req, res) => {
         res.json(result.recordset);
 
     } catch (err) {
+        console.error(err);
         res.status(500).json({ error: err.message });
     }
 };
 
 
-//GET SUBJECT BY ID
-exports.getSubjectById = async (req, res) => {
+// GET SUBJECT BY ID
+const getSubjectById = async (req, res) => {
     try {
-        const pool = await sql.connect();
+        const pool = await poolPromise;
 
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
@@ -85,32 +85,42 @@ exports.getSubjectById = async (req, res) => {
         res.json(result.recordset[0]);
 
     } catch (err) {
+        console.error(err);
         res.status(500).json({ error: err.message });
     }
 };
 
 
-//UPDATE SUBJECT
-exports.updateSubject = async (req, res) => {
+// UPDATE SUBJECT
+const updateSubject = async (req, res) => {
     const {
+        subject_code,
         subject_name,
         program_id,
         term_id,
         credit_value
     } = req.body;
 
+    if (!subject_code || !subject_name) {
+        return res.status(400).json({
+            message: "subject_code and subject_name are required"
+        });
+    }
+
     try {
-        const pool = await sql.connect();
+        const pool = await poolPromise;
 
         await pool.request()
             .input('id', sql.Int, req.params.id)
+            .input('subject_code', sql.VarChar(20), subject_code)
             .input('subject_name', sql.VarChar(100), subject_name)
-            .input('program_id', sql.Int, program_id)
-            .input('term_id', sql.Int, term_id)
-            .input('credit_value', sql.Int, credit_value)
+            .input('program_id', sql.Int, program_id || null)
+            .input('term_id', sql.Int, term_id || null)
+            .input('credit_value', sql.Decimal(3,1), credit_value || null)
             .query(`
                 UPDATE subject
-                SET subject_name = @subject_name,
+                SET subject_code = @subject_code,
+                    subject_name = @subject_name,
                     program_id = @program_id,
                     term_id = @term_id,
                     credit_value = @credit_value,
@@ -118,20 +128,19 @@ exports.updateSubject = async (req, res) => {
                 WHERE subject_id = @id
             `);
 
-        res.json({
-            message: "Subject updated successfully"
-        });
+        res.json({ message: "Subject updated successfully" });
 
     } catch (err) {
+        console.error(err);
         res.status(500).json({ error: err.message });
     }
 };
 
 
-//SOFT DELETE SUBJECT
-exports.deleteSubject = async (req, res) => {
+// DELETE (SOFT DELETE)
+const deleteSubject = async (req, res) => {
     try {
-        const pool = await sql.connect();
+        const pool = await poolPromise;
 
         await pool.request()
             .input('id', sql.Int, req.params.id)
@@ -142,11 +151,19 @@ exports.deleteSubject = async (req, res) => {
                 WHERE subject_id = @id
             `);
 
-        res.json({
-            message: "Subject deactivated successfully"
-        });
+        res.json({ message: "Subject deactivated successfully" });
 
     } catch (err) {
+        console.error(err);
         res.status(500).json({ error: err.message });
     }
+};
+
+
+module.exports = {
+    createSubject,
+    getSubjects,
+    getSubjectById,
+    updateSubject,
+    deleteSubject
 };

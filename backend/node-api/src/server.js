@@ -1,55 +1,30 @@
 const express = require('express');
-const sql = require('mssql');
-const config = require('./config/db');   
+const cors = require('cors');
 
 const subjectRoutes = require('./modules/subject/subject.routes');
 const assessmentRoutes = require('./modules/assessment/assessment.routes');
 const markingGuideRoutes = require('./modules/marking-guide/markingGuide.routes');
-const concernRoutes = require('./modules/concern/concern.routes')
+const guideQuestionRoutes = require('./modules/guide-question/guideQuestion.routes');
+const questionKeywordRoutes = require('./modules/question-keyword/questionKeyword.routes');
+
 
 const app = express();
 const PORT = 3000;
 
+app.use(cors());
 app.use(express.json());
 
-// Database Connection
-sql.connect(config)
-    .then(() => {
-        console.log("Database connected successfully!");
-    })
-    .catch(err => {
-        console.error("Database connection failed:", err);
-    });
-
-// Routes (Professional Version)
+// ROUTES
 app.use('/api/subjects', subjectRoutes);
 app.use('/api/assessments', assessmentRoutes);
 app.use('/api/marking-guides', markingGuideRoutes);
-app.use('/api/concern', concernRoutes);
+app.use('/api/guide-questions', guideQuestionRoutes);
+app.use('/api/question-keywords', questionKeywordRoutes);
 
-// Health Check
 app.get('/health', (req, res) => {
-    res.json({
-        status: "Backend running",
-        database: "Connected",
-        port: PORT
-    });
-});
-
-// Root
-app.get('/', (req, res) => {
-    res.send("StructaIQ Backend API is running");
-});
-
-// Global Error Handler
-app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({
-        message: "Something went wrong!",
-        error: err.message
-    });
+    res.json({ status: "Backend running" });
 });
 
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`🚀 Server running on port ${PORT}`);
 });

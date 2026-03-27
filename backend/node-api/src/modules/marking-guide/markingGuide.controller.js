@@ -1,11 +1,9 @@
-const sql = require('mssql');
+const { sql, poolPromise } = require('../../config/db');
 
-//CREATE MARKING GUIDE
-
-exports.createGuide = async (req, res) => {
+// CREATE MARKING GUIDE
+const createGuide = async (req, res) => {
     const {
         assessment_id,
-        version_no,
         title,
         description,
         order_sensitive,
@@ -21,17 +19,28 @@ exports.createGuide = async (req, res) => {
     }
 
     try {
-        const pool = await sql.connect();
+        const pool = await poolPromise;
+
+        // 🔥 AUTO VERSIONING
+        const versionResult = await pool.request()
+            .input('assessment_id', sql.Int, assessment_id)
+            .query(`
+                SELECT ISNULL(MAX(version_no), 0) + 1 AS next_version
+                FROM marking_guide
+                WHERE assessment_id = @assessment_id
+            `);
+
+        const version_no = versionResult.recordset[0].next_version;
 
         await pool.request()
             .input('assessment_id', sql.Int, assessment_id)
-            .input('version_no', sql.Int, version_no || 1)
+            .input('version_no', sql.Int, version_no)
             .input('title', sql.VarChar(150), title)
             .input('description', sql.VarChar(sql.MAX), description)
             .input('order_sensitive', sql.Bit, order_sensitive)
             .input('requires_diagram_check', sql.Bit, requires_diagram_check)
             .input('diagram_types_expected', sql.VarChar(200), diagram_types_expected)
-            .input('created_by', sql.Int, created_by)
+            .input('created_by', sql.Int, created_by || null)
             .query(`
                 INSERT INTO marking_guide (
                     assessment_id,
@@ -56,7 +65,8 @@ exports.createGuide = async (req, res) => {
             `);
 
         res.status(201).json({
-            message: "Marking guide created successfully"
+            message: "Marking guide created successfully",
+            version_no
         });
 
     } catch (err) {
@@ -65,21 +75,19 @@ exports.createGuide = async (req, res) => {
 };
 
 
-//GET ALL GUIDES (JOINED)
-
-exports.getGuides = async (req, res) => {
+// GET ALL GUIDES
+const getGuides = async (req, res) => {
     try {
-        const pool = await sql.connect();
+        const pool = await poolPromise;
 
-        const result = await pool.request()
-            .query(`
-                SELECT mg.*, a.assessment_title, s.subject_name
-                FROM marking_guide mg
-                JOIN assessment a ON mg.assessment_id = a.assessment_id
-                JOIN subject s ON a.subject_id = s.subject_id
-                WHERE mg.status = 'ACTIVE'
-                ORDER BY mg.created_at DESC
-            `);
+        const result = await pool.request().query(`
+            SELECT mg.*, a.assessment_title, s.subject_name
+            FROM marking_guide mg
+            JOIN assessment a ON mg.assessment_id = a.assessment_id
+            JOIN subject s ON a.subject_id = s.subject_id
+            WHERE mg.status = 'ACTIVE'
+            ORDER BY mg.created_at DESC
+        `);
 
         res.json(result.recordset);
 
@@ -89,11 +97,10 @@ exports.getGuides = async (req, res) => {
 };
 
 
-//GET GUIDE BY ID
-
-exports.getGuideById = async (req, res) => {
+// GET BY ID
+const getGuideById = async (req, res) => {
     try {
-        const pool = await sql.connect();
+        const pool = await poolPromise;
 
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
@@ -117,9 +124,8 @@ exports.getGuideById = async (req, res) => {
 };
 
 
-//UPDATE MARKING GUIDE
-
-exports.updateGuide = async (req, res) => {
+// UPDATE
+const updateGuide = async (req, res) => {
     const {
         title,
         description,
@@ -129,7 +135,7 @@ exports.updateGuide = async (req, res) => {
     } = req.body;
 
     try {
-        const pool = await sql.connect();
+        const pool = await poolPromise;
 
         await pool.request()
             .input('id', sql.Int, req.params.id)
@@ -159,11 +165,10 @@ exports.updateGuide = async (req, res) => {
 };
 
 
-//SOFT DELETE
-
-exports.deleteGuide = async (req, res) => {
+// DELETE (SOFT)
+const deleteGuide = async (req, res) => {
     try {
-        const pool = await sql.connect();
+        const pool = await poolPromise;
 
         await pool.request()
             .input('id', sql.Int, req.params.id)
@@ -181,4 +186,14 @@ exports.deleteGuide = async (req, res) => {
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
+};
+
+
+// EXPORT
+module.exports = {
+    createGuide,
+    getGuides,
+    getGuideById,
+    updateGuide,
+    deleteGuide
 };
