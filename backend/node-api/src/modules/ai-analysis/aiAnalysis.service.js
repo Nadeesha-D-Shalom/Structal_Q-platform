@@ -40,20 +40,32 @@ async function saveAnalysisToDB({
 
         const request = pool.request();
 
-        // ===== SAFE EXTRACTION =====
-        const similarity_avg = aiResult?.semantic_similarity || 0;
+        // ===== SAFE FIELD EXTRACTION =====
+        const similarity_avg =
+            aiResult.semantic_similarity ||
+            aiResult.similarity_score ||
+            0;
+
         const structural_similarity_avg =
-            aiResult?.diagram_analysis?.diagram_score || 0;
+            aiResult?.diagram_analysis?.diagram_score ||
+            aiResult.structural_similarity ||
+            0;
+
+        const finalScore =
+            aiResult.final_score ||
+            aiResult.score ||
+            0;
 
         const missingSections = [];
-        if (aiResult?.section_E === 0) missingSections.push("TESTING");
-        if (aiResult?.section_F === 0) missingSections.push("INDIVIDUAL");
+
+        if (aiResult.section_E === 0) missingSections.push("TESTING");
+        if (aiResult.section_F === 0) missingSections.push("INDIVIDUAL");
 
         const riskScore = 1 - similarity_avg;
 
         let riskLevel = "LOW";
-        if (aiResult?.final_score < 40) riskLevel = "HIGH";
-        else if (aiResult?.final_score < 70) riskLevel = "MEDIUM";
+        if (finalScore < 40) riskLevel = "HIGH";
+        else if (finalScore < 70) riskLevel = "MEDIUM";
 
         const ocrUsed =
             aiResult?.diagram_analysis?.ocr_word_count > 0 ? 1 : 0;
