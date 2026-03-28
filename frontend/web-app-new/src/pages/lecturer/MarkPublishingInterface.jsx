@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import logo from "../../assets/logo.png";
-
-const NAV_ITEMS = ["Dashboard", "Subjects", "Grades & Marks", "Publish Marks", "Timetable", "Submissions"];
+// 1. Import your Navbar component (adjust path if necessary)
+import LecturerNavbar from "./LecturerNavbar"; 
+const API_BASE_URL = "http://localhost:5000";
 
 const Toggle = ({ value, onChange }) => (
   <button
@@ -32,7 +32,7 @@ export default function PublishMarksConfig() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [errors, setErrors] = useState({});
 
-  // 1. Initial Load: Fetch Assessments
+  // Fetch Assessments
   useEffect(() => {
     fetch("/api/marks/assessments")
       .then(res => res.json())
@@ -42,12 +42,12 @@ export default function PublishMarksConfig() {
       .catch(err => console.error("Error fetching assessments:", err));
   }, []);
 
-  // 2. Handle Assessment Selection
+  // Handle Assessment Selection
   const handleAssessmentChange = async (e) => {
     const aid = e.target.value;
     setSelectedAssessmentId(aid);
     setErrors({});
-    setSelectedSub(null); // Reset selection
+    setSelectedSub(null); 
     setAiScores(null);
     setDiagramPages([]);
 
@@ -74,7 +74,7 @@ export default function PublishMarksConfig() {
     }
   };
 
-  // 3. Handle Specific Submission Selection
+  // Handle Specific Submission Selection
   const handleSubmissionSelect = async (sub) => {
     if (!sub) return;
     setSelectedSub(sub);
@@ -97,16 +97,14 @@ export default function PublishMarksConfig() {
     }
   };
 
-  // Logic: Calculate Totals
+  //Total marks calculation
   const aiTotal = aiScores?.final_mark || 0; 
   const diagramTotal = Object.values(diagramMarks).reduce((a, b) => a + (parseFloat(b) || 0), 0);
   const rawSum = aiTotal + diagramTotal;
   const finalMark = +Math.min(100, Math.max(0, rawSum)).toFixed(2);
 
-  // Validations
   const validate = () => {
     let newErrors = {};
-    // Cast both to Number to avoid string/int mismatch
     const selectedAssessment = assessments.find(a => Number(a.assessment_id) === Number(selectedAssessmentId));
     
     if (!selectedSub) newErrors.submission = "Please select a submission";
@@ -115,9 +113,6 @@ export default function PublishMarksConfig() {
     if (selectedAssessment && finalMark > selectedAssessment.total_marks) {
       newErrors.mark = `Exceeds Assessment Max (${selectedAssessment.total_marks}).`;
     }
-
-    const missing = diagramPages.filter(p => !diagramMarks[p.ocr_id] || diagramMarks[p.ocr_id] === "");
-    if (missing.length > 0) newErrors.diagrams = "Provide marks for all diagram pages.";
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -138,7 +133,6 @@ export default function PublishMarksConfig() {
       });
       if (res.ok) {
           alert("Mark Successfully Published!");
-          // Refresh submissions list to remove the one we just published
           handleAssessmentChange({ target: { value: selectedAssessmentId } });
       } else {
           const errData = await res.json();
@@ -147,37 +141,15 @@ export default function PublishMarksConfig() {
     } catch (err) {
         alert("Failed to connect to server.");
     } finally {
-      setIsPublishing(false);
+        setIsPublishing(false);
     }
   };
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f5f6fa", fontFamily: "'Inter', sans-serif" }}>
-      <header style={navStyle}>
-        <div style={{ display: "flex", alignItems: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", marginRight: 56 }}>
-            <img src={logo} alt="Logo" style={{ width: 55, height: 40, objectFit: "contain" }} />
-            <h1 style={{ marginLeft: 12, fontSize: 18, fontWeight: "bold", color: "#0f2f66" }}>
-              Structal<span style={{ color: "#f28b22" }}>Q</span>
-            </h1>
-          </div>
-          <nav style={{ display: "flex", alignItems: "center", gap: 36, fontSize: 12, color: "#4c5b70", fontWeight: 500 }}>
-            {NAV_ITEMS.map(item => (
-              <div key={item} style={{ 
-                color: item === "Publish Marks" ? "#2f3a4d" : "#4c5b70",
-                fontWeight: item === "Publish Marks" ? 700 : 500,
-                cursor: "pointer" 
-              }}>
-                <span>{item}</span>
-              </div>
-            ))}
-          </nav>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <p style={{ fontSize: 12, fontWeight: 600, color: "#1f2937" }}>Dr. Robert Fox</p>
-          <div style={avatarStyle}><i className="fas fa-user" style={{ fontSize: 12 }}></i></div>
-        </div>
-      </header>
+      
+      {/* 2. Using the imported Component instead of hardcoded header */}
+      <LecturerNavbar activePage="Publish Marks" />
 
       <main style={{ padding: "34px 44px" }}>
         <section style={{ marginBottom: 18 }}>
@@ -210,7 +182,7 @@ export default function PublishMarksConfig() {
                   <label style={imageLabelStyle}>Pending Submissions</label>
                   {selectedSub && (
                     <a 
-                      href={`/api/marks/pdf/${selectedSub.submission_id}`} 
+                      href={`${API_BASE_URL}/api/marks/pdf/${selectedSub.submission_id}`} 
                       target="_blank" 
                       rel="noreferrer"
                       style={{ fontSize: 11, fontWeight: "bold", color: "#3c74ff", textDecoration: "none", marginBottom: 8, display: "flex", alignItems: "center" }}
@@ -262,7 +234,6 @@ export default function PublishMarksConfig() {
                 <div style={{ fontSize: 32, fontWeight: "bold", color: errors.mark ? "#ff4d4f" : "#3d6df2" }}>{finalMark}</div>
               </div>
             </div>
-            {errors.mark && <p style={{ ...errorTextStyle, textAlign: "right" }}>{errors.mark}</p>}
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, padding: "24px 0", borderTop: "1px solid #edf1f5" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -294,10 +265,8 @@ export default function PublishMarksConfig() {
   );
 }
 
-// Styles
+// styles
 const errorTextStyle = { color: "#ff4d4f", fontSize: 11, fontWeight: "bold", marginTop: 8 };
-const navStyle = { height: 78, backgroundColor: "#fff", borderBottom: "1px solid #e7ebf1", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 32px" };
-const avatarStyle = { width: 30, height: 30, borderRadius: "50%", backgroundColor: "#ead7c2", display: "flex", alignItems: "center", justifyContent: "center", color: "#8b6b4a" };
 const mainCardStyle = { backgroundColor: "#fff", border: "1px solid #d8dee8", borderRadius: 14, overflow: "hidden" };
 const cardHeaderStyle = { height: 50, padding: "0 24px", display: "flex", alignItems: "center", gap: 12, borderBottom: "1px solid #edf1f5" };
 const iconBoxStyle = { width: 30, height: 30, backgroundColor: "#3c74ff", borderRadius: 8, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 };
