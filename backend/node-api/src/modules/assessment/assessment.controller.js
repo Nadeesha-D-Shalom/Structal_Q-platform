@@ -1,9 +1,11 @@
-const sql = require('mssql');
+const { pool, sql } = require("../../config/db");
 
-//CREATE ASSESSMENT
+// ==============================
+// CREATE ASSESSMENT
+// ==============================
 exports.createAssessment = async (req, res) => {
     const {
-        subject_id,
+        offering_id,
         assessment_title,
         assessment_type,
         total_marks,
@@ -15,20 +17,18 @@ exports.createAssessment = async (req, res) => {
         grace_minutes
     } = req.body;
 
-    if (!subject_id || !assessment_title || !assessment_type) {
+    if (!offering_id || !assessment_title || !assessment_type) {
         return res.status(400).json({
-            message: "subject_id, assessment_title, assessment_type are required"
+            message: "offering_id, assessment_title, assessment_type are required"
         });
     }
 
     try {
-        const pool = await sql.connect();
-
         await pool.request()
-            .input('subject_id', sql.Int, subject_id)
-            .input('assessment_title', sql.VarChar(150), assessment_title)
-            .input('assessment_type', sql.VarChar(30), assessment_type)
-            .input('total_marks', sql.Int, total_marks)
+            .input('offering_id', sql.BigInt, offering_id)
+            .input('assessment_title', sql.NVarChar(255), assessment_title)
+            .input('assessment_type', sql.NVarChar(50), assessment_type)
+            .input('total_marks', sql.Decimal(10,2), total_marks)
             .input('start_date', sql.DateTime, start_date)
             .input('due_date', sql.DateTime, due_date)
             .input('allow_resubmission', sql.Bit, allow_resubmission)
@@ -37,7 +37,7 @@ exports.createAssessment = async (req, res) => {
             .input('grace_minutes', sql.Int, grace_minutes)
             .query(`
                 INSERT INTO assessment (
-                    subject_id,
+                    offering_id,
                     assessment_title,
                     assessment_type,
                     total_marks,
@@ -46,10 +46,13 @@ exports.createAssessment = async (req, res) => {
                     allow_resubmission,
                     max_resubmissions,
                     late_policy_enabled,
-                    grace_minutes
+                    grace_minutes,
+                    created_by,
+                    created_at,
+                    status
                 )
                 VALUES (
-                    @subject_id,
+                    @offering_id,
                     @assessment_title,
                     @assessment_type,
                     @total_marks,
@@ -58,7 +61,10 @@ exports.createAssessment = async (req, res) => {
                     @allow_resubmission,
                     @max_resubmissions,
                     @late_policy_enabled,
-                    @grace_minutes
+                    @grace_minutes,
+                    1,
+                    GETDATE(),
+                    'ACTIVE'
                 )
             `);
 
@@ -72,16 +78,20 @@ exports.createAssessment = async (req, res) => {
 };
 
 
-//GET ALL ASSESSMENTS
+// ==============================
+// GET ALL ASSESSMENTS
+// ==============================
 exports.getAssessments = async (req, res) => {
     try {
-        const pool = await sql.connect();
-
         const result = await pool.request()
             .query(`
-                SELECT a.*, s.subject_name
+                SELECT 
+                    a.*,
+                    so.subject_id,
+                    s.subject_name
                 FROM assessment a
-                JOIN subject s ON a.subject_id = s.subject_id
+                JOIN subject_offering so ON a.offering_id = so.offering_id
+                JOIN subject s ON so.subject_id = s.subject_id
                 WHERE a.status = 'ACTIVE'
                 ORDER BY a.created_at DESC
             `);
@@ -94,15 +104,15 @@ exports.getAssessments = async (req, res) => {
 };
 
 
-//GET ASSESSMENT BY ID
+// ==============================
+// GET ASSESSMENT BY ID
+// ==============================
 exports.getAssessmentById = async (req, res) => {
     try {
-        const pool = await sql.connect();
-
         const result = await pool.request()
-            .input('id', sql.Int, req.params.id)
+            .input('id', sql.BigInt, req.params.id)
             .query(`
-                SELECT * 
+                SELECT *
                 FROM assessment
                 WHERE assessment_id = @id
             `);
@@ -121,7 +131,9 @@ exports.getAssessmentById = async (req, res) => {
 };
 
 
-//UPDATE ASSESSMENT
+// ==============================
+// UPDATE ASSESSMENT
+// ==============================
 exports.updateAssessment = async (req, res) => {
     const {
         assessment_title,
@@ -131,17 +143,16 @@ exports.updateAssessment = async (req, res) => {
     } = req.body;
 
     try {
-        const pool = await sql.connect();
-
         await pool.request()
-            .input('id', sql.Int, req.params.id)
-            .input('assessment_title', sql.VarChar(150), assessment_title)
-            .input('total_marks', sql.Int, total_marks)
+            .input('id', sql.BigInt, req.params.id)
+            .input('assessment_title', sql.NVarChar(255), assessment_title)
+            .input('total_marks', sql.Decimal(10,2), total_marks)
             .input('start_date', sql.DateTime, start_date)
             .input('due_date', sql.DateTime, due_date)
             .query(`
                 UPDATE assessment
-                SET assessment_title = @assessment_title,
+                SET 
+                    assessment_title = @assessment_title,
                     total_marks = @total_marks,
                     start_date = @start_date,
                     due_date = @due_date,
@@ -159,17 +170,17 @@ exports.updateAssessment = async (req, res) => {
 };
 
 
-
-   //SOFT DELETE
+// ==============================
+// SOFT DELETE (DEACTIVATE)
+// ==============================
 exports.deleteAssessment = async (req, res) => {
     try {
-        const pool = await sql.connect();
-
         await pool.request()
-            .input('id', sql.Int, req.params.id)
+            .input('id', sql.BigInt, req.params.id)
             .query(`
                 UPDATE assessment
-                SET status = 'INACTIVE',
+                SET 
+                    status = 'INACTIVE',
                     updated_at = GETDATE()
                 WHERE assessment_id = @id
             `);
@@ -182,3 +193,102 @@ exports.deleteAssessment = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
+
+exports.getAssessmentById = async (req, res) => {
+    try {
+        const result = await pool.request()
+            .input('id', sql.BigInt, req.params.id)
+            .query(`
+                SELECT 
+                    a.*,
+                    so.subject_id,
+                    s.subject_name
+                FROM assessment a
+                JOIN subject_offering so ON a.offering_id = so.offering_id
+                JOIN subject s ON so.subject_id = s.subject_id
+                WHERE a.assessment_id = @id
+            `);
+
+        if (result.recordset.length === 0) {
+            return res.status(404).json({
+                message: "Assessment not found"
+            });
+        }
+
+        res.json(result.recordset[0]);
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+
+exports.updateAssessment = async (req, res) => {
+    const {
+        assessment_title,
+        total_marks,
+        start_date,
+        due_date
+    } = req.body;
+
+    try {
+        const result = await pool.request()
+            .input('id', sql.BigInt, req.params.id)
+            .input('assessment_title', sql.NVarChar(255), assessment_title)
+            .input('total_marks', sql.Decimal(10,2), total_marks)
+            .input('start_date', sql.DateTime, start_date)
+            .input('due_date', sql.DateTime, due_date)
+            .query(`
+                UPDATE assessment
+                SET 
+                    assessment_title = @assessment_title,
+                    total_marks = @total_marks,
+                    start_date = @start_date,
+                    due_date = @due_date,
+                    updated_at = GETDATE()
+                WHERE assessment_id = @id
+            `);
+
+        if (result.rowsAffected[0] === 0) {
+            return res.status(404).json({
+                message: "Assessment not found"
+            });
+        }
+
+        res.json({
+            message: "Assessment updated successfully"
+        });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+
+exports.deleteAssessment = async (req, res) => {
+    try {
+        const result = await pool.request()
+            .input('id', sql.BigInt, req.params.id)
+            .query(`
+                UPDATE assessment
+                SET 
+                    status = 'INACTIVE',
+                    updated_at = GETDATE()
+                WHERE assessment_id = @id
+            `);
+
+        if (result.rowsAffected[0] === 0) {
+            return res.status(404).json({
+                message: "Assessment not found"
+            });
+        }
+
+        res.json({
+            message: "Assessment deleted successfully"
+        });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+

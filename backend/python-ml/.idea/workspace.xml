@@ -5,10 +5,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="73978067-b5a3-4b9e-bce9-b1f97c06eaa6" name="Changes" comment="feat: implement hybrid semantic retrieval with TOC filtering and rubric-driven scoring">
+      <change beforePath="$PROJECT_DIR$/../node-api/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/app.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/app.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/assessment/assessment.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/assessment/assessment.controller.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/routes/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/routes/index.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/server.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/server.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/api.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/pipelines/evaluation_pipeline.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/pipelines/evaluation_pipeline.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -63,25 +66,25 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;feature/nadeesha-OCR-scanDiagrams&quot;,
-    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;E:/SLIIT_Bacholer/_2_Year_sem2/IT_Project/Structal_Q-platform/backend/python-ml/test_files/students&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "main",
+    "junie.onboarding.icon.badge.shown": "true",
+    "last_opened_file_path": "E:/SLIIT_Bacholer/_2_Year_sem2/IT_Project/Structal_Q-platform/backend/python-ml/test_files/students",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "to.speed.mode.migration.done": "true",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="E:\SLIIT_Bacholer\_2_Year_sem2\IT_Project\Structal_Q-platform\backend\python-ml\test_files\students" />
@@ -111,6 +114,7 @@
       <workItem from="1771828750908" duration="12557000" />
       <workItem from="1771909086221" duration="1221000" />
       <workItem from="1772261902151" duration="9190000" />
+      <workItem from="1774503424739" duration="292000" />
     </task>
     <task id="LOCAL-00001" summary="feat: implement hybrid semantic retrieval with TOC filtering and rubric-driven scoring">
       <option name="closed" value="true" />
@@ -120,11 +124,30 @@
       <option name="project" value="LOCAL" />
       <updated>1771876411072</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="feat: implement hybrid semantic retrieval with TOC filtering and rubric-driven scoring">
+      <option name="closed" value="true" />
+      <created>1772768953209</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1772768953209</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="feat: implement hybrid semantic retrieval with TOC filtering and rubric-driven scoring" />
