@@ -7,6 +7,7 @@ const { poolConnect } = require('./config/db');
 const subjectRoutes = require('./modules/subject/subject.routes');
 const assessmentRoutes = require('./modules/assessment/assessment.routes');
 const markingGuideRoutes = require('./modules/marking-guide/markingGuide.routes');
+
 const concernRoutes = require('./modules/concern/concern.routes');
 
 // (MAIN FOCUS)
@@ -33,6 +34,7 @@ app.use('/api/subjects', subjectRoutes);
 app.use('/api/assessments', assessmentRoutes);
 app.use('/api/marking-guides', markingGuideRoutes);
 app.use('/api/concern', concernRoutes);
+app.use('/api/marks', MarkPublishRoutes);
 
 // AI MODULE
 app.use('/api/ai-analysis', aiAnalysisRoutes);

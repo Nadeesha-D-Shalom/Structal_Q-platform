@@ -3,6 +3,7 @@ import LoginPage from "./pages/auth/LoginPage";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import LecturerDashboard from "./pages/lecturer/LecturerDashboard";
 
+
 function App() {
   return (
     <Router>
@@ -10,6 +11,7 @@ function App() {
         <Route path="/" element={<LoginPage />} />
         <Route path="/student" element={<StudentDashboard />} />
         <Route path="/lecturer" element={<LecturerDashboard />} />
+
       </Routes>
     </Router>
   );
