@@ -10,6 +10,13 @@ const markingGuideRoutes = require('./modules/marking-guide/markingGuide.routes'
 
 const concernRoutes = require('./modules/concern/concern.routes');
 
+const concernRoutes = require('./modules/concern/concern.routes');
+const MarkPublishRoutes = require('./modules/mark-publish/markPublish.routes');
+
+// (MAIN FOCUS)
+const aiAnalysisRoutes = require('./modules/ai-analysis/aiAnalysis.routes');
+
+
 // (MAIN FOCUS)
 const aiAnalysisRoutes = require('./modules/ai-analysis/aiAnalysis.routes');
 
