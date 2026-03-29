@@ -1,10 +1,9 @@
-const sql = require('mssql');
+const { pool, sql } = require("../../config/db");
 
 //Suggest prirority levels for concerns
 async function priorityDetector (student_id, academic_year, concern_message, submission_id) {
     try {
         let score = 0;
-        const pool =  await sql.connect();
         const result = await pool.request()
             .input('student_id', sql.VarChar, student_id)
             .input('submission_id', sql.VarChar, submission_id)
@@ -61,8 +60,7 @@ exports.createConcern = async (req, res, next) => {
 
         const priority = await priorityDetector(student_id, academic_year,concern_message,submission_id);
         
-        const pool = await sql.connect();
-        await pool.request()
+        const result = await pool.request()
             .input('student_id', sql.VarChar, student_id)
             .input('student_name', sql.VarChar, student_name)
             .input('student_email', sql.VarChar, student_email)
@@ -73,9 +71,22 @@ exports.createConcern = async (req, res, next) => {
             .input('priority_level', sql.VarChar, priority)
             .query(`INSERT INTO mark_concern 
                     (student_id, student_name, student_email, academic_year, submission_id, assessment_pdf, concern_message, priority_level) 
+                    OUTPUT inserted.id
                     VALUES (@student_id, @student_name, @student_email, @academic_year, @submission_id,  @assessment_pdf, @concern_message, @priority_level)`);
             
-            res.json({ message: "Concern Created Successfully" });
+        // Generate specific ids for concerns
+        const numericId = result.recordset[0].id;
+        const formattedId = `CO-${String(numericId).padStart(4, '0')}`;
+        await pool.request()
+            .input('concern_id', sql.VarChar, formattedId)
+            .input('id', sql.Int, numericId)
+            .query(`
+                UPDATE mark_concern
+                SET concern_id = @concern_id
+                WHERE id = @id
+            `);
+    
+        res.json({ success: true, message: "Concern created successfully." });
 
     } catch (err) {
         console.error(err);
@@ -85,7 +96,6 @@ exports.createConcern = async (req, res, next) => {
 
 exports.getAllConcerns = async (req, res, next) => {
     try {
-        const pool = await sql.connect();
         const result = await pool.request().query(
             'SELECT * FROM mark_concern'
         );
@@ -103,7 +113,6 @@ exports.updateConcern = async (req, res, next) => {
         const { id } = req.params;
         const {concern_status, revised_by, revised_on, lecturer_comment} = req.body;
 
-        const pool = await sql.connect();
         await pool.request()
             .input('concern_status', sql.VarChar, concern_status)
             .input('revised_by', sql.VarChar, revised_by)
@@ -131,7 +140,6 @@ exports.updateConcern = async (req, res, next) => {
 exports.deleteConcern = async (req, res, next) => {
     const { id } = req.params;
     try {
-        const pool = await sql.connect();
         await pool.request()
             .input('concern_id', sql.Int, id)
             .query(
