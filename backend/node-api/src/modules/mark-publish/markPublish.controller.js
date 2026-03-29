@@ -20,7 +20,7 @@ exports.getPendingSubmissions = async (req, res, next) => {
     try {
         const { assessment_id } = req.query;
         const result = await pool.request()
-            .input("aid", sql.Int, assessment_id)
+            .input("aid", sql.BigInt, assessment_id)
             .query(`
                 SELECT 
                 s.submission_id,
@@ -45,7 +45,7 @@ exports.getPdf = async (req, res, next) => {
     try {
         const { submission_id } = req.params;
         const result = await pool.request()
-            .input("sid", sql.VarChar, submission_id)
+            .input("sid", sql.BigInt, submission_id)
             .query(`
                 SELECT fs.storage_path 
                 FROM submission s
@@ -55,29 +55,34 @@ exports.getPdf = async (req, res, next) => {
 
         if (!result.recordset.length) return res.status(404).send("File not found");
 
-        const fullPath = path.resolve(result.recordset[0].storage_path);
-        const type = mime.lookup(fullPath) || 'application/octet-stream';
-        
-        res.contentType(type);
-        
-        //if the submission file is a word file
-        if (type.includes('word')) {
-            res.setHeader('Content-Disposition', `attachment; filename=${path.basename(fullPath)}`);
+        // Normalize the path for Windows
+        const rawPath = result.recordset[0].storage_path;
+        const fullPath = path.resolve(rawPath);
+
+        // Check if file actually exists on disk before streaming
+        if (!fs.existsSync(fullPath)) {
+            return res.status(404).send("Physical file missing on server");
         }
 
-        fs.createReadStream(fullPath).pipe(res);
+        const type = mime.lookup(fullPath) || 'application/pdf';
+        
+        res.setHeader('Content-Type', type);
+        res.setHeader('Content-Disposition', 'inline'); // 'inline' tells browser to show it, not download it
+
+        const fileStream = fs.createReadStream(fullPath);
+        fileStream.pipe(res);
 
     } catch (err) { 
         next(err); 
     }
 };
 
-//
+
 exports.getAiScores = async (req, res, next) => {
     try {
         const { submission_id } = req.params;
         const result = await pool.request()
-            .input("sid", sql.VarChar, submission_id)
+            .input("sid", sql.BigInt, submission_id)
             .query(`
                 SELECT 
                     ar.submission_id,
@@ -106,7 +111,7 @@ exports.getAiScores = async (req, res, next) => {
                 WHERE ar.submission_id = @sid;
             `);
 
-        // 3. Validation: If no record found
+        //validation
         if (!result.recordset || result.recordset.length === 0) {
             return res.status(404).json({
                 success: false,
@@ -114,7 +119,6 @@ exports.getAiScores = async (req, res, next) => {
             });
         }
 
-        // 4. Send the clean dataset to frontend
         res.status(200).json({
             success: true,
             dataset: result.recordset[0]
@@ -125,12 +129,11 @@ exports.getAiScores = async (req, res, next) => {
     }
 }
 
-//
 exports.getDiagramPages = async (req, res, next) => {
   try {
     const { submission_id } = req.params;
     const result = await pool.request()
-            .input("sid", sql.VarChar, submission_id)
+            .input("sid", sql.BigInt, submission_id)
             .query(`
                 SELECT 
                     ocr_id, 
@@ -166,7 +169,7 @@ exports.publishingleMark = async (req, res, next) => {
         }
 
         const validationData = await pool.request()
-            .input("sid", sql.VarChar, submission_id)
+            .input("sid", sql.BigInt, submission_id)
             .query(`
                 SELECT s.student_id, a.total_marks 
                 FROM submission s
@@ -187,16 +190,16 @@ exports.publishingleMark = async (req, res, next) => {
 
         //Duplicate Check
         const duplicateCheck = await pool.request()
-            .input("sid", sql.VarChar, submission_id)
+            .input("sid", sql.BigInt, submission_id)
             .query("SELECT id FROM final_mark WHERE submission_id = @sid");
 
         if (duplicateCheck.recordset.length > 0) {
             return res.status(409).json({ message: "This submission has already been published." });
         }
 
-        await pool.request()
-            .input("sub_id",  sql.VarChar,  submission_id)
-            .input("stu_id",  sql.VarChar,  student_id)
+        const result = await pool.request()
+            .input("sub_id",  sql.BigInt,  submission_id)
+            .input("stu_id",  sql.BigInt,  student_id)
             .input("lec_id",  sql.VarChar,  lecturer_id)
             .input("mark",    sql.Decimal(5, 2), final_mark)
             .input("status",  sql.VarChar,  "PUBLISHED")
