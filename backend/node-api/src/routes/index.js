@@ -11,7 +11,7 @@ router.use('/marking-guides', markingGuideRoutes);
 
 
 // Member 05 - Evaluation
-const evaluationRoutes = require('../modules/evaluation/evaluation.routes');
-router.use('/evaluation', evaluationRoutes);
+const evaluationRoutes = require('../modules/evaluation-scheduling/evaluationSchedule.routes');
+router.use('/evaluation-scheduling', evaluationRoutes);
 
 module.exports = router;
