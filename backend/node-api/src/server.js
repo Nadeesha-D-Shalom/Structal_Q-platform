@@ -1,50 +1,53 @@
 const express = require('express');
 const cors = require('cors');
-const sql = require('mssql');
-const config = require('./config/db');
+require('dotenv').config();
+
+const { poolConnect } = require('./config/db');
 const apiRoutes = require('./routes/index');
 
 const app = express();
-/** Default 5000 — matches frontend `timetableService` (CRA uses 3000). */
 const PORT = process.env.PORT || 5000;
 
+// ================= MIDDLEWARE =================
 app.use(cors());
 app.use(express.json());
 
-// Database Connection
-sql.connect(config)
-    .then(() => {
-        console.log("Database connected successfully!");
-    })
-    .catch(err => {
-        console.error("Database connection failed:", err);
-    });
 
 app.use('/api', apiRoutes);
+// ================= DATABASE =================
+poolConnect
+    .then(() => console.log("DB Connected Successfully"))
+    .catch(err => console.error("Database connection failed:", err));
 
-// Health Check
+
+// ================= HEALTH =================
 app.get('/health', (req, res) => {
     res.json({
         status: "Backend running",
-        database: "Connected",
         port: PORT
     });
 });
 
-// Root
+
+// ================= ROOT =================
 app.get('/', (req, res) => {
-    res.send("StructaIQ Backend API is running");
+    res.send("StructaIQ Backend API running");
 });
 
-// Global Error Handler
+
+// ================= ERROR =================
 app.use((err, req, res, next) => {
-    console.error(err.stack);
+    console.error("GLOBAL ERROR:", err.stack);
+
     res.status(500).json({
+        success: false,
         message: "Something went wrong!",
         error: err.message
     });
 });
 
+
+// ================= START =================
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`Server running on http://localhost:${PORT}`);
 });

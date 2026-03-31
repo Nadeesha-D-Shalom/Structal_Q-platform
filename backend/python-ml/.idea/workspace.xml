@@ -5,6 +5,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="73978067-b5a3-4b9e-bce9-b1f97c06eaa6" name="Changes" comment="feat: implement hybrid semantic retrieval with TOC filtering and rubric-driven scoring">
+      <change beforePath="$PROJECT_DIR$/../node-api/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/app.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/app.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/assessment/assessment.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/assessment/assessment.controller.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/routes/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/routes/index.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/server.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/server.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -108,6 +114,7 @@
       <workItem from="1771828750908" duration="12557000" />
       <workItem from="1771909086221" duration="1221000" />
       <workItem from="1772261902151" duration="9190000" />
+      <workItem from="1774503424739" duration="292000" />
     </task>
     <task id="LOCAL-00001" summary="feat: implement hybrid semantic retrieval with TOC filtering and rubric-driven scoring">
       <option name="closed" value="true" />
