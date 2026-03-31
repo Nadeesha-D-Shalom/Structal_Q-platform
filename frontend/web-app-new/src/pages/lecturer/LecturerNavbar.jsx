@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import logo from "../../assets/logo.png";
 import { useNavigate } from "react-router-dom";
 
@@ -13,6 +14,7 @@ const NAV_ITEMS = [
 ];
 
 const LecturerNavbar = ({ activePage = "Dashboard" }) => {
+<<<<<<< HEAD
   const navigate = useNavigate();
 
   const handleNavigation = (item) => {
@@ -33,6 +35,21 @@ const LecturerNavbar = ({ activePage = "Dashboard" }) => {
 
   return (
     <header className="h-[75px] bg-white border-b border-[#e6ebf2] flex items-center justify-between px-8">
+=======
+
+  const getItemStyle = (itemName) =>
+    `flex items-center gap-2 cursor-pointer transition-colors ${
+      activePage === itemName
+        ? "text-[#2f3a4d] font-bold"
+        : "text-[#4c5b70] hover:text-[#2f3a4d]"
+    }`;
+
+  return (
+    <header className="h-[78px] bg-white border-b border-[#e7ebf1] flex items-center justify-between px-8">
+
+      {/* Left side */}
+      <div className="flex items-center">
+>>>>>>> 728836d (this is backend part)
 
       {/* Left */}
       <div className="flex items-center gap-10">
@@ -44,6 +61,7 @@ const LecturerNavbar = ({ activePage = "Dashboard" }) => {
           </h1>
         </div>
 
+<<<<<<< HEAD
         <nav className="flex items-center gap-6 text-[12px] text-[#5c6b80]">
           {NAV_ITEMS.map((item) => {
             const isActive = activePage === item;
@@ -78,14 +96,59 @@ const LecturerNavbar = ({ activePage = "Dashboard" }) => {
               </div>
             );
           })}
+=======
+        {/* Navigation */}
+        <nav className="flex items-center gap-9 text-[12px] font-medium">
+
+          <Link to="/lecturer" className={getItemStyle("Dashboard")}>
+            <i className="fas fa-border-all text-[12px]"></i>
+            <span>Dashboard</span>
+          </Link>
+
+          <Link to="/subjects" className={getItemStyle("Subjects")}>
+            <i className="far fa-clipboard text-[12px]"></i>
+            <span>Subjects</span>
+          </Link>
+
+          <Link to="/grades" className={getItemStyle("Grades & Marks")}>
+            <i className="fas fa-star text-[12px]"></i>
+            <span>Grades & Marks</span>
+          </Link>
+
+          <Link to="/publish-marks" className={getItemStyle("Publish Marks")}>
+            <i className="fas fa-check-double text-[12px]"></i>
+            <span>Publish Marks</span>
+          </Link>
+
+          <Link to="/timetable" className={getItemStyle("Timetable")}>
+            <i className="far fa-calendar-alt text-[12px]"></i>
+            <span>Timetable</span>
+          </Link>
+
+          <Link to="/submissions" className={getItemStyle("Submissions")}>
+            <i className="far fa-file-alt text-[12px]"></i>
+            <span>Submissions</span>
+          </Link>
+
+          <Link to="/evaluation" className={getItemStyle("Evaluation")}>
+            <i className="fas fa-poll-h text-[12px]"></i>
+            <span>Evaluation</span>
+          </Link>
+
+>>>>>>> 728836d (this is backend part)
         </nav>
       </div>
 
       {/* Right */}
       <div className="flex items-center gap-4">
 
+<<<<<<< HEAD
         <div className="w-[34px] h-[34px] border rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors">
           <i className="fas fa-sign-out-alt text-red-500 text-[12px]"></i>
+=======
+        <div className="w-[34px] h-[34px] rounded-full border border-[#e4e8ee] flex items-center justify-center bg-white cursor-pointer hover:bg-gray-50">
+          <i className="fas fa-sign-out-alt text-[13px] text-[#ff6b63]"></i>
+>>>>>>> 728836d (this is backend part)
         </div>
 
         <div className="w-[34px] h-[34px] border rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors">
@@ -99,9 +162,13 @@ const LecturerNavbar = ({ activePage = "Dashboard" }) => {
           </div>
           <div className="w-[32px] h-[32px] bg-[#f4b37a] rounded-full cursor-pointer"></div>
         </div>
+<<<<<<< HEAD
 
       </div>
+=======
+>>>>>>> 728836d (this is backend part)
 
+      </div>
     </header>
   );
 };

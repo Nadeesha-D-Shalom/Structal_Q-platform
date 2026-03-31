@@ -113,6 +113,7 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted, show
     
     setSubmitting(true);
 
+<<<<<<< HEAD
     // Prepare data according to your backend requirements
     const formData = {
       student_id: session.student_id,
@@ -122,6 +123,25 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted, show
       submission_id: submission.submission_id,
       concern_message: concernMessage.trim()
     };
+=======
+    const formData = new FormData();
+    // From session
+    /*
+    formData.append("student_id",      session.student_id);
+    formData.append("student_name",    session.student_name);
+    formData.append("student_email",   session.student_email);
+    formData.append("academic_year",   session.academic_year);
+    formData.append("submission_id",   submission.submission_id);
+    formData.append("concern_message", concernMessage);
+    */
+
+    formData.append("student_id", "STU - 001");
+    formData.append("student_name", "Navindu");
+    formData.append("student_email", "navindudilmin@gmail.com");
+    formData.append("academic_year", "Y2S2");
+    formData.append("submission_id", submission.submission_id);
+    formData.append("concern_message", concernMessage);
+>>>>>>> 728836d (this is backend part)
 
     try {
       const res = await fetch("/api/concern", {
@@ -304,7 +324,15 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted, show
           {/* ── Student Info — from session, read-only ─────────────────── */}
           <div style={{ marginBottom: 22 }}>
             <SectionLabel>Student Information</SectionLabel>
+<<<<<<< HEAD
             <div style={infoGridStyle}>
+=======
+            <div style={{
+              display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr",
+              gap: 14, padding: 16, borderRadius: 12,
+              backgroundColor: "#f8f9fc", border: "1px solid #e8eaf0"
+            }}>
+>>>>>>> 728836d (this is backend part)
               <ReadOnlyField label="Student ID" value={session.student_id} />
               <ReadOnlyField label="Student Name" value={session.student_name} />
               <ReadOnlyField label="Student Email" value={session.student_email} />
@@ -315,11 +343,55 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted, show
           {/* ── Submission Info — from submission prop, read-only ──────── */}
           <div style={{ marginBottom: 22 }}>
             <SectionLabel>Submission Details</SectionLabel>
+<<<<<<< HEAD
             <div style={infoGridStyle}>
               <ReadOnlyField label="Assignment" value={submissionDetails?.assignment_name} />
               <ReadOnlyField label="Subject" value={submissionDetails?.subject_name} />
               <ReadOnlyField label="Marks Received" value={submissionDetails ? `${submissionDetails.mark}/${submissionDetails.total}` : "—"} />
               <ReadOnlyField label="Published Date" value={submissionDetails?.published_at ? new Date(submissionDetails.published_at).toLocaleDateString() : "—"} />
+=======
+            <div style={{
+              display: "grid", gridTemplateColumns: "1fr 1fr",
+              gap: 14, padding: 16, borderRadius: 12,
+              backgroundColor: "#f8f9fc", border: "1px solid #e8eaf0"
+            }}>
+              <ReadOnlyField label="Assignment" value={submission?.assignment_name} />
+              <ReadOnlyField label="Subject" value={submission?.subject_name} />
+            </div>
+          </div>
+
+          {/* ── Assessment PDF — from submission prop, read-only ───────── */}
+          <div style={{ marginBottom: 22 }}>
+            <label style={labelStyle}>Assessment PDF</label>
+            <div style={{
+              display: "flex", alignItems: "center", gap: 14,
+              padding: "14px 18px", borderRadius: 10,
+              backgroundColor: pdfName ? "#f0fdf4" : "#f8f9fc",
+              border: `1.5px solid ${pdfName ? "#86efac" : "#e2e8f0"}`,
+            }}>
+              <span style={{ fontSize: 26 }}>📄</span>
+              <div style={{ flex: 1 }}>
+                {pdfName ? (
+                  <>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "#166534" }}>{pdfName}</div>
+                    <div style={{ fontSize: 11, color: "#4ade80", marginTop: 2 }}>
+                      Attached from your submission
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ fontSize: 13, color: "#94a3b8" }}>
+                    No PDF found for this submission
+                  </div>
+                )}
+              </div>
+              <span style={{
+                fontSize: 11, fontWeight: 700, padding: "3px 10px",
+                borderRadius: 20, backgroundColor: "#e0f2fe", color: "#0369a1",
+                whiteSpace: "nowrap"
+              }}>
+                From Submission
+              </span>
+>>>>>>> 728836d (this is backend part)
             </div>
           </div>
 
@@ -409,6 +481,7 @@ const cardHeaderStyle = { display: "flex", alignItems: "flex-start", gap: 14, ma
 const iconWrapStyle = { width: 38, height: 38, borderRadius: 10, backgroundColor: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 };
 const labelStyle = { display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 8 };
 const errorStyle = { color: "#ef4444", fontSize: 12, marginTop: 4, display: "block" };
+<<<<<<< HEAD
 const hintStyle = { color: "#94a3b8", fontSize: 12, marginTop: 4, display: "block" };
 const charCountStyle = (length) => ({
   color: length > 1900 ? (length > 2000 ? "#ef4444" : "#f59e0b") : "#94a3b8",
@@ -433,3 +506,9 @@ if (typeof document !== 'undefined') {
   `;
   document.head.appendChild(style);
 }
+=======
+const inputStyle = { width: "100%", padding: "11px 14px", borderRadius: 10, border: "1.5px solid #d1d5db", fontSize: 14, color: "#1a2340", outline: "none", fontFamily: "'Segoe UI', sans-serif", boxSizing: "border-box" };
+const btnPrimary = { padding: "12px 32px", borderRadius: 30, border: "none", background: "linear-gradient(90deg, #1d4ed8, #2563eb)", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8, boxShadow: "0 4px 14px rgba(37,99,235,0.3)" };
+const backBtnStyle = { background: "none", border: "none", color: "#2563eb", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 24, padding: 0 };
+const spinnerStyle = { width: 36, height: 36, border: "3px solid #e2e8f0", borderTopColor: "#2563eb", borderRadius: "50%", animation: "spin 0.7s linear infinite", margin: "0 auto" };
+>>>>>>> 728836d (this is backend part)
