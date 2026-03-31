@@ -9,6 +9,7 @@ const assessmentRoutes = require('./modules/assessment/assessment.routes');
 const markingGuideRoutes = require('./modules/marking-guide/markingGuide.routes');
 const concernRoutes = require('./modules/concern/concern.routes');
 const markPublishRoutes = require('./modules/mark-publish/markPublish.routes');
+const viewMarksRoutes = require('./modules/mark-publish/viewMarks.routes');
 
 // (MAIN FOCUS)
 const aiAnalysisRoutes = require('./modules/ai-analysis/aiAnalysis.routes');
@@ -35,6 +36,7 @@ app.use('/api/assessments', assessmentRoutes);
 app.use('/api/marking-guides', markingGuideRoutes);
 app.use('/api/concern', concernRoutes);
 app.use('/api/marks', markPublishRoutes);
+app.use('/api/student/marks', viewMarksRoutes);
 
 // AI MODULE
 app.use('/api/ai-analysis', aiAnalysisRoutes);

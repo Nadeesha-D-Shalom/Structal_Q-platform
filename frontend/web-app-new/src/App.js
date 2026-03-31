@@ -4,12 +4,10 @@ import StudentDashboard from "./pages/student/StudentDashboard";
 import LecturerDashboard from "./pages/lecturer/LecturerDashboard";
 import RaiseConcernForm from "./pages/student/RaiseConcernForm";
 import PublishMarksConfig from "./pages/lecturer/MarkPublishingInterface";
-
-<<<<<<< Updated upstream
-=======
-import RaiseConcernForm from "./pages/student/RaiseConcernForm";
-import PublishMarksConfig from "./pages/lecturer/MarkPublishingInterface";
->>>>>>> Stashed changes
+import StudentMarksList from "./pages/student/StudentsMarkList";
+import MarkRevisionAuditLog from "./pages/lecturer/MarkRevisionPanel";
+import ConcernReviewResolution from "./pages/lecturer/ReviewConcern";
+import StudentConcernsOverview from "./pages/student/ConcernOverview";
 
 function App() {
   return (
@@ -18,17 +16,12 @@ function App() {
         <Route path="/" element={<LoginPage />} />
         <Route path="/student" element={<StudentDashboard />} />
         <Route path="/lecturer" element={<LecturerDashboard />} />
-<<<<<<< HEAD
-
-<<<<<<< Updated upstream
-=======
-        <Route path="/raise-concern" element={<RaiseConcernForm />} />
-        <Route path="/publish-marks" element={<PublishMarksConfig />} />
->>>>>>> Stashed changes
-=======
-        <Route path="/raise-concern" element={<RaiseConcernForm />} />
-        <Route path="/publish-marks" element={<PublishMarksConfig />} />
->>>>>>> 48fe248bb493fdcdab1567a5005bc4e622826b0a
+        <Route path="/student/raise-concern" element={<RaiseConcernForm />} />
+        <Route path="/lecturer/publish-marks" element={<PublishMarksConfig />} />
+        <Route path="/student/marks" element={<StudentMarksList />} />
+        <Route path="/lecturer/marks" element={<MarkRevisionAuditLog />} />
+        <Route path="/lecturer/review-concerns" element={<ConcernReviewResolution />} />
+        <Route path="/student/concerns" element={<StudentConcernsOverview />} />
       </Routes>
     </Router>
   );
