@@ -1,8 +1,13 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import App from './App';
 
-test('renders login page', () => {
+jest.mock('./services/timetableService', () => ({
+  getTimetable: jest.fn(() => Promise.resolve({ data: [] })),
+}));
+
+test('renders default timetable view', async () => {
   render(<App />);
-  const loginElement = screen.getByText(/login/i);
-  expect(loginElement).toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.getByText(/Exam Timetable Management/i)).toBeInTheDocument();
+  });
 });

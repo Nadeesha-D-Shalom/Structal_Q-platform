@@ -25,6 +25,17 @@
   color: var(--text);
 }
 
+.createExamTimetable__back {
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 700;
+  padding: 0;
+  margin-bottom: 12px;
+  cursor: pointer;
+}
+
 .createExamTimetable__header p {
   margin: 8px 0 0;
   color: var(--muted);
@@ -39,6 +50,17 @@
   border-radius: 24px;
   padding: 32px 32px 48px;
   box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.05);
+}
+
+.createExamTimetable__error {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .formGrid {

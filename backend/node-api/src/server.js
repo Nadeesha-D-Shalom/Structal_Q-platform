@@ -1,15 +1,14 @@
 const express = require('express');
+const cors = require('cors');
 const sql = require('mssql');
-const config = require('./config/db');   
-
-const subjectRoutes = require('./modules/subject/subject.routes');
-const assessmentRoutes = require('./modules/assessment/assessment.routes');
-const markingGuideRoutes = require('./modules/marking-guide/markingGuide.routes');
-const concernRoutes = require('./modules/concern/concern.routes')
+const config = require('./config/db');
+const apiRoutes = require('./routes/index');
 
 const app = express();
-const PORT = 3000;
+/** Default 5000 — matches frontend `timetableService` (CRA uses 3000). */
+const PORT = process.env.PORT || 5000;
 
+app.use(cors());
 app.use(express.json());
 
 // Database Connection
@@ -21,11 +20,7 @@ sql.connect(config)
         console.error("Database connection failed:", err);
     });
 
-// Routes (Professional Version)
-app.use('/api/subjects', subjectRoutes);
-app.use('/api/assessments', assessmentRoutes);
-app.use('/api/marking-guides', markingGuideRoutes);
-app.use('/api/concern', concernRoutes);
+app.use('/api', apiRoutes);
 
 // Health Check
 app.get('/health', (req, res) => {

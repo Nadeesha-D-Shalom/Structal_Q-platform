@@ -1,36 +1,94 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  createTimetable,
+  getTimetableConflictMessage,
+  notifyTimetablePublished,
+} from '../../services/timetableService';
 import './CreateTimetable.css';
 
+function getErrorMessage(err) {
+  return err?.response?.data?.message || err?.response?.data || err?.message || 'Request failed.';
+}
+
 export default function CreateTimetable() {
+  const navigate = useNavigate();
+  const [academicYear, setAcademicYear] = useState('1st Year');
+  const [semester, setSemester] = useState('First Semester');
+  const [subject, setSubject] = useState('CS402 - Advanced Algorithms');
+  const [examDate, setExamDate] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [hall, setHall] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handlePublish(e) {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    try {
+      await createTimetable({
+        subject: subject.trim(),
+        exam_date: examDate,
+        start_time: startTime,
+        end_time: endTime,
+        hall: hall.trim(),
+        status: 'Published',
+        academic_year: academicYear,
+        semester,
+        title: `${subject.trim()} — ${examDate}`,
+      });
+      notifyTimetablePublished();
+      navigate('/');
+    } catch (err) {
+      const conflictMessage = getTimetableConflictMessage(err);
+      setError(conflictMessage || getErrorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <section className="createExamTimetable">
       <header className="createExamTimetable__header">
+        <button type="button" className="createExamTimetable__back" onClick={() => navigate(-1)}>
+          ← Back
+        </button>
         <h2>Create Exam Timetable</h2>
         <p>Schedule new examinations and manage venue allocations for the upcoming academic period.</p>
       </header>
 
       <div className="card">
-        <form className="formGrid">
+        {error ? (
+          <p className="createExamTimetable__error">
+            {String(error)}
+          </p>
+        ) : null}
+        <form className="formGrid" onSubmit={handlePublish}>
           <div className="formGrid__row">
             <label className="field">
               <span>Academic Year</span>
-              <select defaultValue="2023/2024">
-                <option value="2023/2024">2023 / 2024</option>
-                <option value="2024/2025">2024 / 2025</option>
+              <select value={academicYear} onChange={(e) => setAcademicYear(e.target.value)}>
+                <option value="1st Year">1st Year</option>
+                <option value="2nd Year">2nd Year</option>
+                <option value="3rd Year">3rd Year</option>
+                <option value="4th Year">4th Year</option>
               </select>
             </label>
 
             <label className="field">
               <span>Semester</span>
-              <select defaultValue="first">
-                <option value="first">First Semester</option>
-                <option value="second">Second Semester</option>
+              <select value={semester} onChange={(e) => setSemester(e.target.value)}>
+                <option value="First Semester">First Semester</option>
+                <option value="Second Semester">Second Semester</option>
               </select>
             </label>
 
             <label className="field">
               <span>Subject / Course</span>
-              <select defaultValue="CS402">
-                <option value="CS402">CS402 - Advanced Algorithms</option>
+              <select value={subject} onChange={(e) => setSubject(e.target.value)}>
+                <option value="CS402 - Advanced Algorithms">CS402 - Advanced Algorithms</option>
               </select>
             </label>
           </div>
@@ -38,31 +96,40 @@ export default function CreateTimetable() {
           <div className="formGrid__row">
             <label className="field">
               <span>Exam Date</span>
-              <input type="date" />
+              <input type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} required />
             </label>
 
             <label className="field">
               <span>Start Time</span>
-              <input type="time" />
+              <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required step={60} />
+            </label>
+
+            <label className="field">
+              <span>End Time</span>
+              <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required step={60} />
             </label>
 
             <label className="field">
               <span>Location / Venue</span>
-              <input placeholder="e.g. Grand Hall A, Room 302" />
+              <input
+                placeholder="e.g. Grand Hall A, Room 302"
+                value={hall}
+                onChange={(e) => setHall(e.target.value)}
+                required
+              />
             </label>
           </div>
 
           <div className="statusBar">
             <div className="statusBar__info">
               <strong>Conflict Detection System</strong>
-              <span>Automatic check against student and venue schedules.</span>
+              <span>Server validates overlaps for the same hall and date.</span>
             </div>
-            <span className="pill pill--success">No Conflict Detected</span>
           </div>
 
           <div className="actions">
-            <button type="button" className="btn btn--primary">
-              Publish Schedule
+            <button type="submit" className="btn btn--primary" disabled={submitting}>
+              {submitting ? 'Publishing…' : 'Publish Exam Timetable'}
             </button>
           </div>
         </form>
@@ -70,4 +137,3 @@ export default function CreateTimetable() {
     </section>
   );
 }
-
