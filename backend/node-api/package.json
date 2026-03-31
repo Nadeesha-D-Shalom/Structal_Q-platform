@@ -48,7 +48,6 @@
     "cookie": "^0.7.2",
     "cookie-signature": "^1.0.7",
     "core-util-is": "^1.0.3",
-    "cors": "^2.8.6",
     "data-view-buffer": "^1.0.2",
     "data-view-byte-length": "^1.0.2",
     "data-view-byte-offset": "^1.0.1",

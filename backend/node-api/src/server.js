@@ -1,9 +1,7 @@
 const express = require('express');
-const cors = require('cors');
 require('dotenv').config();
 
 const { poolConnect } = require('./config/db');
-<<<<<<< HEAD
 
 // KEEP ONLY WORKING MODULES
 const subjectRoutes = require('./modules/subject/subject.routes');
@@ -15,26 +13,21 @@ const viewMarksRoutes = require('./modules/mark-publish/viewMarks.routes');
 
 // (MAIN FOCUS)
 const aiAnalysisRoutes = require('./modules/ai-analysis/aiAnalysis.routes');
-=======
-const apiRoutes = require('./routes/index');
->>>>>>> jazeel
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+
 // ================= MIDDLEWARE =================
-app.use(cors());
 app.use(express.json());
 
 
-app.use('/api', apiRoutes);
 // ================= DATABASE =================
 poolConnect
     .then(() => console.log("DB Connected Successfully"))
     .catch(err => console.error("Database connection failed:", err));
 
 
-<<<<<<< HEAD
 // ================= ROUTES =================
 
 // Other stable modules
@@ -49,8 +42,6 @@ app.use('/api/student/marks', viewMarksRoutes);
 app.use('/api/ai-analysis', aiAnalysisRoutes);
 
 
-=======
->>>>>>> jazeel
 // ================= HEALTH =================
 app.get('/health', (req, res) => {
     res.json({

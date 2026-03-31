@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const controller = require('./evaluationSchedule.controller');
+const controller = require('./evaluation.controller');
 
 //Location routes
 router.post('/locations', controller.createLocation);
