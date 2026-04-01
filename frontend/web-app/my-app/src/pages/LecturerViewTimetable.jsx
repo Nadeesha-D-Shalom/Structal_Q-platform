@@ -1,10 +1,11 @@
 import ViewTimetableLecturer from '../components/ViewTimetableLecturer/ViewTimetableLecturer';
+import RolePageLayout from '../components/layout/RolePageLayout';
 
 export default function LecturerViewTimetable() {
   return (
-    <div style={{ minHeight: '100vh' }}>
+    <RolePageLayout role="lecturer" activePage="Timetable">
       <ViewTimetableLecturer />
-    </div>
+    </RolePageLayout>
   );
 }
 

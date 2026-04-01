@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getTimetable, updateTimetable } from '../services/timetableService';
 import EditExamTimetable from '../components/EditExamTimetable/EditExamTimetable';
+import RolePageLayout from '../components/layout/RolePageLayout';
 
 function getErrorMessage(err) {
   return err?.response?.data?.message || err?.response?.data || err?.message || 'Request failed.';
@@ -84,7 +85,7 @@ export default function EditTimetable() {
   }
 
   return (
-    <main>
+    <RolePageLayout role="lecturer" activePage="Timetable">
       {loading ? <p>Loading...</p> : null}
       {error ? <p style={{ color: '#b00020' }}>{String(error)}</p> : null}
       {!loading && selectedEntry ? (
@@ -95,7 +96,7 @@ export default function EditTimetable() {
           onSave={handleSave}
         />
       ) : null}
-    </main>
+    </RolePageLayout>
   );
 }
 
