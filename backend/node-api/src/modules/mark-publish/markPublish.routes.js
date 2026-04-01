@@ -1,0 +1,23 @@
+const express = require('express');
+const router = express.Router();
+const marksController = require('./markPublish.controller');
+
+// Get all assessments for the dropdown
+router.get("/assessments", marksController.getAllAssessments);
+
+// Get submissions that haven't been published yet for a specific assessment
+router.get("/pending-submissions", marksController.getPendingSubmissions);
+
+// Get the PDF file stream for the viewer
+router.get("/pdf/:submission_id", marksController.getPdf);
+
+// Get the AI calculated marks 
+router.get("/ai-scores/:submission_id", marksController.getAiScores);
+
+//Get the pages containing diagrams for manual review
+router.get("/diagram-pages/:submission_id", marksController.getDiagramPages);
+
+// Final POST request to publish the marks to the database
+router.post("/publish", marksController.publishingleMark);
+
+module.exports = router;

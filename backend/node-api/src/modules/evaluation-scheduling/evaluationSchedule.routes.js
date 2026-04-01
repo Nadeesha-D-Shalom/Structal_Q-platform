@@ -10,6 +10,7 @@ router.post(  '/locations',     controller.createLocation);
 router.get(   '/locations',     controller.getAllLocations);
 router.put(   '/locations/:id', controller.updateLocation);
 router.delete('/locations/:id', controller.deleteLocation);
+router.delete('/locations/:id/hard', controller.hardDeleteLocation);
 
 // ───────── SCHEDULE ─────────
 router.post(  '/schedules',             controller.createSchedule);
@@ -27,6 +28,8 @@ router.get('/schedules/:id/conflicts', controller.getConflicts);
 
 // ───────── EMAIL NOTIFICATION LOG ─────────
 router.get( '/schedules/:id/email-logs',    controller.getEmailLogs);
+router.post('/schedules/:id/send-reminders',   controller.sendReminderBlast);
+router.post('/email-logs/:logId/resend',        controller.resendGroupEmail);
 
 // ───────── DELETE SCHEDULE ─────────
 router.delete('/schedules/:id', controller.deleteSchedule);

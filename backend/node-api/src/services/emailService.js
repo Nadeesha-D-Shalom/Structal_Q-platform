@@ -153,7 +153,8 @@ function buildHtml(title, body, ctaLabel, ctaUrl) {
 </html>`;
 }
 
-async function sendEmail(to, subject, textBody, htmlBody) {
+// sendEmail
+async function sendEmail(to, subject, textBody, htmlBody, bcc = null) {
     const emailTransporter = await getTransporter();
     let lastError;
 
@@ -165,14 +166,13 @@ async function sendEmail(to, subject, textBody, htmlBody) {
                 subject,
                 text: textBody,
                 html: htmlBody || `<p style="font-family:Arial,sans-serif;font-size:14px;color:#374151;">${textBody}</p>`,
+                ...(bcc ? { bcc } : {}),
             });
-
             return { info, retryCount: attempt };
         } catch (err) {
             lastError = err;
         }
     }
-
     lastError.retryCount = 1;
     throw lastError;
 }
@@ -287,6 +287,111 @@ async function sendSlotAssignedEmail(recipientEmail, recipientName, slotInfo) {
         subject,
         `Slot assigned: ${slot_start_time || '-'} - ${slot_end_time || '-'}`,
         buildHtml('Your Evaluation Slot Has Been Assigned', body, 'View Full Schedule', APP_URL)
+    );
+}
+
+//grpupReminders
+
+// NEW — reminder blast to entire group via BCC
+async function sendGroupReminderEmail(groupEmails, groupLabel, slotInfo) {
+    const { schedule_title, date, slot_start_time, slot_end_time, location_name, room_number } = slotInfo;
+
+    const subject = `Reminder: Evaluation Tomorrow - ${schedule_title}`;
+    const body = `
+        <p>Dear ${groupLabel || 'Group'},</p>
+        <p>This is a reminder that your evaluation is scheduled for <strong>tomorrow</strong>.</p>
+        <table width="100%" cellpadding="8" cellspacing="0"
+               style="border:1px solid #fde68a;border-radius:8px;background:#fffbeb;font-size:13px;margin:16px 0;">
+          <tr>
+            <td style="font-weight:600;color:#92400e;width:40%;">Schedule</td>
+            <td style="color:#111827;">${schedule_title}</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;color:#92400e;">Date</td>
+            <td style="color:#111827;">${formatDate(date)}</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;color:#92400e;">Time</td>
+            <td style="color:#111827;font-weight:700;">${slot_start_time || '-'} - ${slot_end_time || '-'}</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;color:#92400e;">Location</td>
+            <td style="color:#111827;">${formatLocation(location_name, room_number)}</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;color:#92400e;">Group</td>
+            <td style="color:#111827;">${groupLabel || '-'}</td>
+          </tr>
+        </table>
+        <p>Ensure your submission is complete and your group is ready. Good luck!</p>
+    `;
+
+    return sendEmail(
+        FROM_ADDRESS,
+        subject,
+        `Reminder: Evaluation tomorrow at ${slot_start_time || '-'}`,
+        buildHtml('Evaluation Reminder', body, 'View Schedule', APP_URL),
+        groupEmails.join(',')
+    );
+}
+
+// sendgroupmails — sends one BCC email to entire group
+async function sendGroupSlotAssignedEmail(groupEmails, groupLabel, slotInfo) {
+    const {
+        schedule_title,
+        date,
+        slot_start_time,
+        slot_end_time,
+        location_name,
+        room_number,
+        slot_sequence_no,
+    } = slotInfo;
+
+    const subject = `Your Evaluation Slot Has Been Assigned - ${schedule_title}`;
+    const body = `
+        <p>Dear ${groupLabel || 'Group'},</p>
+        <p>Your group has been assigned an evaluation slot. Please arrive on time and be fully prepared.</p>
+        <table width="100%" cellpadding="8" cellspacing="0"
+               style="border:1px solid #e5e7eb;border-radius:8px;font-size:13px;margin:16px 0;">
+          <tr style="background:#eff6ff;">
+            <td colspan="2" style="font-weight:700;color:#1d4ed8;font-size:14px;">Your Slot Details</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;color:#6b7280;width:40%;">Schedule</td>
+            <td style="color:#111827;">${schedule_title}</td>
+          </tr>
+          <tr style="background:#f9fafb;">
+            <td style="font-weight:600;color:#6b7280;">Date</td>
+            <td style="color:#111827;">${formatDate(date)}</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;color:#6b7280;">Time</td>
+            <td style="color:#111827;font-weight:700;">${slot_start_time || '-'} - ${slot_end_time || '-'}</td>
+          </tr>
+          <tr style="background:#f9fafb;">
+            <td style="font-weight:600;color:#6b7280;">Location</td>
+            <td style="color:#111827;">${formatLocation(location_name, room_number)}</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;color:#6b7280;">Slot #</td>
+            <td style="color:#111827;">${slot_sequence_no || '-'}</td>
+          </tr>
+          <tr style="background:#f9fafb;">
+            <td style="font-weight:600;color:#6b7280;">Group</td>
+            <td style="color:#111827;">${groupLabel || '-'}</td>
+          </tr>
+        </table>
+        <p style="color:#d97706;font-size:13px;">
+          Please arrive 5 minutes before your slot time. Share this with all group members.
+        </p>
+    `;
+
+    return sendEmail(
+        FROM_ADDRESS,
+        subject,
+        `Slot assigned: ${slot_start_time || '-'} - ${slot_end_time || '-'}`,
+        buildHtml('Your Evaluation Slot Has Been Assigned', body, 'View Full Schedule', APP_URL),
+        groupEmails.join(',')
     );
 }
 
@@ -439,6 +544,8 @@ module.exports = {
     sendEmail,
     sendSchedulePublishedEmail,
     sendSlotAssignedEmail,
+    sendGroupSlotAssignedEmail,
+    sendGroupReminderEmail,
     sendReminderEmail,
     sendScheduleUpdatedEmail,
     sendRescheduleNotificationEmail,

@@ -4,19 +4,24 @@ const sql    = require('mssql');
 const config = require('../../config/db');
 
 // Load typed email helpers; fall back to no-ops if service is missing
-let sendSchedulePublishedEmail = async () => {};
-let sendSlotAssignedEmail      = async () => {};
-let sendReminderEmail          = async () => {};
-let sendScheduleUpdatedEmail   = async () => {};
+// AFTER
+let sendSchedulePublishedEmail      = async () => {};
+let sendSlotAssignedEmail           = async () => {};
+let sendGroupSlotAssignedEmail      = async () => {};
+let sendGroupReminderEmail          = async () => {};
+let sendReminderEmail               = async () => {};
+let sendScheduleUpdatedEmail        = async () => {};
 let sendRescheduleNotificationEmail = async () => {};
-let sendEmailRaw               = async () => {};
+let sendEmailRaw                    = async () => {};
 
 try {
     const svc = require('../../services/emailService');
-    sendSchedulePublishedEmail = svc.sendSchedulePublishedEmail;
-    sendSlotAssignedEmail      = svc.sendSlotAssignedEmail;
-    sendReminderEmail          = svc.sendReminderEmail;
-    sendScheduleUpdatedEmail   = svc.sendScheduleUpdatedEmail;
+    sendSchedulePublishedEmail      = svc.sendSchedulePublishedEmail;
+    sendSlotAssignedEmail           = svc.sendSlotAssignedEmail;
+    sendGroupSlotAssignedEmail      = svc.sendGroupSlotAssignedEmail;
+    sendGroupReminderEmail          = svc.sendGroupReminderEmail;
+    sendReminderEmail               = svc.sendReminderEmail;
+    sendScheduleUpdatedEmail        = svc.sendScheduleUpdatedEmail;
     sendRescheduleNotificationEmail = svc.sendRescheduleNotificationEmail;
     sendEmailRaw               = svc.sendEmail;
     console.log('[evalSchedule] emailService loaded ✓');
@@ -66,26 +71,30 @@ async function userTableExists(pool) {
  * Insert a row into evaluation_email_log.
  * Non-throwing — logs errors internally.
  */
-async function logEmail(pool, { scheduleId, userId, emailType, status, retryCount = 0 }) {
+async function logEmail(pool, { scheduleId, userId, emailType, status, retryCount = 0, recipientCount = null, recipientEmails = null, groupLabel = null }) {
     try {
         await pool.request()
-            .input('sid',        sql.Int,         scheduleId)
-            .input('uid',        sql.Int,         userId || null)
-            .input('emailType',  sql.VarChar(50),  emailType)
-            .input('status',     sql.VarChar(20),  status)
-            .input('retry',      sql.Int,          retryCount)
+            .input('sid',             sql.Int,           scheduleId)
+            .input('uid',             sql.Int,           userId || null)
+            .input('emailType',       sql.VarChar(50),   emailType)
+            .input('status',          sql.VarChar(20),   status)
+            .input('retry',           sql.Int,           retryCount)
+            .input('recipientCount',  sql.Int,           recipientCount)
+            .input('recipientEmails', sql.NVarChar(2000), recipientEmails)
+            .input('groupLabel',      sql.VarChar(100),  groupLabel)
             .query(`
                 INSERT INTO evaluation_email_log
                     (evaluation_schedule_id, recipient_user_id, email_type,
-                     sent_at, delivery_status, retry_count)
+                     sent_at, delivery_status, retry_count,
+                     recipient_count, recipient_emails, group_label)
                 VALUES
-                    (@sid, @uid, @emailType, GETDATE(), @status, @retry)
+                    (@sid, @uid, @emailType, GETDATE(), @status, @retry,
+                     @recipientCount, @recipientEmails, @groupLabel)
             `);
     } catch (err) {
         console.error('[logEmail] Failed to insert email log:', err.message);
     }
 }
-
 /**
  * Update retry_count and delivery_status on an existing email log row.
  */
@@ -292,7 +301,7 @@ exports.getAllLocations = async (req, res) => {
                     CONVERT(VARCHAR, available_to,   108) AS available_to,
                     status
                 FROM evaluation_location
-                ORDER BY location_name
+                ORDER BY location_id DESC
             `);
         res.json(result.recordset);
     } catch (err) {
@@ -378,6 +387,93 @@ exports.deleteLocation = async (req, res) => {
         res.json({ message: 'Location deactivated', status: 'INACTIVE' });
     } catch (err) {
         console.error('[deleteLocation]', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+
+//hardDeleteLocations
+
+// ───────── HARD DELETE LOCATION (INACTIVE only) ─────────
+// DELETE /api/evaluation-scheduling/locations/:id/hard
+
+exports.hardDeleteLocation = async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!id) return res.status(400).json({ message: 'Invalid location ID.' });
+
+        const pool = await sql.connect(config);
+
+        // 1. Check exists and is INACTIVE
+        const check = await pool.request()
+            .input('id', sql.Int, id)
+            .query(`SELECT location_id, status FROM evaluation_location WHERE location_id = @id`);
+
+        if (!check.recordset.length)
+            return res.status(404).json({ message: 'Location not found.' });
+
+        if (check.recordset[0].status !== 'INACTIVE')
+            return res.status(400).json({ message: 'Only INACTIVE locations can be permanently deleted.' });
+
+        // 2. Safety check — no active schedules
+        const activeCheck = await pool.request()
+            .input('id', sql.Int, id)
+            .query(`
+                SELECT COUNT(*) AS cnt FROM evaluation_schedule
+                WHERE location_id = @id AND status IN ('DRAFT', 'PUBLISHED')
+            `);
+
+        if (activeCheck.recordset[0].cnt > 0)
+            return res.status(400).json({ message: 'Cannot delete: location still referenced by active schedules.' });
+
+        // 3. Cascade delete all linked data
+        // 3a. Group assignments linked via slots
+        await pool.request().input('id', sql.Int, id).query(`
+            DELETE FROM evaluation_group_assignment
+            WHERE evaluation_slot_id IN (
+                SELECT sl.evaluation_slot_id FROM evaluation_slot sl
+                JOIN evaluation_schedule es ON es.evaluation_schedule_id = sl.evaluation_schedule_id
+                WHERE es.location_id = @id
+            )
+        `);
+
+        // 3b. Slots
+        await pool.request().input('id', sql.Int, id).query(`
+            DELETE FROM evaluation_slot
+            WHERE evaluation_schedule_id IN (
+                SELECT evaluation_schedule_id FROM evaluation_schedule WHERE location_id = @id
+            )
+        `);
+
+        // 3c. Email logs
+        await pool.request().input('id', sql.Int, id).query(`
+            DELETE FROM evaluation_email_log
+            WHERE evaluation_schedule_id IN (
+                SELECT evaluation_schedule_id FROM evaluation_schedule WHERE location_id = @id
+            )
+        `);
+
+        // 3d. Conflict logs
+        await pool.request().input('id', sql.Int, id).query(`
+            DELETE FROM evaluation_conflict_log
+            WHERE evaluation_schedule_id IN (
+                SELECT evaluation_schedule_id FROM evaluation_schedule WHERE location_id = @id
+            )
+        `);
+
+        // 3e. Cancelled/orphaned schedules referencing this location
+        await pool.request().input('id', sql.Int, id).query(`
+            DELETE FROM evaluation_schedule WHERE location_id = @id
+        `);
+
+        // 3f. Finally, delete the location itself
+        await pool.request().input('id', sql.Int, id).query(`
+            DELETE FROM evaluation_location WHERE location_id = @id
+        `);
+
+        res.json({ message: 'Location permanently deleted.' });
+    } catch (err) {
+        console.error('[hardDeleteLocation]', err);
         res.status(500).json({ error: err.message });
     }
 };
@@ -1198,14 +1294,13 @@ exports.assignGroupToSlot = async (req, res) => {
 
             throw dbErr;
         }
-
-        // ── Send SLOT_ASSIGNED emails to group members ───────────────────────
+// ── Send SLOT_ASSIGNED email to entire group via BCC ─────────────────
         const hasUserTable = await userTableExists(pool);
+        let emailsSent = 0;
+        let emailsFailed = 0;
 
         if (hasUserTable) {
             let students = [];
-            let emailsSent = 0;
-            let emailsFailed = 0;
             try {
                 const sRes = await pool.request()
                     .input('gid', sql.Int, Number(group_id))
@@ -1224,56 +1319,56 @@ exports.assignGroupToSlot = async (req, res) => {
                 console.warn('[assignGroupToSlot] Could not fetch group members:', err.message);
             }
 
+            const groupEmails = students.map(s => s.email).filter(Boolean);
+            const groupLbl    = `Group ID: ${group_id}`;
+
             const slotInfo = {
-                schedule_title:  slotRow.schedule_title,
-                date:            slotRow.date,
-                slot_start_time: slotRow.slot_start_time,
-                slot_end_time:   slotRow.slot_end_time,
-                location_name:   slotRow.location_name,
-                room_number:     slotRow.room_number,
+                schedule_title:   slotRow.schedule_title,
+                date:             slotRow.date,
+                slot_start_time:  slotRow.slot_start_time,
+                slot_end_time:    slotRow.slot_end_time,
+                location_name:    slotRow.location_name,
+                room_number:      slotRow.room_number,
                 slot_sequence_no: slotRow.slot_sequence_no,
-                group_label:     `Group ID: ${group_id}`,
+                group_label:      groupLbl,
             };
 
-            const manualRecipients = students.length === 0
-                ? getManualRecipients({
-                    email: req.body.fallback_recipient_email ?? slotRow.fallback_recipient_email,
-                    name: req.body.fallback_recipient_name ?? slotRow.fallback_recipient_name,
-                    scheduleInfo: slotInfo,
-                })
-                : [];
-            const recipients = students.length > 0 ? students : manualRecipients;
+            // Use fallback if no students found in DB
+            const emailTargets = groupEmails.length > 0
+                ? groupEmails
+                : [slotRow.fallback_recipient_email].filter(Boolean);
 
-            for (const student of recipients) {
-                const recipientName = `${student.first_name} ${student.last_name}`.trim() || 'Student';
-                let deliveryStatus  = 'SENT';
-                let retryCount = 0;
+            let deliveryStatus = 'SENT';
+            let retryCount     = 0;
 
+            if (emailTargets.length > 0) {
                 try {
-                    const result = await sendSlotAssignedEmail(student.email, recipientName, slotInfo);
+                    const result = await sendGroupSlotAssignedEmail(emailTargets, groupLbl, slotInfo);
                     retryCount = result?.retryCount || 0;
-                    emailsSent++;
+                    emailsSent = 1;
                 } catch (emailErr) {
-                    console.error(`[assignGroupToSlot] Email failed for ${student.email}:`, emailErr.message);
+                    console.error('[assignGroupToSlot] Group email failed:', emailErr.message);
                     deliveryStatus = 'FAILED';
-                    retryCount = emailErr.retryCount || 1;
-                    emailsFailed++;
+                    retryCount     = emailErr.retryCount || 1;
+                    emailsFailed   = 1;
                 }
 
                 await logEmail(pool, {
                     scheduleId,
-                    userId:    student.user_id,
-                    emailType: 'SLOT_ASSIGNED',
-                    status:    deliveryStatus,
+                    userId:          null,
+                    emailType:       'SLOT_ASSIGNED',
+                    status:          deliveryStatus,
                     retryCount,
+                    recipientCount:  emailTargets.length,
+                    recipientEmails: emailTargets.join(', '),
+                    groupLabel:      groupLbl,
                 });
             }
-            return res.json({ message: 'Group assigned successfully.', emailsSent, emailsFailed });
         } else {
             console.warn('[assignGroupToSlot] [user] table not found — skipping email notifications');
         }
 
-        res.json({ message: 'Group assigned successfully.', emailsSent: 0, emailsFailed: 0 });
+        return res.json({ message: 'Group assigned successfully.', emailsSent, emailsFailed });
 
     } catch (err) {
         console.error('[assignGroupToSlot]', err);
@@ -1503,16 +1598,6 @@ exports.getEmailLogs = async (req, res) => {
 
 // ───────── STUDENT SCHEDULE VIEW ─────────
 // GET /api/evaluation-scheduling/student/schedules
-//
-// Returns all PUBLISHED schedules with their slots and group assignments,
-// enriched with assessment and location details.
-//
-// JOIN PATH (actual DB schema — no user/group_member dependency):
-//   evaluation_schedule (status = 'PUBLISHED')
-//     → evaluation_slot           (via evaluation_schedule_id)
-//       → evaluation_group_assignment  (via evaluation_slot_id)
-//     → evaluation_location       (via location_id)
-//     → Assessments               (via assessment_id)
 
 exports.getStudentScheduleView = async (req, res) => {
     try {
@@ -1637,5 +1722,214 @@ exports.getStudentScheduleView = async (req, res) => {
     } catch (err) {
         console.error('[getStudentScheduleView]', err);
         res.status(500).json({ message: 'Failed to load student schedule view.', error: err.message });
+    }
+};
+
+// ───────── SEND REMINDER EMAILS (manual blast from Screen 5.7) ─────────
+// POST /api/evaluation-scheduling/schedules/:id/send-reminders
+
+exports.sendReminderBlast = async (req, res) => {
+    try {
+        const scheduleId = Number(req.params.id);
+        if (!scheduleId) return res.status(400).json({ message: 'Invalid schedule ID.' });
+
+        const pool = await sql.connect(config);
+
+        // Get schedule + location info
+        const schedRes = await pool.request()
+            .input('id', sql.Int, scheduleId)
+            .query(`
+                SELECT es.schedule_title, es.date, es.status,
+                       CONVERT(VARCHAR, es.start_time, 108) AS start_time,
+                       CONVERT(VARCHAR, es.end_time,   108) AS end_time,
+                       el.location_name, el.room_number
+                FROM evaluation_schedule es
+                LEFT JOIN evaluation_location el ON el.location_id = es.location_id
+                WHERE es.evaluation_schedule_id = @id
+            `);
+
+        if (!schedRes.recordset.length)
+            return res.status(404).json({ message: 'Schedule not found.' });
+
+        const sched = schedRes.recordset[0];
+
+       
+      // continues with fallback email if no user table
+const hasUserTable = await userTableExists(pool);
+
+        const slotsRes = await pool.request()
+            .input('id', sql.Int, scheduleId)
+            .query(`
+                SELECT
+                    sl.evaluation_slot_id,
+                    sl.slot_sequence_no,
+                    CONVERT(VARCHAR, sl.slot_start_time, 108) AS slot_start_time,
+                    CONVERT(VARCHAR, sl.slot_end_time,   108) AS slot_end_time,
+                    ga.group_id
+                FROM evaluation_slot sl
+                JOIN evaluation_group_assignment ga
+                    ON ga.evaluation_slot_id = sl.evaluation_slot_id
+                WHERE sl.evaluation_schedule_id = @id
+                  AND sl.slot_status = 'ASSIGNED'
+            `);
+
+        const slots = slotsRes.recordset;
+        if (!slots.length)
+            return res.status(400).json({ message: 'No assigned groups found for this schedule.' });
+
+        let totalSent   = 0;
+        let totalFailed = 0;
+
+        for (const slot of slots) {
+         // AFTER — uses fallback if no user table or no members found
+let emails = [];
+if (hasUserTable) {
+    try {
+        const membersRes = await pool.request()
+            .input('gid', sql.Int, Number(slot.group_id))
+            .query(`
+                SELECT u.email
+                FROM group_member gm
+                JOIN [user] u ON u.user_id = gm.student_id
+                WHERE gm.group_id = @gid AND u.status = 'ACTIVE'
+            `);
+        emails = membersRes.recordset.map(r => r.email).filter(Boolean);
+    } catch (err) {
+        console.warn('[sendReminderBlast] Could not fetch group members:', err.message);
+    }
+}
+
+// Fall back to schedule-level fallback email
+if (emails.length === 0 && sched.fallback_recipient_email) {
+    emails = [sched.fallback_recipient_email];
+}
+            const groupLbl  = `Group ID: ${slot.group_id}`;
+
+            if (!emails.length) continue;
+
+            const slotInfo = {
+                schedule_title:  sched.schedule_title,
+                date:            sched.date,
+                slot_start_time: slot.slot_start_time,
+                slot_end_time:   slot.slot_end_time,
+                location_name:   sched.location_name,
+                room_number:     sched.room_number,
+            };
+
+            let deliveryStatus = 'SENT';
+            let retryCount     = 0;
+
+            try {
+                const result = await sendGroupReminderEmail(emails, groupLbl, slotInfo);
+                retryCount = result?.retryCount || 0;
+                totalSent++;
+            } catch (err) {
+                console.error(`[sendReminderBlast] Failed for ${groupLbl}:`, err.message);
+                deliveryStatus = 'FAILED';
+                retryCount     = err.retryCount || 1;
+                totalFailed++;
+            }
+
+            await logEmail(pool, {
+                scheduleId,
+                userId:          null,
+                emailType:       'REMINDER',
+                status:          deliveryStatus,
+                retryCount,
+                recipientCount:  emails.length,
+                recipientEmails: emails.join(', '),
+                groupLabel:      groupLbl,
+            });
+        }
+
+        res.json({
+            message:     `Reminders sent to ${totalSent} group(s). ${totalFailed} failed.`,
+            totalSent,
+            totalFailed,
+        });
+
+    } catch (err) {
+        console.error('[sendReminderBlast]', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// ───────── RESEND EMAIL TO SPECIFIC GROUP (per-row action in 5.7) ─────────
+// POST /api/evaluation-scheduling/email-logs/:logId/resend
+
+exports.resendGroupEmail = async (req, res) => {
+    try {
+        const logId = Number(req.params.logId);
+        if (!logId) return res.status(400).json({ message: 'Invalid log ID.' });
+
+        const pool = await sql.connect(config);
+
+        const logRes = await pool.request()
+            .input('id', sql.Int, logId)
+            .query(`
+                SELECT
+                    el.email_log_id,
+                    el.evaluation_schedule_id,
+                    el.email_type,
+                    el.recipient_emails,
+                    el.group_label,
+                    el.retry_count,
+                    es.schedule_title, es.date,
+                    CONVERT(VARCHAR, es.start_time, 108) AS start_time,
+                    CONVERT(VARCHAR, es.end_time,   108) AS end_time,
+                    loc.location_name, loc.room_number
+                FROM evaluation_email_log el
+                JOIN evaluation_schedule es  ON es.evaluation_schedule_id = el.evaluation_schedule_id
+                LEFT JOIN evaluation_location loc ON loc.location_id = es.location_id
+                WHERE el.email_log_id = @id
+            `);
+
+        if (!logRes.recordset.length)
+            return res.status(404).json({ message: 'Email log not found.' });
+
+        const log    = logRes.recordset[0];
+        const emails = (log.recipient_emails || '').split(',').map(e => e.trim()).filter(Boolean);
+
+        if (!emails.length)
+            return res.status(400).json({ message: 'No recipient emails found for this log entry.' });
+
+        const scheduleInfo = {
+            schedule_title: log.schedule_title,
+            date:           log.date,
+            start_time:     log.start_time,
+            end_time:       log.end_time,
+            location_name:  log.location_name,
+            room_number:    log.room_number,
+        };
+
+        let newStatus  = 'SENT';
+        let retryCount = (log.retry_count || 0) + 1;
+
+        try {
+            if (log.email_type === 'SLOT_ASSIGNED') {
+                await sendGroupSlotAssignedEmail(emails, log.group_label, scheduleInfo);
+            } else if (log.email_type === 'REMINDER') {
+                await sendGroupReminderEmail(emails, log.group_label, scheduleInfo);
+            } else if (log.email_type === 'SCHEDULE_PUBLISHED') {
+                await sendGroupSlotAssignedEmail(emails, log.group_label, scheduleInfo);
+            } else {
+                await sendGroupSlotAssignedEmail(emails, log.group_label, scheduleInfo);
+            }
+        } catch (err) {
+            console.error('[resendGroupEmail] Failed:', err.message);
+            newStatus = 'FAILED';
+        }
+
+        await updateEmailLog(pool, { logId, status: newStatus, retryCount });
+
+        res.json({
+            message:    newStatus === 'SENT' ? 'Email resent successfully.' : 'Resend failed.',
+            status:     newStatus,
+            retryCount,
+        });
+
+    } catch (err) {
+        console.error('[resendGroupEmail]', err);
+        res.status(500).json({ error: err.message });
     }
 };
