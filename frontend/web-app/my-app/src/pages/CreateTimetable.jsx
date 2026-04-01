@@ -1,10 +1,11 @@
 import CreateTimetableComponent from '../components/CreateTimetable/CreateTimetable';
+import RolePageLayout from '../components/layout/RolePageLayout';
 
 export default function CreateTimetable() {
   return (
-    <div style={{ minHeight: '100vh' }}>
+    <RolePageLayout role="lecturer" activePage="Timetable">
       <CreateTimetableComponent />
-    </div>
+    </RolePageLayout>
   );
 }
 

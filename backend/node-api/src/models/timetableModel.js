@@ -1,8 +1,13 @@
-const sql = require('mssql');
+const { sql, pool, poolConnect } = require('../config/db');
 
 const TABLE = 'exam_timetable';
 
 let cachedIsFlat = null;
+
+async function getPool() {
+  await poolConnect;
+  return pool;
+}
 
 /**
  * Flat DDL (exam_timetable.sql) has columns subject + exam_date on exam_timetable.
@@ -85,7 +90,7 @@ async function ensureRoom(transaction, hall) {
 /** --- Flat schema (original) --- */
 
 async function getFirstConflictFlat({ examDate, hall, startTime, endTime, excludeId }) {
-  const pool = await sql.connect();
+  const pool = await getPool();
   const request = pool
     .request()
     .input('exam_date', sql.Date, examDate)
@@ -117,7 +122,7 @@ async function getFirstConflictFlat({ examDate, hall, startTime, endTime, exclud
 }
 
 async function createTimetableFlat(row) {
-  const pool = await sql.connect();
+  const pool = await getPool();
   const result = await pool
     .request()
     .input('subject', sql.NVarChar(300), row.subject)
@@ -135,7 +140,7 @@ async function createTimetableFlat(row) {
 }
 
 async function findAllFlat({ publishedOnly, subject }) {
-  const pool = await sql.connect();
+  const pool = await getPool();
   const request = pool.request();
   const where = [];
   if (publishedOnly) where.push(`status = N'Published'`);
@@ -172,7 +177,7 @@ function mapSessionRow(r) {
 }
 
 async function findByIdFlat(id) {
-  const pool = await sql.connect();
+  const pool = await getPool();
   const result = await pool
     .request()
     .input('id', sql.Int, id)
@@ -184,7 +189,7 @@ async function findByIdFlat(id) {
 }
 
 async function updateTimetableFlat(id, row) {
-  const pool = await sql.connect();
+  const pool = await getPool();
   await pool
     .request()
     .input('id', sql.Int, id)
@@ -204,13 +209,13 @@ async function updateTimetableFlat(id, row) {
 }
 
 async function deleteTimetableFlat(id) {
-  const pool = await sql.connect();
+  const pool = await getPool();
   const result = await pool.request().input('id', sql.Int, id).query(`DELETE FROM ${TABLE} WHERE id = @id`);
   return result.rowsAffected[0] > 0;
 }
 
 async function publishTimetableFlat(id) {
-  const pool = await sql.connect();
+  const pool = await getPool();
   const result = await pool
     .request()
     .input('id', sql.Int, id)
@@ -225,7 +230,7 @@ async function publishTimetableFlat(id) {
 /** --- ERD schema (exam_timetable + exam_session) --- */
 
 async function getFirstConflictErd({ examDate, hall, startTime, endTime, excludeId }) {
-  const pool = await sql.connect();
+  const pool = await getPool();
   const request = pool
     .request()
     .input('exam_date', sql.Date, examDate)
@@ -263,7 +268,7 @@ async function getFirstConflictErd({ examDate, hall, startTime, endTime, exclude
 }
 
 async function createTimetableErd(row) {
-  const pool = await sql.connect();
+  const pool = await getPool();
   const transaction = new sql.Transaction(pool);
   await transaction.begin();
 
@@ -333,7 +338,7 @@ async function createTimetableErd(row) {
 }
 
 async function findAllErd({ publishedOnly, academicYear, semester, subject }) {
-  const pool = await sql.connect();
+  const pool = await getPool();
   const request = pool.request();
   const where = [];
   if (publishedOnly) {
@@ -383,7 +388,7 @@ async function findAllErd({ publishedOnly, academicYear, semester, subject }) {
 }
 
 async function findByIdErd(id) {
-  const pool = await sql.connect();
+  const pool = await getPool();
   const bid = typeof id === 'bigint' ? id : BigInt(id);
   const result = await pool.request().input('id', sql.BigInt, bid).query(`
     SELECT TOP 1
@@ -411,7 +416,7 @@ async function findByIdErd(id) {
 }
 
 async function updateTimetableErd(id, row) {
-  const pool = await sql.connect();
+  const pool = await getPool();
   const transaction = new sql.Transaction(pool);
   await transaction.begin();
   try {
@@ -464,7 +469,7 @@ async function updateTimetableErd(id, row) {
 }
 
 async function deleteTimetableErd(id) {
-  const pool = await sql.connect();
+  const pool = await getPool();
   const bid = typeof id === 'bigint' ? id : BigInt(id);
   const transaction = new sql.Transaction(pool);
   await transaction.begin();
@@ -500,7 +505,7 @@ async function deleteTimetableErd(id) {
 }
 
 async function publishTimetableErd(id) {
-  const pool = await sql.connect();
+  const pool = await getPool();
   const bid = typeof id === 'bigint' ? id : BigInt(id);
   const result = await pool.request().input('id', sql.BigInt, bid).query(`
     UPDATE et
@@ -528,8 +533,8 @@ async function publishTimetableErd(id) {
 /** --- Public API --- */
 
 async function getFirstConflict(params) {
-  const pool = await sql.connect();
-  const flat = await isFlatSchema(pool);
+  const db = await getPool();
+  const flat = await isFlatSchema(db);
   return flat ? getFirstConflictFlat(params) : getFirstConflictErd(params);
 }
 
@@ -539,39 +544,39 @@ async function hasTimeConflict(params) {
 }
 
 async function createTimetable(row) {
-  const pool = await sql.connect();
-  const flat = await isFlatSchema(pool);
+  const db = await getPool();
+  const flat = await isFlatSchema(db);
   return flat ? createTimetableFlat(row) : createTimetableErd(row);
 }
 
 async function findAll(opts) {
-  const pool = await sql.connect();
-  const flat = await isFlatSchema(pool);
+  const db = await getPool();
+  const flat = await isFlatSchema(db);
   const rows = flat ? await findAllFlat(opts) : await findAllErd(opts);
   return rows.map((r) => mapSessionRow(r));
 }
 
 async function findById(id) {
-  const pool = await sql.connect();
-  const flat = await isFlatSchema(pool);
+  const db = await getPool();
+  const flat = await isFlatSchema(db);
   return flat ? findByIdFlat(id) : findByIdErd(id);
 }
 
 async function updateTimetable(id, row) {
-  const pool = await sql.connect();
-  const flat = await isFlatSchema(pool);
+  const db = await getPool();
+  const flat = await isFlatSchema(db);
   return flat ? updateTimetableFlat(id, row) : updateTimetableErd(id, row);
 }
 
 async function deleteTimetable(id) {
-  const pool = await sql.connect();
-  const flat = await isFlatSchema(pool);
+  const db = await getPool();
+  const flat = await isFlatSchema(db);
   return flat ? deleteTimetableFlat(id) : deleteTimetableErd(id);
 }
 
 async function publishTimetable(id) {
-  const pool = await sql.connect();
-  const flat = await isFlatSchema(pool);
+  const db = await getPool();
+  const flat = await isFlatSchema(db);
   return flat ? publishTimetableFlat(id) : publishTimetableErd(id);
 }
 
