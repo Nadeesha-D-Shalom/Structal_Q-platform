@@ -1,54 +1,23 @@
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import logo from "../../assets/logo.png";
 
-const NAV_ITEMS = [
-  { name: "Dashboard", path: "/lecturer", icon: "fas fa-border-all" },
-  { name: "Subjects", path: "/lecturer/subjects", icon: "far fa-clipboard" },
-  { name: "Mark Revision", path: "/lecturer/marks", icon: "fas fa-star" },
-  { name: "Publish Marks", path: "/lecturer/publish-marks", icon: "fas fa-check-double" },
-  { name: "Review Concerns", path: "/lecturer/review-concerns", icon: "fas fa-question-circle" },
-  { name: "Timetable", path: "/lecturer/timetable", icon: "far fa-calendar-alt" },
-  { name: "Submissions", path: "/lecturer/submissions", icon: "far fa-file-alt" },
-  { name: "Evaluation", path: "/lecturer/evaluation", icon: "fas fa-poll-h" }
-];
-
-const LecturerNavbar = () => {
+const LecturerNavbar = ({ activePage = "Dashboard" }) => {
   const navigate = useNavigate();
-  const location = useLocation();
 
-  // ================= ACTIVE PAGE DETECTION =================
-  const getActivePage = () => {
-    const path = location.pathname;
-
-    // FORCE SUBMISSIONS ACTIVE FOR THESE ROUTES
-    if (
-      path.startsWith("/lecturer/submissions") ||
-      path.startsWith("/analysis") ||
-      path.startsWith("/lecturer/analysis") ||
-      path.startsWith("/lecturer/view-submission")
-    ) {
-      return "Submissions";
-    }
-
-    if (path.startsWith("/lecturer/subjects")) return "Subjects";
-    if (path.startsWith("/lecturer/marks")) return "Mark Revision";
-    if (path.startsWith("/lecturer/publish-marks")) return "Publish Marks";
-    if (path.startsWith("/lecturer/review-concerns")) return "Review Concerns";
-    if (path.startsWith("/lecturer/timetable")) return "Timetable";
-    if (path.startsWith("/lecturer/evaluation")) return "Evaluation";
-
-    return "Dashboard";
-  };
-
-  const currentPage = getActivePage();
-
-  // ================= STYLE =================
   const getItemStyle = (itemName) =>
-    `flex items-center gap-2 cursor-pointer transition-all duration-200 whitespace-nowrap ${
-      currentPage === itemName
-        ? "text-black font-semibold border-b-2 border-[#f28b22] pb-1"
-        : "text-[#5c6b80] hover:text-[#0f2f66]"
+    `flex items-center gap-2 cursor-pointer transition-colors ${
+      activePage === itemName ? "text-[#2f3a4d] font-bold" : "text-[#4c5b70] hover:text-[#2f3a4d]"
     }`;
+
+  const routeMap = {
+    "Dashboard":    "/lecturer",
+    "Subjects":     "/lecturer/subjects",
+    "Grades & Marks": "/lecturer/marks",
+    "Publish Marks":  "/lecturer/publish-marks",
+    "Timetable":    "/lecturer/timetable",
+    "Submissions":  "/lecturer/submissions",
+    "Evaluation":   "/lecturer/evaluation",
+  };
 
   return (
     <header className="h-[78px] bg-white border-b border-[#e7ebf1] flex items-center justify-between px-8">
@@ -97,14 +66,14 @@ const LecturerNavbar = () => {
 
         {/* USER */}
         <div className="flex items-center gap-3">
-          <div className="text-right">
-            <p className="text-[12px] font-semibold">Dr. Robert Fox</p>
-            <p className="text-[10px] text-gray-400">Lecturer ID: 202401</p>
+          <p className="text-[12px] font-semibold text-[#1f2937] whitespace-nowrap">
+            Dr. Robert Fox
+          </p>
+          <div className="w-[30px] h-[30px] rounded-full bg-[#ead7c2] flex items-center justify-center">
+            <i className="fas fa-user text-[12px] text-[#8b6b4a]"></i>
           </div>
-          <div className="w-[32px] h-[32px] bg-[#f4b37a] rounded-full cursor-pointer"></div>
         </div>
 
-      </div>
     </header>
   );
 };

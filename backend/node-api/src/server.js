@@ -5,8 +5,9 @@ require('dotenv').config();
 const { poolConnect } = require('./config/db');
 const routes = require('./routes');
 
-const app = express();
-const PORT = process.env.PORT || 5000;
+        const server = app.listen(PORT, () => {
+            console.log(`Server running on port ${PORT}`);
+        });
 
 // MIDDLEWARE
 app.use(cors());

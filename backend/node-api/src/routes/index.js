@@ -18,6 +18,11 @@ const markComparisonRoutes = require('../modules/mark-comparison/markComparison.
 router.use('/subjects', subjectRoutes);
 router.use('/assessments', assessmentRoutes);
 router.use('/marking-guides', markingGuideRoutes);
+
+
+// Member 05 - Evaluation
+const evaluationRoutes = require('../modules/evaluation-scheduling/evaluationSchedule.routes');
+router.use('/evaluation-scheduling', evaluationRoutes);
 router.use('/concerns', concernRoutes);
 
 router.use('/timetable', timetableRoutes);

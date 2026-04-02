@@ -335,11 +335,7 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted }) {
 
           {/* Action Buttons */}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-            <button
-              onClick={onBack}
-              style={btnSecondary}
-              disabled={submitting}
-            >
+            <button onClick={onBack} style={btnSecondary} disabled={submitting}>
               Cancel
             </button>
             <button
@@ -568,10 +564,6 @@ const errorBannerStyle = {
 // Add animation for spinner
 if (typeof document !== 'undefined') {
   const style = document.createElement('style');
-  style.textContent = `
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-  `;
+  style.textContent = `@keyframes spin { to { transform: rotate(360deg); } }`;
   document.head.appendChild(style);
 }
