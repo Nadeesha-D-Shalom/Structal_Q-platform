@@ -8,28 +8,23 @@ import StudentNavbar from "./StudentNavbar";
  *   FROM SESSION  (GET /api/auth/session):
  *     student_id, student_name, student_email, academic_year → auto-filled, read-only
  *
- *   FROM PROP (submission) — passed when clicking "Raise Concern" on a submission:
+ *   FROM PROP (submission):
  *     submission.submission_id   → sent to backend
  *     submission.assignment_name → shown read-only
  *     submission.subject_name    → shown read-only
  *
  *   USER INPUT:
  *     concern_message → textarea
- *
- *   BACKEND AUTO:
- *     priority_level → detected by backend from concern_message keywords
  */
-export default function RaiseConcernForm({ submission, onBack, onSubmitted, showNavbar = true }) {
+export default function RaiseConcernForm({ submission, onBack, onSubmitted }) {
 
   // ── Session ──────────────────────────────────────────────────────────────
   const [session, setSession] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [concernWindowOpen, setConcernWindowOpen] = useState(true);
   const [windowCheckLoading, setWindowCheckLoading] = useState(true);
-  const [remainingHours, setRemainingHours] = useState(null);
 
-  // ── Submission Details (fetched from backend) ─────────────────────────────
-  const [submissionDetails, setSubmissionDetails] = useState(null);
+  // ── Submission Details ───────────────────────────────────────────────────
   const [submissionLoading, setSubmissionLoading] = useState(true);
   const [submissionError, setSubmissionError] = useState(null);
 
@@ -60,18 +55,23 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted, show
   // ── Fetch submission details from backend ────────────────────────────────
   useEffect(() => {
     const submissionId = submission?.submission_id;
-    if (!submissionId) return;
+    if (!submissionId) {
+      setSubmissionLoading(false);
+      setWindowCheckLoading(false);
+      return;
+    }
 
     const fetchSubmissionDetails = async () => {
       setSubmissionLoading(true);
       setSubmissionError(null);
+
       try {
         const res = await fetch(`/api/marks/details/${submissionId}`, {
           credentials: "include"
         });
         const data = await res.json();
+
         if (data.success) {
-          setSubmissionDetails(data.data);
           setConcernWindowOpen(data.data.concern_window_open === 1 || data.data.concern_window_open === true);
         } else {
           setSubmissionError(data.message || "Failed to fetch submission details");
@@ -123,9 +123,7 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted, show
     try {
       const res = await fetch("/api/concern", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
         credentials: "include",
       });
@@ -136,11 +134,7 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted, show
         setSubmitted(true);
         if (onSubmitted) onSubmitted(responseData);
       } else {
-        if (responseData.message) {
-          setErrors({ submit: responseData.message });
-        } else {
-          throw new Error("Failed to submit concern");
-        }
+        setErrors({ submit: responseData.message || "Failed to submit concern" });
       }
     } catch (err) {
       console.error("Submission failed:", err);
@@ -150,7 +144,7 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted, show
     }
   };
 
-  // Loading Session
+  // Loading State
   if (sessionLoading || windowCheckLoading || submissionLoading) {
     return (
       <div style={pageStyle}>
@@ -158,7 +152,7 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted, show
         <div style={centerStyle}>
           <div style={spinnerStyle} />
           <p style={{ color: "#64748b", fontSize: 14, marginTop: 16 }}>
-            {sessionLoading ? "Loading your session..." : submissionLoading ? "Loading submission details..." : "Checking concern window..."}
+            {sessionLoading ? "Loading your session..." : "Loading submission details..."}
           </p>
         </div>
       </div>
@@ -180,8 +174,8 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted, show
     );
   }
 
-  // Check if concern window is closed
-  if (!concernWindowOpen && !windowCheckLoading) {
+  // Concern window closed
+  if (!concernWindowOpen) {
     return (
       <div style={pageStyle}>
         <StudentNavbar activePage="Concerns" />
@@ -215,9 +209,6 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted, show
           <p style={{ color: "#64748b", fontSize: 15, margin: "0 0 6px" }}>
             Your concern has been received and will be reviewed by the lecturer.
           </p>
-          <p style={{ color: "#94a3b8", fontSize: 13, margin: "0 0 28px" }}>
-            Priority level will be assigned automatically based on your concern.
-          </p>
           <button onClick={onBack} style={btnPrimary}>← Back to Submissions</button>
         </div>
       </div>
@@ -241,7 +232,7 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted, show
     );
   }
 
-  // Validate submission prop
+  // No submission selected
   if (!submission) {
     return (
       <div style={pageStyle}>
@@ -260,7 +251,7 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted, show
     );
   }
 
-  // ── Form ─────────────────────────────────────────────────────────────────
+  // ── Main Form UI ────────────────────────────────────────────────────────
   return (
     <div style={pageStyle}>
       <StudentNavbar activePage="Concerns" />
@@ -281,15 +272,10 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted, show
               <p style={{ margin: "3px 0 0", fontSize: 12, color: "#94a3b8" }}>
                 Priority will be automatically assigned based on your concern message.
               </p>
-              {remainingHours && (
-                <p style={{ margin: "8px 0 0", fontSize: 11, color: "#f59e0b", fontWeight: 500 }}>
-                  ⏰ Concern window closes in {remainingHours} hours
-                </p>
-              )}
             </div>
           </div>
 
-          {/* Error message from submit */}
+          {/* Submit Error Banner */}
           {errors.submit && (
             <div style={errorBannerStyle}>
               <span>⚠️</span>
@@ -297,7 +283,7 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted, show
             </div>
           )}
 
-          {/* ── Student Info — from session, read-only ─────────────────── */}
+          {/* Student Information */}
           <div style={{ marginBottom: 22 }}>
             <SectionLabel>Student Information</SectionLabel>
             <div style={infoGridStyle}>
@@ -308,18 +294,16 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted, show
             </div>
           </div>
 
-          {/* ── Submission Info — from submission prop, read-only ──────── */}
+          {/* Submission Details */}
           <div style={{ marginBottom: 22 }}>
             <SectionLabel>Submission Details</SectionLabel>
             <div style={infoGridStyle}>
-              <ReadOnlyField label="Assignment" value={submissionDetails?.assignment_name} />
-              <ReadOnlyField label="Subject" value={submissionDetails?.subject_name} />
-              <ReadOnlyField label="Marks Received" value={submissionDetails ? `${submissionDetails.mark}/${submissionDetails.total}` : "—"} />
-              <ReadOnlyField label="Published Date" value={submissionDetails?.published_at ? new Date(submissionDetails.published_at).toLocaleDateString() : "—"} />
+              <ReadOnlyField label="Assignment" value={submission?.assignment_name} />
+              <ReadOnlyField label="Subject" value={submission?.subject_name} />
             </div>
           </div>
 
-          {/* ── Concern Message — user input ───────────────────────────── */}
+          {/* Concern Message */}
           <div style={{ marginBottom: 32 }}>
             <label style={labelStyle}>
               Concern Message <span style={{ color: "#ef4444" }}>*</span>
@@ -330,26 +314,26 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted, show
                 setConcernMessage(e.target.value);
                 setErrors(prev => ({ ...prev, concernMessage: "", submit: "" }));
               }}
-              placeholder="Describe your concern in detail. Be specific about the marks, grading criteria, or sections you are disputing. Include any relevant details that will help the lecturer understand your concern..."
+              placeholder="Describe your concern in detail. Be specific about the marks, grading criteria, or sections you are disputing..."
               rows={6}
               style={{
                 ...inputStyle,
-                resize: "vertical",
-                lineHeight: 1.65,
                 borderColor: errors.concernMessage ? "#ef4444" : "#d1d5db",
               }}
             />
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-              {errors.concernMessage
-                ? <span style={errorStyle}>{errors.concernMessage}</span>
-                : <span style={hintStyle}>Minimum 20 characters</span>}
+              {errors.concernMessage ? (
+                <span style={errorStyle}>{errors.concernMessage}</span>
+              ) : (
+                <span style={hintStyle}>Minimum 20 characters</span>
+              )}
               <span style={charCountStyle(concernMessage.length)}>
                 {concernMessage.length} / 2000
               </span>
             </div>
           </div>
 
-          {/* ── Submit ────────────────────────────────────────────────── */}
+          {/* Action Buttons */}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
             <button onClick={onBack} style={btnSecondary} disabled={submitting}>
               Cancel
@@ -359,8 +343,8 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted, show
               disabled={submitting || concernMessage.trim().length < 20}
               style={{
                 ...btnPrimary,
-                opacity: (submitting || concernMessage.trim().length < 20) ? 0.7 : 1,
-                cursor: (submitting || concernMessage.trim().length < 20) ? "not-allowed" : "pointer",
+                opacity: submitting || concernMessage.trim().length < 20 ? 0.7 : 1,
+                cursor: submitting || concernMessage.trim().length < 20 ? "not-allowed" : "pointer",
               }}
             >
               {submitting ? "Submitting..." : "Submit Concern →"}
@@ -372,21 +356,38 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted, show
   );
 }
 
-
 // ── Sub-components ───────────────────────────────────────────────────────────
 const SectionLabel = ({ children }) => (
-  <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>
+  <div style={{ 
+    fontSize: 11, 
+    fontWeight: 700, 
+    color: "#94a3b8", 
+    letterSpacing: "0.06em", 
+    textTransform: "uppercase", 
+    marginBottom: 8 
+  }}>
     {children}
   </div>
 );
 
-function ReadOnlyField({ label, value, highlight }) {
+function ReadOnlyField({ label, value, highlight = false }) {
   return (
     <div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+      <div style={{ 
+        fontSize: 11, 
+        fontWeight: 700, 
+        color: "#94a3b8", 
+        marginBottom: 4, 
+        textTransform: "uppercase", 
+        letterSpacing: "0.05em" 
+      }}>
         {label}
       </div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: highlight ? "#2563eb" : "#374151" }}>
+      <div style={{ 
+        fontSize: 13, 
+        fontWeight: 600, 
+        color: highlight ? "#2563eb" : "#374151" 
+      }}>
         {value || "—"}
       </div>
     </div>
@@ -394,27 +395,173 @@ function ReadOnlyField({ label, value, highlight }) {
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
-const pageStyle = { minHeight: "100vh", backgroundColor: "#f8f9fc", fontFamily: "'Segoe UI', sans-serif" };
-const centerStyle = { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "calc(100vh - 64px)", textAlign: "center", padding: 40 };
-const cardStyle = { backgroundColor: "#fff", borderRadius: 18, border: "1px solid #e8eaf0", boxShadow: "0 2px 16px rgba(0,0,0,0.06)", padding: "36px 40px" };
-const cardHeaderStyle = { display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 28, paddingBottom: 22, borderBottom: "1px solid #f1f5f9" };
-const iconWrapStyle = { width: 38, height: 38, borderRadius: 10, backgroundColor: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 };
-const labelStyle = { display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 8 };
-const errorStyle = { color: "#ef4444", fontSize: 12, marginTop: 4, display: "block" };
-const hintStyle = { color: "#94a3b8", fontSize: 12, marginTop: 4, display: "block" };
+const pageStyle = { 
+  minHeight: "100vh", 
+  backgroundColor: "#f8f9fc", 
+  fontFamily: "'Segoe UI', sans-serif" 
+};
+
+const centerStyle = { 
+  display: "flex", 
+  flexDirection: "column", 
+  alignItems: "center", 
+  justifyContent: "center", 
+  minHeight: "calc(100vh - 64px)", 
+  textAlign: "center", 
+  padding: 40 
+};
+
+const cardStyle = { 
+  backgroundColor: "#fff", 
+  borderRadius: 18, 
+  border: "1px solid #e8eaf0", 
+  boxShadow: "0 2px 16px rgba(0,0,0,0.06)", 
+  padding: "36px 40px" 
+};
+
+const cardHeaderStyle = { 
+  display: "flex", 
+  alignItems: "flex-start", 
+  gap: 14, 
+  marginBottom: 28, 
+  paddingBottom: 22, 
+  borderBottom: "1px solid #f1f5f9" 
+};
+
+const iconWrapStyle = { 
+  width: 38, 
+  height: 38, 
+  borderRadius: 10, 
+  backgroundColor: "#eff6ff", 
+  display: "flex", 
+  alignItems: "center", 
+  justifyContent: "center", 
+  fontSize: 18, 
+  flexShrink: 0 
+};
+
+const labelStyle = { 
+  display: "block", 
+  fontSize: 13, 
+  fontWeight: 600, 
+  color: "#374151", 
+  marginBottom: 8 
+};
+
+const errorStyle = { 
+  color: "#ef4444", 
+  fontSize: 12, 
+  marginTop: 4, 
+  display: "block" 
+};
+
+const hintStyle = { 
+  color: "#94a3b8", 
+  fontSize: 12, 
+  marginTop: 4, 
+  display: "block" 
+};
+
 const charCountStyle = (length) => ({
   color: length > 1900 ? (length > 2000 ? "#ef4444" : "#f59e0b") : "#94a3b8",
   fontSize: 12,
   marginTop: 4
 });
-const inputStyle = { width: "100%", padding: "11px 14px", borderRadius: 10, border: "1.5px solid #d1d5db", fontSize: 14, color: "#1a2340", outline: "none", fontFamily: "'Segoe UI', sans-serif", boxSizing: "border-box", transition: "border-color 0.2s" };
-const infoGridStyle = { display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14, padding: 16, borderRadius: 12, backgroundColor: "#f8f9fc", border: "1px solid #e8eaf0" };
-const btnPrimary = { padding: "12px 32px", borderRadius: 30, border: "none", background: "linear-gradient(90deg, #1d4ed8, #2563eb)", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8, boxShadow: "0 4px 14px rgba(37,99,235,0.3)", transition: "all 0.2s" };
-const btnSecondary = { padding: "12px 32px", borderRadius: 30, border: "1.5px solid #d1d5db", background: "#fff", color: "#374151", fontSize: 15, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8, transition: "all 0.2s" };
-const backBtnStyle = { background: "none", border: "none", color: "#2563eb", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 24, padding: 0 };
-const spinnerStyle = { width: 36, height: 36, border: "3px solid #e2e8f0", borderTopColor: "#2563eb", borderRadius: "50%", animation: "spin 0.7s linear infinite", margin: "0 auto" };
-const errorBannerStyle = { backgroundColor: "#fee2e2", border: "1px solid #fecaca", borderRadius: 10, padding: "12px 16px", marginBottom: 24, display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "#dc2626" };
 
+const inputStyle = { 
+  width: "100%", 
+  padding: "11px 14px", 
+  borderRadius: 10, 
+  border: "1.5px solid #d1d5db", 
+  fontSize: 14, 
+  color: "#1a2340", 
+  outline: "none", 
+  fontFamily: "'Segoe UI', sans-serif", 
+  boxSizing: "border-box", 
+  transition: "border-color 0.2s",
+  resize: "vertical",
+  lineHeight: 1.65
+};
+
+const infoGridStyle = { 
+  display: "grid", 
+  gridTemplateColumns: "1fr 1fr 1fr 1fr", 
+  gap: 14, 
+  padding: 16, 
+  borderRadius: 12, 
+  backgroundColor: "#f8f9fc", 
+  border: "1px solid #e8eaf0" 
+};
+
+const btnPrimary = { 
+  padding: "12px 32px", 
+  borderRadius: 30, 
+  border: "none", 
+  background: "linear-gradient(90deg, #1d4ed8, #2563eb)", 
+  color: "#fff", 
+  fontSize: 15, 
+  fontWeight: 700, 
+  cursor: "pointer", 
+  display: "inline-flex", 
+  alignItems: "center", 
+  gap: 8, 
+  boxShadow: "0 4px 14px rgba(37,99,235,0.3)", 
+  transition: "all 0.2s" 
+};
+
+const btnSecondary = { 
+  padding: "12px 32px", 
+  borderRadius: 30, 
+  border: "1.5px solid #d1d5db", 
+  background: "#fff", 
+  color: "#374151", 
+  fontSize: 15, 
+  fontWeight: 600, 
+  cursor: "pointer", 
+  display: "inline-flex", 
+  alignItems: "center", 
+  gap: 8, 
+  transition: "all 0.2s" 
+};
+
+const backBtnStyle = { 
+  background: "none", 
+  border: "none", 
+  color: "#2563eb", 
+  fontSize: 13, 
+  fontWeight: 600, 
+  cursor: "pointer", 
+  display: "inline-flex", 
+  alignItems: "center", 
+  gap: 6, 
+  marginBottom: 24, 
+  padding: 0 
+};
+
+const spinnerStyle = { 
+  width: 36, 
+  height: 36, 
+  border: "3px solid #e2e8f0", 
+  borderTopColor: "#2563eb", 
+  borderRadius: "50%", 
+  animation: "spin 0.7s linear infinite", 
+  margin: "0 auto" 
+};
+
+const errorBannerStyle = { 
+  backgroundColor: "#fee2e2", 
+  border: "1px solid #fecaca", 
+  borderRadius: 10, 
+  padding: "12px 16px", 
+  marginBottom: 24, 
+  display: "flex", 
+  alignItems: "center", 
+  gap: 10, 
+  fontSize: 13, 
+  color: "#dc2626" 
+};
+
+// Add animation for spinner
 if (typeof document !== 'undefined') {
   const style = document.createElement('style');
   style.textContent = `@keyframes spin { to { transform: rotate(360deg); } }`;

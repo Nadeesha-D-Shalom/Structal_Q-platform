@@ -1,5 +1,7 @@
 const service = require('./submission.service');
+const { pool, poolConnect, sql } = require('../../config/db');
 
+/* UPLOAD */
 exports.uploadSubmission = async (req, res) => {
     try {
         const result = await service.upload(req);
@@ -9,17 +11,104 @@ exports.uploadSubmission = async (req, res) => {
     }
 };
 
+/* GET STUDENT */
 exports.getStudentSubmissions = async (req, res) => {
-    const data = await service.getByStudent(req.params.id);
-    res.json(data);
+    try {
+        const data = await service.getByStudent(req.params.id);
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 };
 
+/* GET ALL STUDENT SUBMISSIONS */
+exports.getAllStudentSubmissions = async (req, res) => {
+    try {
+        const data = await service.getAllStudentSubmissions();
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({
+            success: false,
+            error: err.message
+        });
+    }
+};
+
+/* LECTURER VIEW */
+exports.getAllSubmissionsForLecturer = async (req, res) => {
+    try {
+        const data = await service.getAllSubmissionsForLecturer();
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+/* AI METADATA */
 exports.getAIMetadata = async (req, res) => {
-    const data = await service.getAIMetadata(req.params.id);
-    res.json(data);
+    try {
+        const data = await service.getAIMetadata(req.params.id);
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 };
 
+/* DELETE */
 exports.softDeleteSubmission = async (req, res) => {
-    await service.softDelete(req.params.id);
-    res.json({ message: "Deleted successfully" });
+    try {
+        await service.softDelete(req.params.id);
+        res.json({ message: "Deleted successfully" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+/* GET BY ID (FIXED) */
+exports.getSubmissionById = async (req, res) => {
+    try {
+        await poolConnect;
+
+        const submissionId = parseInt(req.params.id);
+
+        if (isNaN(submissionId)) {
+            return res.status(400).json({
+                success: false,
+                error: "Invalid submission ID"
+            });
+        }
+
+        const result = await pool.request()
+            .input('id', sql.Int, submissionId)
+            .query(`
+                SELECT 
+                    s.submission_id,
+                    s.attempt_no,
+                    fs.original_file_name,
+                    fs.storage_path
+                FROM submission s
+                JOIN file_storage fs 
+                    ON s.file_id = fs.file_id
+                WHERE s.submission_id = @id
+            `);
+
+        if (result.recordset.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Submission not found"
+            });
+        }
+
+        res.json({
+            success: true,
+            data: result.recordset[0]
+        });
+
+    } catch (err) {
+        console.error("Get submission error:", err);
+        res.status(500).json({
+            success: false,
+            error: err.message
+        });
+    }
 };

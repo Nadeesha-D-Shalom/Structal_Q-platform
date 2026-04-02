@@ -1,0 +1,183 @@
+:root {
+  --bg: #ffffff;
+  --text: #0f172a;
+  --muted: #475569;
+  --border: #e2e8f0;
+  --surface: #f6f6f8;
+  --primary: #2463eb;
+  --success-bg: #d1fae5;
+  --success-text: #047857;
+}
+
+.createExamTimetable {
+  box-sizing: border-box;
+  padding: 32px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.createExamTimetable__header h2 {
+  margin: 0;
+  font-size: 36px;
+  line-height: 40px;
+  letter-spacing: -0.9px;
+  color: var(--text);
+}
+
+.createExamTimetable__back {
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 700;
+  padding: 0;
+  margin-bottom: 12px;
+  cursor: pointer;
+}
+
+.createExamTimetable__header p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 24px;
+  max-width: 760px;
+}
+
+.card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 32px 32px 48px;
+  box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.05);
+}
+
+.createExamTimetable__error {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.formGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.formGrid__row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field > span {
+  color: #334155;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.field > input,
+.field > select {
+  height: 48px;
+  padding: 0 12px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+}
+
+.field > input::placeholder {
+  color: #6b7280;
+}
+
+.statusBar {
+  background: #f8fafc;
+  border: 1px dashed var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.statusBar__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.statusBar__info strong {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text);
+}
+
+.statusBar__info span {
+  font-size: 12px;
+  line-height: 16px;
+  color: #64748b;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: 9999px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 700;
+}
+
+.pill--success {
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.actions {
+  border-top: 1px solid #f1f5f9;
+  padding-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn {
+  border: 0;
+  border-radius: 16px;
+  padding: 12px 40px;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn--primary {
+  background: var(--primary);
+  color: #ffffff;
+  box-shadow: 0px 4px 6px -4px rgba(36, 99, 235, 0.2), 0px 10px 15px -3px rgba(36, 99, 235, 0.2);
+}
+
+@media (max-width: 1024px) {
+  .formGrid__row {
+    grid-template-columns: 1fr;
+  }
+
+  .createExamTimetable {
+    padding: 24px 16px;
+  }
+}
+
