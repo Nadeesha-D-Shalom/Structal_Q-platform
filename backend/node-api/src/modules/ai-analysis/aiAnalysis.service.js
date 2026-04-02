@@ -1,8 +1,8 @@
 const axios = require("axios");
 const sql = require("mssql");
 const { pool } = require("../../config/db");
-
-const AI_BASE_URL = "http://localhost:8000";
+const { ML_SERVICE_URL } = require("../../config/env");
+const AI_BASE_URL = ML_SERVICE_URL;
 
 
 // ================= AI CALL =================
@@ -27,12 +27,60 @@ async function runAIAnalysis(payload) {
 }
 
 
+// ================= MAP SECTIONS (FIXED) =================
+async function mapSectionsToQuestions(aiResult, marking_guide_id) {
+    const result = await pool.request()
+        .input("guide_id", sql.BigInt, marking_guide_id)
+        .query(`
+            SELECT question_id, question_no
+            FROM guide_question
+            WHERE marking_guide_id = @guide_id
+            ORDER BY question_no ASC
+        `);
+
+    const questions = result.recordset;
+
+    const sectionKeys = [
+        "section_A",
+        "section_B",
+        "section_C",
+        "section_D",
+        "section_E",
+        "section_F"
+    ];
+
+    const mapped = questions.map((q, index) => {
+        const sectionKey = sectionKeys[index];
+        const marks = aiResult[sectionKey] || 0;
+
+        return {
+            question_id: q.question_id, // REAL FK ID
+            keyword_matches: [],
+            keyword_score: marks / 100,
+            semantic_score: aiResult.semantic_similarity || 0,
+            suggested_marks: marks,
+            confidence:
+                aiResult.confidence_score ||
+                aiResult.semantic_similarity ||
+                0.75,
+            missing_keywords: []
+        };
+    });
+
+    console.log("Mapped Question Scores (REAL IDs):", mapped);
+
+    return mapped;
+}
+
+
 // ================= SAVE QUESTION SCORES =================
 async function saveAiQuestionScores(analysis_result_id, questionScores = []) {
     if (!questionScores || questionScores.length === 0) {
         console.log("No question-level data from AI");
         return;
     }
+
+    console.log("Saving AI Question Scores...");
 
     const transaction = new sql.Transaction(pool);
 
@@ -45,36 +93,12 @@ async function saveAiQuestionScores(analysis_result_id, questionScores = []) {
             await request
                 .input("analysis_result_id", sql.BigInt, analysis_result_id)
                 .input("question_id", sql.BigInt, item.question_id)
-                .input(
-                    "keyword_matches",
-                    sql.NVarChar(sql.MAX),
-                    item.keyword_matches ? JSON.stringify(item.keyword_matches) : null
-                )
-                .input(
-                    "keyword_score",
-                    sql.Decimal(10, 4),
-                    item.keyword_score ?? null
-                )
-                .input(
-                    "semantic_score",
-                    sql.Decimal(10, 4),
-                    item.semantic_score ?? null
-                )
-                .input(
-                    "suggested_marks",
-                    sql.Decimal(10, 2),
-                    item.suggested_marks ?? null
-                )
-                .input(
-                    "confidence",
-                    sql.Decimal(10, 4),
-                    item.confidence ?? null
-                )
-                .input(
-                    "missing_keywords",
-                    sql.NVarChar(sql.MAX),
-                    item.missing_keywords ? JSON.stringify(item.missing_keywords) : null
-                )
+                .input("keyword_matches", sql.NVarChar(sql.MAX), JSON.stringify(item.keyword_matches))
+                .input("keyword_score", sql.Decimal(10, 4), item.keyword_score)
+                .input("semantic_score", sql.Decimal(10, 4), item.semantic_score)
+                .input("suggested_marks", sql.Decimal(10, 2), item.suggested_marks)
+                .input("confidence", sql.Decimal(10, 4), item.confidence)
+                .input("missing_keywords", sql.NVarChar(sql.MAX), JSON.stringify(item.missing_keywords))
                 .query(`
                     INSERT INTO dbo.ai_question_score (
                         analysis_result_id,
@@ -103,6 +127,8 @@ async function saveAiQuestionScores(analysis_result_id, questionScores = []) {
 
         await transaction.commit();
 
+        console.log("AI QUESTION SCORES INSERTED SUCCESSFULLY");
+
     } catch (error) {
         await transaction.rollback();
         console.error("AI QUESTION SCORE INSERT ERROR:", error);
@@ -124,21 +150,13 @@ async function saveAnalysisToDB({
 
         const request = pool.request();
 
-        // ===== SAFE FIELD EXTRACTION =====
-        const similarity_avg =
-            aiResult.semantic_similarity ||
-            aiResult.similarity_score ||
-            0;
-
+        const similarity_avg = aiResult.semantic_similarity || 0;
         const structural_similarity_avg =
-            aiResult?.diagram_analysis?.diagram_score ||
             aiResult.structural_similarity ||
+            aiResult?.diagram_analysis?.diagram_score ||
             0;
 
-        const finalScore =
-            aiResult.final_score ||
-            aiResult.score ||
-            0;
+        const finalScore = aiResult.final_score || 0;
 
         const missingSections = [];
 
@@ -157,7 +175,7 @@ async function saveAnalysisToDB({
         const cvUsed =
             aiResult?.diagram_analysis?.image_count > 0 ? 1 : 0;
 
-        // ===== INSERT WITH RETURN ID =====
+        // ===== INSERT MAIN =====
         const result = await request
             .input("submission_id", sql.BigInt, submission_id)
             .input("marking_guide_id", sql.BigInt, marking_guide_id)
@@ -211,16 +229,15 @@ async function saveAnalysisToDB({
 
         const analysis_result_id = result.recordset[0].analysis_result_id;
 
-        // ===== STEP 2: INSERT QUESTION SCORES =====
-        // Expected AI format:
-        // aiResult.question_scores = [ {...}, {...} ]
+        console.log("Generated analysis_result_id:", analysis_result_id);
 
-        if (aiResult.question_scores) {
-            await saveAiQuestionScores(
-                analysis_result_id,
-                aiResult.question_scores
-            );
-        }
+        // ===== FIXED STEP =====
+        const questionScores = await mapSectionsToQuestions(
+            aiResult,
+            marking_guide_id
+        );
+
+        await saveAiQuestionScores(analysis_result_id, questionScores);
 
         return {
             success: true,
@@ -234,7 +251,47 @@ async function saveAnalysisToDB({
 }
 
 
+// ================= GET ANALYSIS RESULTS =================
+async function getAnalysisResults(submissionId) {
+    try {
+        const request = pool.request();
+
+        const result = await request
+            .input("submission_id", sql.BigInt, submissionId)
+            .query(`
+                SELECT 
+                    ar.*,
+                    (SELECT * FROM ai_question_score WHERE analysis_result_id = ar.analysis_result_id FOR JSON PATH) as question_scores
+                FROM analysis_result ar
+                WHERE ar.submission_id = @submission_id
+                ORDER BY ar.analysis_result_id DESC
+                OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY
+            `);
+
+        if (result.recordset.length === 0) {
+            return null;
+        }
+
+        const record = result.recordset[0];
+        
+        // Parse question scores if they exist
+        if (record.question_scores) {
+            try {
+                record.question_scores = JSON.parse(record.question_scores);
+            } catch (e) {
+                record.question_scores = [];
+            }
+        }
+
+        return record;
+    } catch (error) {
+        console.error("Get Analysis Results Error:", error);
+        throw error;
+    }
+}
+
 module.exports = {
     runAIAnalysis,
-    saveAnalysisToDB
+    saveAnalysisToDB,
+    getAnalysisResults
 };

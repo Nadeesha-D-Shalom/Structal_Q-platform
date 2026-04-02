@@ -5,11 +5,29 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="73978067-b5a3-4b9e-bce9-b1f97c06eaa6" name="Changes" comment="feat: implement hybrid semantic retrieval with TOC filtering and rubric-driven scoring">
-      <change beforePath="$PROJECT_DIR$/../node-api/.env" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/config/api.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/ai-analysis/aiAnalysis.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/ai-analysis/aiAnalysis.controller.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/ai-analysis/aiAnalysis.routes.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/ai-analysis/aiAnalysis.routes.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../node-api/src/modules/ai-analysis/aiAnalysis.service.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/ai-analysis/aiAnalysis.service.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/submission/submission.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/submission/submission.controller.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/submission/submission.routes.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/submission/submission.routes.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/submission/submission.service.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/submission/submission.service.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/routes/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/routes/index.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/server.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/server.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/api.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/api.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/services/scoring_engine.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/services/scoring_engine.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test_files/lecturer/Lecture template.docx" beforeDir="false" afterPath="$PROJECT_DIR$/test_files/lecturer/Lecture template.docx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/package.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/App.js" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/App.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/components/layout/DashboardLayout.jsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/components/layout/Navbar.jsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/components/layout/Sidebar.jsx" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/LecturerNavbar.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/LecturerNavbar.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/MarkPublishingInterface.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/MarkPublishingInterface.jsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/student/RaiseConcernForm.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/student/RaiseConcernForm.jsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/student/StudentNavbar.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/student/StudentNavbar.jsx" afterDir="false" />
     </list>
@@ -117,7 +135,7 @@
       <workItem from="1774503424739" duration="292000" />
       <workItem from="1774861675547" duration="467000" />
       <workItem from="1774927676444" duration="785000" />
-      <workItem from="1774956798442" duration="318000" />
+      <workItem from="1774956798442" duration="14108000" />
     </task>
     <task id="LOCAL-00001" summary="feat: implement hybrid semantic retrieval with TOC filtering and rubric-driven scoring">
       <option name="closed" value="true" />

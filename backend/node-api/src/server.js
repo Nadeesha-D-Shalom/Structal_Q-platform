@@ -3,82 +3,50 @@ const cors = require('cors');
 require('dotenv').config();
 
 const { poolConnect } = require('./config/db');
-<<<<<<< HEAD
-
-// KEEP ONLY WORKING MODULES
-const subjectRoutes = require('./modules/subject/subject.routes');
-const assessmentRoutes = require('./modules/assessment/assessment.routes');
-const markingGuideRoutes = require('./modules/marking-guide/markingGuide.routes');
-const concernRoutes = require('./modules/concern/concern.routes');
-const markPublishRoutes = require('./modules/mark-publish/markPublish.routes');
-const viewMarksRoutes = require('./modules/mark-publish/viewMarks.routes');
-
-// (MAIN FOCUS)
-const aiAnalysisRoutes = require('./modules/ai-analysis/aiAnalysis.routes');
-=======
-const apiRoutes = require('./routes/index');
->>>>>>> jazeel
+const routes = require('./routes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ================= MIDDLEWARE =================
+// MIDDLEWARE
 app.use(cors());
 app.use(express.json());
 
+// ROUTES
+app.use('/api', routes);
 
-app.use('/api', apiRoutes);
-// ================= DATABASE =================
-poolConnect
-    .then(() => console.log("DB Connected Successfully"))
-    .catch(err => console.error("Database connection failed:", err));
-
-
-<<<<<<< HEAD
-// ================= ROUTES =================
-
-// Other stable modules
-app.use('/api/subjects', subjectRoutes);
-app.use('/api/assessments', assessmentRoutes);
-app.use('/api/marking-guides', markingGuideRoutes);
-app.use('/api/concern', concernRoutes);
-app.use('/api/marks', markPublishRoutes);
-app.use('/api/student/marks', viewMarksRoutes);
-
-// AI MODULE
-app.use('/api/ai-analysis', aiAnalysisRoutes);
-
-
-=======
->>>>>>> jazeel
-// ================= HEALTH =================
+// HEALTH
 app.get('/health', (req, res) => {
     res.json({
-        status: "Backend running",
+        status: 'Backend running',
         port: PORT
     });
 });
 
-
-// ================= ROOT =================
+// ROOT
 app.get('/', (req, res) => {
-    res.send("StructaIQ Backend API running");
+    res.send('StructaIQ Backend API running');
 });
 
-
-// ================= ERROR =================
+// GLOBAL ERROR HANDLER
 app.use((err, req, res, next) => {
-    console.error("GLOBAL ERROR:", err.stack);
+    console.error('GLOBAL ERROR:', err.stack);
 
     res.status(500).json({
         success: false,
-        message: "Something went wrong!",
+        message: 'Something went wrong!',
         error: err.message
     });
 });
 
-
-// ================= START =================
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-});
+// START SERVER AFTER DB CONNECT
+poolConnect
+    .then(() => {
+        console.log('DB Connected Successfully');
+        app.listen(PORT, () => {
+            console.log(`Server running on port ${PORT}`);
+        });
+    })
+    .catch(err => {
+        console.error('Database connection failed:', err);
+    });
