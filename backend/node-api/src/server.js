@@ -6,6 +6,9 @@ const assessmentRoutes = require('./modules/assessment/assessment.routes');
 const markingGuideRoutes = require('./modules/marking-guide/markingGuide.routes');
 const guideQuestionRoutes = require('./modules/guide-question/guideQuestion.routes');
 const questionKeywordRoutes = require('./modules/question-keyword/questionKeyword.routes');
+const guideRubricRoutes = require('./modules/guide-rubric/guideRubric.routes');
+
+
 
 
 const app = express();
@@ -20,6 +23,7 @@ app.use('/api/assessments', assessmentRoutes);
 app.use('/api/marking-guides', markingGuideRoutes);
 app.use('/api/guide-questions', guideQuestionRoutes);
 app.use('/api/question-keywords', questionKeywordRoutes);
+app.use('/api/guide-rubric', guideRubricRoutes);
 
 app.get('/health', (req, res) => {
     res.json({ status: "Backend running" });

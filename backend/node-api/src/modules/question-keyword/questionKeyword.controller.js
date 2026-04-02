@@ -1,7 +1,7 @@
-const sql = require('mssql');
+const { sql, poolPromise } = require('../../config/db');
 
 // CREATE KEYWORD
-exports.createKeyword = async (req, res) => {
+const createKeyword = async (req, res) => {
     const {
         question_id,
         keyword_text,
@@ -17,13 +17,13 @@ exports.createKeyword = async (req, res) => {
     }
 
     try {
-        const pool = await sql.connect();
+        const pool = await poolPromise;
 
         await pool.request()
             .input('question_id', sql.Int, question_id)
             .input('keyword_text', sql.VarChar(200), keyword_text)
             .input('marks_weight', sql.Decimal(5,2), marks_weight || 0)
-            .input('is_mandatory', sql.Bit, is_mandatory || 0)
+            .input('is_mandatory', sql.Bit, is_mandatory ? 1 : 0) 
             .input('match_type', sql.VarChar(50), match_type || 'EXACT')
             .query(`
                 INSERT INTO question_keyword (
@@ -51,19 +51,16 @@ exports.createKeyword = async (req, res) => {
     }
 };
 
-
 // GET ALL KEYWORDS
-exports.getKeywords = async (req, res) => {
+const getKeywords = async (req, res) => {
     try {
-        const pool = await sql.connect();
+        const pool = await poolPromise;
 
-        const result = await pool.request()
-            .query(`
-                SELECT k.*, q.question_text
-                FROM question_keyword k
-                JOIN guide_question q ON k.question_id = q.question_id
-                ORDER BY k.created_at DESC
-            `);
+        const result = await pool.request().query(`
+            SELECT *
+            FROM question_keyword
+            ORDER BY created_at DESC
+        `);
 
         res.json(result.recordset);
 
@@ -73,23 +70,21 @@ exports.getKeywords = async (req, res) => {
 };
 
 
-// GET KEYWORD BY ID
-exports.getKeywordById = async (req, res) => {
+// GET BY ID
+const getKeywordById = async (req, res) => {
     try {
-        const pool = await sql.connect();
+        const pool = await poolPromise;
 
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
             .query(`
-                SELECT * 
+                SELECT *
                 FROM question_keyword
                 WHERE keyword_id = @id
             `);
 
-        if (result.recordset.length === 0) {
-            return res.status(404).json({
-                message: "Keyword not found"
-            });
+        if (!result.recordset.length) {
+            return res.status(404).json({ message: "Keyword not found" });
         }
 
         res.json(result.recordset[0]);
@@ -101,7 +96,7 @@ exports.getKeywordById = async (req, res) => {
 
 
 // UPDATE KEYWORD
-exports.updateKeyword = async (req, res) => {
+const updateKeyword = async (req, res) => {
     const {
         keyword_text,
         marks_weight,
@@ -110,14 +105,14 @@ exports.updateKeyword = async (req, res) => {
     } = req.body;
 
     try {
-        const pool = await sql.connect();
+        const pool = await poolPromise;
 
         await pool.request()
             .input('id', sql.Int, req.params.id)
             .input('keyword_text', sql.VarChar(200), keyword_text)
-            .input('marks_weight', sql.Decimal(5,2), marks_weight)
-            .input('is_mandatory', sql.Bit, is_mandatory)
-            .input('match_type', sql.VarChar(50), match_type)
+            .input('marks_weight', sql.Decimal(5,2), marks_weight || 0)
+            .input('is_mandatory', sql.Bit, is_mandatory ? 1 : 0)
+            .input('match_type', sql.VarChar(50), match_type || 'EXACT')
             .query(`
                 UPDATE question_keyword
                 SET keyword_text = @keyword_text,
@@ -127,20 +122,17 @@ exports.updateKeyword = async (req, res) => {
                 WHERE keyword_id = @id
             `);
 
-        res.json({
-            message: "Keyword updated successfully"
-        });
+        res.json({ message: "Keyword updated successfully" });
 
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 };
 
-
-// DELETE KEYWORD (HARD DELETE)
-exports.deleteKeyword = async (req, res) => {
+// DELETE KEYWORD
+const deleteKeyword = async (req, res) => {
     try {
-        const pool = await sql.connect();
+        const pool = await poolPromise;
 
         await pool.request()
             .input('id', sql.Int, req.params.id)
@@ -149,11 +141,18 @@ exports.deleteKeyword = async (req, res) => {
                 WHERE keyword_id = @id
             `);
 
-        res.json({
-            message: "Keyword deleted successfully"
-        });
+        res.json({ message: "Keyword deleted successfully" });
 
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
+};
+
+
+module.exports = {
+    createKeyword,
+    getKeywords,
+    getKeywordById,
+    updateKeyword,
+    deleteKeyword
 };

@@ -35,7 +35,7 @@ const createSubject = async (req, res) => {
         res.status(201).json({ message: "Subject created successfully" });
 
     } catch (err) {
-        console.error(err); // 🔥 important for debug
+        console.error(err); 
         res.status(500).json({ error: err.message });
     }
 };

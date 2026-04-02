@@ -21,7 +21,6 @@ const createGuide = async (req, res) => {
     try {
         const pool = await poolPromise;
 
-        // 🔥 AUTO VERSIONING
         const versionResult = await pool.request()
             .input('assessment_id', sql.Int, assessment_id)
             .query(`
@@ -75,7 +74,155 @@ const createGuide = async (req, res) => {
 };
 
 
-// GET ALL GUIDES
+// NEW VERSION API
+const createNewVersion = async (req, res) => {
+    const guideId = req.params.id;
+
+    try {
+        const pool = await poolPromise;
+
+        // 1️⃣ GET CURRENT GUIDE
+        const guideResult = await pool.request()
+            .input('id', sql.Int, guideId)
+            .query(`SELECT * FROM marking_guide WHERE marking_guide_id = @id`);
+
+        if (!guideResult.recordset.length) {
+            return res.status(404).json({ message: "Guide not found" });
+        }
+
+        const guide = guideResult.recordset[0];
+
+        // GET NEXT VERSION
+        const versionResult = await pool.request()
+            .input('assessment_id', sql.Int, guide.assessment_id)
+            .query(`
+                SELECT ISNULL(MAX(version_no), 0) + 1 AS next_version
+                FROM marking_guide
+                WHERE assessment_id = @assessment_id
+            `);
+
+        const newVersion = versionResult.recordset[0].next_version;
+
+        // INSERT NEW GUIDE
+        const insertGuide = await pool.request()
+            .input('assessment_id', sql.Int, guide.assessment_id)
+            .input('version_no', sql.Int, newVersion)
+            .input('title', sql.VarChar(150), guide.title)
+            .input('description', sql.VarChar(sql.MAX), guide.description)
+            .input('order_sensitive', sql.Bit, guide.order_sensitive)
+            .input('requires_diagram_check', sql.Bit, guide.requires_diagram_check)
+            .input('diagram_types_expected', sql.VarChar(200), guide.diagram_types_expected)
+            .input('created_by', sql.Int, guide.created_by)
+            .query(`
+                INSERT INTO marking_guide (
+                    assessment_id,
+                    version_no,
+                    title,
+                    description,
+                    order_sensitive,
+                    requires_diagram_check,
+                    diagram_types_expected,
+                    created_by
+                )
+                OUTPUT INSERTED.marking_guide_id
+                VALUES (
+                    @assessment_id,
+                    @version_no,
+                    @title,
+                    @description,
+                    @order_sensitive,
+                    @requires_diagram_check,
+                    @diagram_types_expected,
+                    @created_by
+                )
+            `);
+
+        const newGuideId = insertGuide.recordset[0].marking_guide_id;
+
+        // COPY QUESTIONS
+        const questions = await pool.request()
+            .input('gid', sql.Int, guideId)
+            .query(`SELECT * FROM guide_question WHERE marking_guide_id = @gid`);
+
+        for (const q of questions.recordset) {
+            const newQ = await pool.request()
+                .input('marking_guide_id', sql.Int, newGuideId)
+                .input('question_no', sql.Int, q.question_no)
+                .input('question_text', sql.VarChar(500), q.question_text)
+                .input('max_marks', sql.Int, q.max_marks)
+                .input('model_answer_text', sql.VarChar(sql.MAX), q.model_answer_text)
+                .input('keyword_weight', sql.Decimal(5,2), q.keyword_weight)
+                .input('semantic_weight', sql.Decimal(5,2), q.semantic_weight)
+                .query(`
+                    INSERT INTO guide_question (
+                        marking_guide_id,
+                        question_no,
+                        question_text,
+                        max_marks,
+                        model_answer_text,
+                        keyword_weight,
+                        semantic_weight
+                    )
+                    OUTPUT INSERTED.question_id
+                    VALUES (
+                        @marking_guide_id,
+                        @question_no,
+                        @question_text,
+                        @max_marks,
+                        @model_answer_text,
+                        @keyword_weight,
+                        @semantic_weight
+                    )
+                `);
+
+            const oldQId = q.question_id;
+            const newQId = newQ.recordset[0].question_id;
+
+            //COPY KEYWORDS
+            const keywords = await pool.request()
+                .input('qid', sql.Int, oldQId)
+                .query(`SELECT * FROM question_keyword WHERE question_id = @qid`);
+
+            for (const k of keywords.recordset) {
+                await pool.request()
+                    .input('question_id', sql.Int, newQId)
+                    .input('keyword_text', sql.VarChar(200), k.keyword_text)
+                    .input('marks_weight', sql.Decimal(5,2), k.marks_weight)
+                    .input('is_mandatory', sql.Bit, k.is_mandatory)
+                    .input('match_type', sql.VarChar(50), k.match_type)
+                    .query(`
+                        INSERT INTO question_keyword (
+                            question_id,
+                            keyword_text,
+                            marks_weight,
+                            is_mandatory,
+                            match_type
+                        )
+                        VALUES (
+                            @question_id,
+                            @keyword_text,
+                            @marks_weight,
+                            @is_mandatory,
+                            @match_type
+                        )
+                    `);
+            }
+        }
+
+        res.json({
+            message: "New version created successfully",
+            version_no: newVersion,
+            new_guide_id: newGuideId
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+
+// GET ALL
 const getGuides = async (req, res) => {
     try {
         const pool = await poolPromise;
@@ -97,7 +244,7 @@ const getGuides = async (req, res) => {
 };
 
 
-// GET BY ID
+// GET BY ID (WITH SUBJECT + ASSESSMENT)
 const getGuideById = async (req, res) => {
     try {
         const pool = await poolPromise;
@@ -105,26 +252,34 @@ const getGuideById = async (req, res) => {
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
             .query(`
-                SELECT * 
-                FROM marking_guide
-                WHERE marking_guide_id = @id
+                SELECT 
+                    mg.*,
+                    a.assessment_title,
+                    s.subject_name
+                FROM marking_guide mg
+                JOIN assessment a 
+                    ON mg.assessment_id = a.assessment_id
+                JOIN subject s 
+                    ON a.subject_id = s.subject_id
+                WHERE mg.marking_guide_id = @id
             `);
 
-        if (result.recordset.length === 0) {
+        if (!result.recordset.length) {
             return res.status(404).json({
-                message: "Marking guide not found"
+                message: "Guide not found"
             });
         }
 
         res.json(result.recordset[0]);
 
     } catch (err) {
+        console.error("GET GUIDE BY ID ERROR:", err);
         res.status(500).json({ error: err.message });
     }
 };
 
 
-// UPDATE
+// UPDATE (NORMAL SAVE)
 const updateGuide = async (req, res) => {
     const {
         title,
@@ -155,9 +310,7 @@ const updateGuide = async (req, res) => {
                 WHERE marking_guide_id = @id
             `);
 
-        res.json({
-            message: "Marking guide updated successfully"
-        });
+        res.json({ message: "Guide updated" });
 
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -165,7 +318,7 @@ const updateGuide = async (req, res) => {
 };
 
 
-// DELETE (SOFT)
+// DELETE
 const deleteGuide = async (req, res) => {
     try {
         const pool = await poolPromise;
@@ -179,9 +332,7 @@ const deleteGuide = async (req, res) => {
                 WHERE marking_guide_id = @id
             `);
 
-        res.json({
-            message: "Marking guide deactivated successfully"
-        });
+        res.json({ message: "Guide deleted" });
 
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -189,9 +340,9 @@ const deleteGuide = async (req, res) => {
 };
 
 
-// EXPORT
 module.exports = {
     createGuide,
+    createNewVersion,
     getGuides,
     getGuideById,
     updateGuide,

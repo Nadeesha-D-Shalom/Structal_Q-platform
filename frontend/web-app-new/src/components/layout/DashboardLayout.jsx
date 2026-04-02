@@ -1,13 +1,17 @@
-import Navbar from "./Navbar";
+import LecturerNavbar from "./LecturerNavbar";
 
 const DashboardLayout = ({ children }) => {
   return (
-    <div className="min-h-screen bg-[#f4f6f9]">
-      <Navbar />
+    <div className="flex flex-col h-screen">
 
-      <div className="px-10 py-6">
+      {/* NAVBAR */}
+      <LecturerNavbar activePage="Subjects" />
+
+      {/* CONTENT */}
+      <main className="flex-1 bg-gray-100 overflow-y-auto">
         {children}
-      </div>
+      </main>
+
     </div>
   );
 };

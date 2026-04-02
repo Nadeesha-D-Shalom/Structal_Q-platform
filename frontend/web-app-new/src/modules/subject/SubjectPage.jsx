@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { getSubjects } from "../../services/subjectService";
 import SubjectList from "./SubjectList";
 import SubjectForm from "./SubjectForm";
@@ -8,6 +9,8 @@ const SubjectPage = () => {
   const [subjects, setSubjects] = useState([]);
   const [editing, setEditing] = useState(null);
   const [showForm, setShowForm] = useState(false);
+
+  const navigate = useNavigate();
 
   const loadSubjects = async () => {
     const data = await getSubjects();
@@ -30,33 +33,41 @@ const SubjectPage = () => {
               Configure and organize subjects
             </p>
           </div>
-
-          
         </div>
 
-        {/* STATS + BUTTON */}
-<div className="bg-white p-5 rounded-xl shadow flex justify-between items-center mb-6">
+        {/* STATS + BUTTONS */}
+        <div className="bg-white p-5 rounded-xl shadow flex justify-between items-center mb-6">
 
-  {/* LEFT - ACTIVE SUBJECTS */}
-  <div>
-    <p className="text-gray-400 text-sm">ACTIVE SUBJECTS</p>
-    <h2 className="text-2xl font-bold">{subjects.length}</h2>
-  </div>
+          {/* LEFT */}
+          <div>
+            <p className="text-gray-400 text-sm">ACTIVE SUBJECTS</p>
+            <h2 className="text-2xl font-bold">{subjects.length}</h2>
+          </div>
 
-  {/* RIGHT - BUTTON */}
-  <button
-    onClick={() => {
-      setEditing(null);
-      setShowForm(true);
-    }}
-    className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700"
-  >
-    + Create New
-  </button>
+          {/* RIGHT - BUTTON GROUP */}
+          <div className="flex gap-3">
 
-</div>
+            {/* GO TO ASSESSMENTS */}
+            <button
+              onClick={() => navigate("/assessments")}
+              className="bg-green-500 text-white px-4 py-2 rounded-lg shadow hover:bg-green-600"
+            >
+              Assessments
+            </button>
 
-       
+            {/* CREATE NEW */}
+            <button
+              onClick={() => {
+                setEditing(null);
+                setShowForm(true);
+              }}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700"
+            >
+              + Create New
+            </button>
+
+          </div>
+        </div>
 
         {/* TABLE */}
         <SubjectList
