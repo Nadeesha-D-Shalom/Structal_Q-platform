@@ -193,9 +193,10 @@ const LecturerSubmissions = () => {
                     {/* VIEW */}
                     <button
                       onClick={() => handleView(row.submission_id)}
-                      className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition"
+                      className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center hover:bg-purple-600 transition"
                     >
-                      <i className="fa-regular fa-eye text-gray-600"></i>
+                      
+                      <i className="fa-solid fa-wand-magic-sparkles text-white"></i>
                     </button>
 
                     {/* AI ANALYSIS */}
@@ -203,15 +204,16 @@ const LecturerSubmissions = () => {
                       onClick={() => handleAnalyze(row)}
                       className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center hover:bg-blue-600 transition"
                     >
-                      <i className="fa-solid fa-wand-magic-sparkles text-white"></i>
+                      
+                      <i className="fa-solid fa-code-compare text-white"></i>
                     </button>
 
                     {/* COMPARE */}
                     <button
                       onClick={() => handleCompare(row)}
-                      className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center hover:bg-purple-600 transition"
+                      className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition"
                     >
-                      <i className="fa-solid fa-code-compare text-white"></i>
+                      <i className="fa-regular fa-eye text-gray-600"></i>
                     </button>
 
                     {/* MORE */}
