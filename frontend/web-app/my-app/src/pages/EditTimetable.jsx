@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getTimetable, updateTimetable } from '../services/timetableService';
+import { getTimetable, getTimetableConflictMessage, updateTimetable } from '../services/timetableService';
 import EditExamTimetable from '../components/EditExamTimetable/EditExamTimetable';
 import RolePageLayout from '../components/layout/RolePageLayout';
 
@@ -78,7 +78,8 @@ export default function EditTimetable() {
       });
       navigate('/view');
     } catch (err) {
-      setError(getErrorMessage(err));
+      const conflictMessage = getTimetableConflictMessage(err);
+      setError(conflictMessage || getErrorMessage(err));
     } finally {
       setSubmitting(false);
     }

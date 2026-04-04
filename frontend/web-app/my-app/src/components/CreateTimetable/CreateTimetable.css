@@ -88,6 +88,13 @@
   font-weight: 600;
 }
 
+.field > .field__hint {
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--muted);
+}
+
 .field > input,
 .field > select {
   height: 48px;

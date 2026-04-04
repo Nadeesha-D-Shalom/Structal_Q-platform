@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import './EditExamTimetable.css';
+import { FALLBACK_SUBJECT_LABELS, fetchSubjectLabels } from '../../services/subjectService';
+
+/** YYYY-MM-DD in local timezone (same as CreateTimetable). */
+function getLocalDateString(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 const EMPTY_FORM = {
   subject: '',
@@ -7,7 +16,13 @@ const EMPTY_FORM = {
   startTime: '',
   endTime: '',
   hall: '',
+  status: 'Draft',
 };
+
+function normalizeStatus(value) {
+  const v = String(value ?? '').trim().toLowerCase();
+  return v === 'published' ? 'Published' : 'Draft';
+}
 
 function normalizeForm(data) {
   if (!data) return { ...EMPTY_FORM };
@@ -17,28 +32,39 @@ function normalizeForm(data) {
     startTime: data.startTime ?? data.start_time ?? data.StartTime ?? '',
     endTime: data.endTime ?? data.end_time ?? data.EndTime ?? '',
     hall: data.hall ?? data.Hall ?? data.location ?? data.Location ?? '',
+    status: normalizeStatus(data.status ?? data.Status),
   };
-}
-
-function getAutoStatus(form) {
-  const hasRequired = form.subject.trim() && form.date.trim() && form.startTime.trim() && form.endTime.trim() && form.hall.trim();
-  if (!hasRequired) return 'Draft';
-  if (form.startTime >= form.endTime) return 'Conflict';
-  return 'Published';
 }
 
 export default function EditExamTimetable({ initialData, loading = false, onCancel, onSave }) {
   const [form, setForm] = useState(() => normalizeForm(initialData));
   const [errors, setErrors] = useState({});
-  const autoStatus = useMemo(() => getAutoStatus(form), [form]);
+  const [subjectOptions, setSubjectOptions] = useState([]);
 
   useEffect(() => {
     setForm(normalizeForm(initialData));
     setErrors({});
   }, [initialData]);
 
-  const canSubmit = useMemo(() => {
-    return (
+  useEffect(() => {
+    let mounted = true;
+    fetchSubjectLabels().then((labels) => {
+      if (mounted) setSubjectOptions(labels);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const subjectSelectOptions = useMemo(() => {
+    const base = subjectOptions.length ? subjectOptions : FALLBACK_SUBJECT_LABELS;
+    const cur = form.subject.trim();
+    if (cur && !base.includes(cur)) return [cur, ...base];
+    return base;
+  }, [subjectOptions, form.subject]);
+
+  const canSubmit =
+    !!(
       form.subject.trim() &&
       form.date.trim() &&
       form.startTime.trim() &&
@@ -46,7 +72,6 @@ export default function EditExamTimetable({ initialData, loading = false, onCanc
       form.hall.trim() &&
       !loading
     );
-  }, [form, loading]);
 
   function setField(name, value) {
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -59,7 +84,16 @@ export default function EditExamTimetable({ initialData, loading = false, onCanc
     if (!form.date.trim()) nextErrors.date = 'Date is required.';
     if (!form.startTime.trim()) nextErrors.startTime = 'Start time is required.';
     if (!form.endTime.trim()) nextErrors.endTime = 'End time is required.';
-    if (!form.hall.trim()) nextErrors.hall = 'Hall is required.';
+    const hallTrimmed = form.hall.trim();
+    if (!hallTrimmed) nextErrors.hall = 'Hall is required.';
+    else if (hallTrimmed.length < 3 || hallTrimmed.length > 80) {
+      nextErrors.hall = 'Location / venue must be between 3 and 80 characters.';
+    }
+
+    const todayStr = getLocalDateString();
+    if (form.date && form.date < todayStr) {
+      nextErrors.date = 'Exam date cannot be in the past.';
+    }
 
     if (form.startTime && form.endTime && form.startTime >= form.endTime) {
       nextErrors.endTime = 'End time should be later than start time.';
@@ -72,7 +106,7 @@ export default function EditExamTimetable({ initialData, loading = false, onCanc
   function handleSubmit(e) {
     e.preventDefault();
     if (!validate()) return;
-    if (onSave) onSave({ ...form, status: autoStatus });
+    if (onSave) onSave({ ...form, status: form.status });
   }
 
   return (
@@ -116,14 +150,28 @@ export default function EditExamTimetable({ initialData, loading = false, onCanc
           </label>
 
           <label className="eet__field">
-            <span className="eet__label">Subject</span>
-            <input className="eet__control" value={form.subject} onChange={(e) => setField('subject', e.target.value)} placeholder="CS302: Advanced Algorithms" />
+            <span className="eet__label">Subject / Course</span>
+            <select className="eet__control" value={form.subject} onChange={(e) => setField('subject', e.target.value)}>
+              {!form.subject.trim() ? (
+                <option value="" disabled>
+                  Select subject…
+                </option>
+              ) : null}
+              {subjectSelectOptions.map((label) => (
+                <option key={label} value={label}>
+                  {label}
+                </option>
+              ))}
+            </select>
             {errors.subject ? <span className="eet__error">{errors.subject}</span> : null}
           </label>
 
           <label className="eet__field">
             <span className="eet__label">Status</span>
-            <input className="eet__control" value={autoStatus} readOnly />
+            <select className="eet__control" value={form.status} onChange={(e) => setField('status', e.target.value)}>
+              <option value="Draft">Draft</option>
+              <option value="Published">Published</option>
+            </select>
           </label>
         </div>
 
