@@ -1,7 +1,8 @@
-const express = require('express');
-require('dotenv').config();
+require("dotenv").config();
 
-const { poolConnect } = require('./config/db');
+const express = require("express");
+const app = require("./app");
+const { poolConnect } = require("./config/db");
 const { startConcernWindowScheduler } = require('./modules/concern/concernWindowAutomation');
 
 // KEEP ONLY WORKING MODULES
@@ -16,23 +17,22 @@ const markRevisionRoutes = require('./modules/mark-publish/markRevision.routes')
 // (MAIN FOCUS)
 const aiAnalysisRoutes = require('./modules/ai-analysis/aiAnalysis.routes');
 
-const app = express();
 const PORT = process.env.PORT || 5000;
 
-
-// ================= MIDDLEWARE =================
-app.use(express.json());
-
-
-// ================= DATABASE =================
 poolConnect
     .then(() => {
-        console.log("DB Connected Successfully")
+        console.log("DB Connected Successfully");
         
         //make the raise concern button automated
         startConcernWindowScheduler();
+
+        app.listen(PORT, () => {
+            console.log(`Server running on http://localhost:${PORT}`);
+        });
     })
-    .catch(err => console.error("Database connection failed:", err));
+    .catch(err => {
+        console.error("Database connection failed:", err);
+    });
 
 
 // ================= ROUTES =================
@@ -74,10 +74,4 @@ app.use((err, req, res, next) => {
         message: "Something went wrong!",
         error: err.message
     });
-});
-
-
-// ================= START =================
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
 });

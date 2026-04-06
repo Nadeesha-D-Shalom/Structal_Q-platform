@@ -1,24 +1,14 @@
 {
-  "name": "api",
+  "name": "structal-q-backend",
   "version": "1.0.0",
-  "description": "",
-  "homepage": "https://github.com/Nadeesha-D-Shalom/Structal_Q-platform#readme",
-  "bugs": {
-    "url": "https://github.com/Nadeesha-D-Shalom/Structal_Q-platform/issues"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Nadeesha-D-Shalom/Structal_Q-platform.git"
-  },
-  "license": "ISC",
-  "author": "",
-  "type": "commonjs",
+  "description": "Structal Q Platform Backend API",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "node src/server.js"
   },
+  "author": "",
+  "license": "ISC",
   "dependencies": {
     "abort-controller": "^3.0.0",
     "accepts": "^1.3.8",
@@ -31,6 +21,7 @@
     "available-typed-arrays": "^1.0.7",
     "axios": "^1.13.6",
     "base64-js": "^1.5.1",
+    "bcrypt": "^6.0.0",
     "bl": "^6.1.6",
     "body-parser": "^1.20.4",
     "buffer": "^6.0.3",
@@ -48,6 +39,7 @@
     "cookie": "^0.7.2",
     "cookie-signature": "^1.0.7",
     "core-util-is": "^1.0.3",
+    "cors": "^2.8.6",
     "data-view-buffer": "^1.0.2",
     "data-view-byte-length": "^1.0.2",
     "data-view-byte-offset": "^1.0.1",
@@ -57,7 +49,7 @@
     "define-properties": "^1.2.1",
     "depd": "^2.0.0",
     "destroy": "^1.2.0",
-    "dotenv": "^17.3.1",
+    "dotenv": "^17.4.1",
     "dunder-proto": "^1.0.1",
     "ecdsa-sig-formatter": "^1.0.11",
     "ee-first": "^1.1.1",
@@ -74,6 +66,7 @@
     "event-target-shim": "^5.0.1",
     "events": "^3.3.0",
     "express": "^4.22.1",
+    "express-session": "^1.19.0",
     "finalhandler": "^1.3.2",
     "for-each": "^0.3.5",
     "forwarded": "^0.2.0",
