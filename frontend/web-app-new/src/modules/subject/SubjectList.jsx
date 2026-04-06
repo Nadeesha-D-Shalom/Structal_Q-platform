@@ -5,7 +5,7 @@ import ConfirmModal from "../../components/common/ConfirmModal";
 const SubjectList = ({ subjects, loadSubjects, setEditing }) => {
   const [deleteId, setDeleteId] = useState(null);
 
-  // FILTER STATES
+  // FILTERS
   const [yearFilter, setYearFilter] = useState("ALL");
   const [semesterFilter, setSemesterFilter] = useState("ALL");
 
@@ -32,27 +32,27 @@ const SubjectList = ({ subjects, loadSubjects, setEditing }) => {
     });
   }, [subjects, yearFilter, semesterFilter]);
 
-  // STATS CALCULATION
-const stats = useMemo(() => {
-  const counts = {
-    total: filteredSubjects.length,
-    y1: 0,
-    y2: 0,
-    y3: 0,
-    y4: 0,
-  };
+  // STATS
+  const stats = useMemo(() => {
+    const counts = {
+      total: filteredSubjects.length,
+      y1: 0,
+      y2: 0,
+      y3: 0,
+      y4: 0,
+    };
 
-  filteredSubjects.forEach((sub) => {
-    if (sub.program_id === 1) counts.y1++;
-    if (sub.program_id === 2) counts.y2++;
-    if (sub.program_id === 3) counts.y3++;
-    if (sub.program_id === 4) counts.y4++;
-  });
+    filteredSubjects.forEach((sub) => {
+      if (sub.program_id === 1) counts.y1++;
+      if (sub.program_id === 2) counts.y2++;
+      if (sub.program_id === 3) counts.y3++;
+      if (sub.program_id === 4) counts.y4++;
+    });
 
-  return counts;
-}, [filteredSubjects]);
+    return counts;
+  }, [filteredSubjects]);
 
-  // PAGINATION LOGIC
+  // PAGINATION
   const totalPages = Math.ceil(filteredSubjects.length / itemsPerPage);
 
   const paginatedSubjects = filteredSubjects.slice(
@@ -61,42 +61,13 @@ const stats = useMemo(() => {
   );
 
   return (
-    <div className="bg-white rounded-xl shadow p-5">
+    <div className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
 
-      {/*STATS PANEL */}
-<div className="mt-2 mb-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-
-  {/* Y1 */}
-  <div className="bg-green-50 p-4 rounded-lg text-center">
-    <p className="text-sm text-gray-500">Year 1</p>
-    <h2 className="text-xl font-bold text-green-600">{stats.y1}</h2>
-  </div>
-
-  {/* Y2 */}
-  <div className="bg-yellow-50 p-4 rounded-lg text-center">
-    <p className="text-sm text-gray-500">Year 2</p>
-    <h2 className="text-xl font-bold text-yellow-600">{stats.y2}</h2>
-  </div>
-
-  {/* Y3 */}
-  <div className="bg-purple-50 p-4 rounded-lg text-center">
-    <p className="text-sm text-gray-500">Year 3</p>
-    <h2 className="text-xl font-bold text-purple-600">{stats.y3}</h2>
-  </div>
-
-  {/* Y4 */}
-  <div className="bg-red-50 p-4 rounded-lg text-center">
-    <p className="text-sm text-gray-500">Year 4</p>
-    <h2 className="text-xl font-bold text-red-600">{stats.y4}</h2>
-  </div>
-
-</div>
-
-      {/*FILTERS */}
-      <div className="flex gap-3 mb-4">
+      {/* FILTERS */}
+      <div className="flex gap-3 p-4 border-b bg-gray-50">
 
         <select
-          className="border px-3 py-1 rounded-md"
+          className="border px-3 py-2 rounded-md text-sm"
           onChange={(e) => {
             setYearFilter(e.target.value);
             setCurrentPage(1);
@@ -110,7 +81,7 @@ const stats = useMemo(() => {
         </select>
 
         <select
-          className="border px-3 py-1 rounded-md"
+          className="border px-3 py-2 rounded-md text-sm"
           onChange={(e) => {
             setSemesterFilter(e.target.value);
             setCurrentPage(1);
@@ -123,15 +94,41 @@ const stats = useMemo(() => {
 
       </div>
 
+      {/* STATS */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 border-b">
+
+        <div className="bg-green-50 border border-green-600 rounded-lg p-3 text-center">
+          <p className="text-xs text-gray-500">Year 1</p>
+          <h2 className="text-lg font-bold text-green-600">{stats.y1}</h2>
+        </div>
+
+        <div className="bg-yellow-50 border border-yellow-600 rounded-lg p-3 text-center">
+          <p className="text-xs text-gray-500">Year 2</p>
+          <h2 className="text-lg font-bold text-yellow-600">{stats.y2}</h2>
+        </div>
+
+        <div className="bg-purple-50 border border-purple-600 rounded-lg p-3 text-center">
+          <p className="text-xs text-gray-500">Year 3</p>
+          <h2 className="text-lg font-bold text-purple-600">{stats.y3}</h2>
+        </div>
+
+        <div className="bg-red-50 border border-red-600 rounded-lg p-3 text-center">
+          <p className="text-xs text-gray-500">Year 4</p>
+          <h2 className="text-lg font-bold text-red-600">{stats.y4}</h2>
+        </div>
+
+      </div>
+
       {/* TABLE */}
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="bg-gray-100 text-gray-600 text-center">
-            <th className="py-2">ID</th>
-            <th>Code</th>
-            <th>Name</th>
-            <th>Year</th>
-            <th>Semester</th>
+      <table className="w-full text-sm border-collapse">
+
+        <thead className="bg-gray-50 border-b">
+          <tr className="text-gray-600 text-center">
+            <th className="py-3 ">ID</th>
+            <th className="">Code</th>
+            <th className="">Name</th>
+            <th className="">Year</th>
+            <th className="">Semester</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -140,25 +137,30 @@ const stats = useMemo(() => {
           {paginatedSubjects.map((sub, index) => (
             <tr
               key={sub.subject_id}
-              className={`text-center border-t ${
-                index % 2 === 0 ? "bg-gray-50" : "bg-white"
-              } hover:bg-blue-50 transition`}
+              className={`text-center border-b transition hover:bg-gray-50 ${
+                index % 2 === 0 ? "bg-white" : "bg-gray-50"
+              }`}
             >
-              <td className="font-bold py-2">{sub.subject_id}</td>
-              <td>{sub.subject_code}</td>
-              <td>{sub.subject_name}</td>
-              <td>
-                <span >
-                  Y{sub.program_id}
-                </span>
-              </td>
-              <td>
-                <span >
-                  S{sub.term_id}
-                </span>
+              <td className="py-3 font-bold">
+                #{sub.subject_id}
               </td>
 
-              {/* ACTIONS */}
+              <td className="">
+                {sub.subject_code}
+              </td>
+
+              <td className="">
+                {sub.subject_name}
+              </td>
+
+              <td className="">
+                Y{sub.program_id}
+              </td>
+
+              <td className="">
+                S{sub.term_id}
+              </td>
+
               <td>
                 <div className="flex justify-center gap-2">
 
@@ -178,13 +180,15 @@ const stats = useMemo(() => {
 
                 </div>
               </td>
+
             </tr>
           ))}
         </tbody>
+
       </table>
 
       {/* PAGINATION */}
-      <div className="flex justify-between items-center mt-4">
+      <div className="flex justify-between items-center p-4 border-t">
 
         <p className="text-sm text-gray-500">
           Showing {paginatedSubjects.length} of {filteredSubjects.length}

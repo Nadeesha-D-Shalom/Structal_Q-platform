@@ -5,7 +5,7 @@ import ConfirmModal from "../../components/common/ConfirmModal";
 const AssessmentList = ({ assessments, loadAssessments, setEditing }) => {
   const [deleteId, setDeleteId] = useState(null);
 
-  // SUBJECT FILTER
+  // FILTER
   const [subjectFilter, setSubjectFilter] = useState("ALL");
 
   // PAGINATION
@@ -37,7 +37,7 @@ const AssessmentList = ({ assessments, loadAssessments, setEditing }) => {
     });
   }, [assessments, subjectFilter]);
 
-  // STATS CALCULATION (REAL-TIME)
+  // STATS
   const stats = useMemo(() => {
     const result = {
       total: filteredAssessments.length,
@@ -64,12 +64,12 @@ const AssessmentList = ({ assessments, loadAssessments, setEditing }) => {
   );
 
   return (
-    <div className="bg-white p-5 rounded-xl shadow">
+    <div className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
 
-      {/*FILTER */}
-      <div className="flex gap-3 mb-4">
+      {/* FILTER */}
+      <div className="flex gap-3 p-4 border-b bg-gray-50">
         <select
-          className="border px-3 py-1 rounded-md"
+          className="border px-3 py-2 rounded-md text-sm"
           onChange={(e) => {
             setSubjectFilter(e.target.value);
             setCurrentPage(1);
@@ -84,25 +84,25 @@ const AssessmentList = ({ assessments, loadAssessments, setEditing }) => {
         </select>
       </div>
 
-      {/*STATS PANEL */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      {/* STATS */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 border-b">
 
-        <div className="bg-blue-50 p-3 rounded-lg text-center">
+        <div className="bg-blue-50 border border-blue-600 rounded-lg p-3 text-center">
           <p className="text-xs text-gray-500">Total</p>
           <h2 className="text-lg font-bold text-blue-600">{stats.total}</h2>
         </div>
 
-        <div className="bg-purple-50 p-3 rounded-lg text-center">
+        <div className="bg-purple-50 border border-purple-600 rounded-lg p-3 text-center">
           <p className="text-xs text-gray-500">EXAM</p>
           <h2 className="text-lg font-bold text-purple-600">{stats.EXAM}</h2>
         </div>
 
-        <div className="bg-green-50 p-3 rounded-lg text-center">
+        <div className="bg-green-50 border border-green-600 rounded-lg p-3 text-center">
           <p className="text-xs text-gray-500">LAB</p>
           <h2 className="text-lg font-bold text-green-600">{stats.LAB}</h2>
         </div>
 
-        <div className="bg-yellow-50 p-3 rounded-lg text-center">
+        <div className="bg-yellow-50 border border-yellow-600 rounded-lg p-3 text-center">
           <p className="text-xs text-gray-500">REPORT</p>
           <h2 className="text-lg font-bold text-yellow-600">{stats.REPORT}</h2>
         </div>
@@ -110,14 +110,15 @@ const AssessmentList = ({ assessments, loadAssessments, setEditing }) => {
       </div>
 
       {/* TABLE */}
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="bg-gray-100 text-gray-600 text-center">
-            <th className="py-2">ID</th>
-            <th>Subject</th>
-            <th>Title</th>
-            <th>Type</th>
-            <th>Marks</th>
+      <table className="w-full text-sm border-collapse">
+
+        <thead className="bg-gray-50 border-b">
+          <tr className="text-gray-600 text-center">
+            <th className="py-3">ID</th>
+            <th className="">Subject</th>
+            <th className="">Title</th>
+            <th className="">Type</th>
+            <th className="">Marks</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -126,15 +127,29 @@ const AssessmentList = ({ assessments, loadAssessments, setEditing }) => {
           {paginatedAssessments.map((a, index) => (
             <tr
               key={a.assessment_id}
-              className={`text-center border-t ${
-                index % 2 === 0 ? "bg-gray-50" : "bg-white"
-              } hover:bg-gray-100 transition`}
+              className={`text-center border-b transition hover:bg-gray-50 ${
+                index % 2 === 0 ? "bg-white" : "bg-gray-50"
+              }`}
             >
-              <td className="font-bold py-2">{a.assessment_id}</td>
-              <td>{a.subject_name}</td>
-              <td>{a.assessment_title}</td>
-              <td>{a.assessment_type}</td>
-              <td className="font-semibold">{a.total_marks}</td>
+              <td className="py-3 font-bold">
+                #{a.assessment_id}
+              </td>
+
+              <td className="">
+                {a.subject_name}
+              </td>
+
+              <td className="">
+                {a.assessment_title}
+              </td>
+
+              <td className="">
+                {a.assessment_type}
+              </td>
+
+              <td className="">
+                {a.total_marks}
+              </td>
 
               <td>
                 <div className="flex justify-center gap-2">
@@ -153,13 +168,16 @@ const AssessmentList = ({ assessments, loadAssessments, setEditing }) => {
                   </button>
                 </div>
               </td>
+
             </tr>
           ))}
         </tbody>
+
       </table>
 
       {/* PAGINATION */}
-      <div className="flex justify-between items-center mt-4">
+      <div className="flex justify-between items-center p-4 border-t">
+
         <p className="text-sm text-gray-500">
           Showing {paginatedAssessments.length} of {filteredAssessments.length}
         </p>
@@ -179,6 +197,7 @@ const AssessmentList = ({ assessments, loadAssessments, setEditing }) => {
             </button>
           ))}
         </div>
+
       </div>
 
       {/* DELETE MODAL */}
@@ -190,6 +209,7 @@ const AssessmentList = ({ assessments, loadAssessments, setEditing }) => {
           onCancel={() => setDeleteId(null)}
         />
       )}
+
     </div>
   );
 };

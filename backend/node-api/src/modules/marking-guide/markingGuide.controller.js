@@ -1,26 +1,76 @@
 const { sql, poolPromise } = require('../../config/db');
 
-// CREATE MARKING GUIDE
-const createGuide = async (req, res) => {
+// VALIDATION
+const validateGuide = async (data, pool) => {
     const {
         assessment_id,
         title,
-        description,
         order_sensitive,
         requires_diagram_check,
-        diagram_types_expected,
-        created_by
-    } = req.body;
+        diagram_types_expected
+    } = data;
 
     if (!assessment_id || !title) {
-        return res.status(400).json({
-            message: "assessment_id and title are required"
-        });
+        return "assessment_id and title are required";
     }
 
+    if (isNaN(assessment_id)) {
+        return "assessment_id must be a number";
+    }
+
+    if (title.length > 150) {
+        return "title too long (max 150 chars)";
+    }
+
+    // CHECK ASSESSMENT EXISTS
+    const assessmentCheck = await pool.request()
+        .input('id', sql.Int, assessment_id)
+        .query(`
+            SELECT assessment_id 
+            FROM assessment 
+            WHERE assessment_id = @id AND status = 'ACTIVE'
+        `);
+
+    if (!assessmentCheck.recordset.length) {
+        return "Assessment does not exist";
+    }
+
+    // BOOLEAN CHECK
+    if (order_sensitive !== undefined && ![0, 1, true, false].includes(order_sensitive)) {
+        return "order_sensitive must be boolean";
+    }
+
+    if (requires_diagram_check !== undefined && ![0, 1, true, false].includes(requires_diagram_check)) {
+        return "requires_diagram_check must be boolean";
+    }
+
+    // CONDITIONAL VALIDATION
+    if (requires_diagram_check && !diagram_types_expected) {
+        return "diagram_types_expected required when diagram check enabled";
+    }
+
+    return null;
+};
+
+// CREATE MARKING GUIDE
+const createGuide = async (req, res) => {
     try {
         const pool = await poolPromise;
 
+        const error = await validateGuide(req.body, pool);
+        if (error) return res.status(400).json({ message: error });
+
+        const {
+            assessment_id,
+            title,
+            description,
+            order_sensitive,
+            requires_diagram_check,
+            diagram_types_expected,
+            created_by
+        } = req.body;
+
+        // VERSION
         const versionResult = await pool.request()
             .input('assessment_id', sql.Int, assessment_id)
             .query(`
@@ -35,10 +85,10 @@ const createGuide = async (req, res) => {
             .input('assessment_id', sql.Int, assessment_id)
             .input('version_no', sql.Int, version_no)
             .input('title', sql.VarChar(150), title)
-            .input('description', sql.VarChar(sql.MAX), description)
-            .input('order_sensitive', sql.Bit, order_sensitive)
-            .input('requires_diagram_check', sql.Bit, requires_diagram_check)
-            .input('diagram_types_expected', sql.VarChar(200), diagram_types_expected)
+            .input('description', sql.VarChar(sql.MAX), description || null)
+            .input('order_sensitive', sql.Bit, order_sensitive ? 1 : 0)
+            .input('requires_diagram_check', sql.Bit, requires_diagram_check ? 1 : 0)
+            .input('diagram_types_expected', sql.VarChar(200), diagram_types_expected || null)
             .input('created_by', sql.Int, created_by || null)
             .query(`
                 INSERT INTO marking_guide (
@@ -74,14 +124,17 @@ const createGuide = async (req, res) => {
 };
 
 
-// NEW VERSION API
+// NEW VERSION
 const createNewVersion = async (req, res) => {
-    const guideId = req.params.id;
-
     try {
         const pool = await poolPromise;
+        const guideId = req.params.id;
 
-        // 1️⃣ GET CURRENT GUIDE
+        if (isNaN(guideId)) {
+            return res.status(400).json({ message: "Invalid guide ID" });
+        }
+
+        // GET GUIDE
         const guideResult = await pool.request()
             .input('id', sql.Int, guideId)
             .query(`SELECT * FROM marking_guide WHERE marking_guide_id = @id`);
@@ -92,7 +145,7 @@ const createNewVersion = async (req, res) => {
 
         const guide = guideResult.recordset[0];
 
-        // GET NEXT VERSION
+        // VERSION
         const versionResult = await pool.request()
             .input('assessment_id', sql.Int, guide.assessment_id)
             .query(`
@@ -103,7 +156,7 @@ const createNewVersion = async (req, res) => {
 
         const newVersion = versionResult.recordset[0].next_version;
 
-        // INSERT NEW GUIDE
+        // INSERT GUIDE
         const insertGuide = await pool.request()
             .input('assessment_id', sql.Int, guide.assessment_id)
             .input('version_no', sql.Int, newVersion)
@@ -139,12 +192,13 @@ const createNewVersion = async (req, res) => {
 
         const newGuideId = insertGuide.recordset[0].marking_guide_id;
 
-        // COPY QUESTIONS
+        // COPY QUESTIONS + KEYWORDS
         const questions = await pool.request()
             .input('gid', sql.Int, guideId)
             .query(`SELECT * FROM guide_question WHERE marking_guide_id = @gid`);
 
         for (const q of questions.recordset) {
+
             const newQ = await pool.request()
                 .input('marking_guide_id', sql.Int, newGuideId)
                 .input('question_no', sql.Int, q.question_no)
@@ -175,12 +229,10 @@ const createNewVersion = async (req, res) => {
                     )
                 `);
 
-            const oldQId = q.question_id;
             const newQId = newQ.recordset[0].question_id;
 
-            //COPY KEYWORDS
             const keywords = await pool.request()
-                .input('qid', sql.Int, oldQId)
+                .input('qid', sql.Int, q.question_id)
                 .query(`SELECT * FROM question_keyword WHERE question_id = @qid`);
 
             for (const k of keywords.recordset) {
@@ -244,7 +296,7 @@ const getGuides = async (req, res) => {
 };
 
 
-// GET BY ID (WITH SUBJECT + ASSESSMENT)
+// GET BY ID
 const getGuideById = async (req, res) => {
     try {
         const pool = await poolPromise;
@@ -252,53 +304,48 @@ const getGuideById = async (req, res) => {
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
             .query(`
-                SELECT 
-                    mg.*,
-                    a.assessment_title,
-                    s.subject_name
+                SELECT mg.*, a.assessment_title, s.subject_name
                 FROM marking_guide mg
-                JOIN assessment a 
-                    ON mg.assessment_id = a.assessment_id
-                JOIN subject s 
-                    ON a.subject_id = s.subject_id
+                JOIN assessment a ON mg.assessment_id = a.assessment_id
+                JOIN subject s ON a.subject_id = s.subject_id
                 WHERE mg.marking_guide_id = @id
             `);
 
         if (!result.recordset.length) {
-            return res.status(404).json({
-                message: "Guide not found"
-            });
+            return res.status(404).json({ message: "Guide not found" });
         }
 
         res.json(result.recordset[0]);
 
     } catch (err) {
-        console.error("GET GUIDE BY ID ERROR:", err);
         res.status(500).json({ error: err.message });
     }
 };
 
 
-// UPDATE (NORMAL SAVE)
+// UPDATE
 const updateGuide = async (req, res) => {
-    const {
-        title,
-        description,
-        order_sensitive,
-        requires_diagram_check,
-        diagram_types_expected
-    } = req.body;
-
     try {
         const pool = await poolPromise;
+
+        const error = await validateGuide(req.body, pool);
+        if (error) return res.status(400).json({ message: error });
+
+        const {
+            title,
+            description,
+            order_sensitive,
+            requires_diagram_check,
+            diagram_types_expected
+        } = req.body;
 
         await pool.request()
             .input('id', sql.Int, req.params.id)
             .input('title', sql.VarChar(150), title)
-            .input('description', sql.VarChar(sql.MAX), description)
-            .input('order_sensitive', sql.Bit, order_sensitive)
-            .input('requires_diagram_check', sql.Bit, requires_diagram_check)
-            .input('diagram_types_expected', sql.VarChar(200), diagram_types_expected)
+            .input('description', sql.VarChar(sql.MAX), description || null)
+            .input('order_sensitive', sql.Bit, order_sensitive ? 1 : 0)
+            .input('requires_diagram_check', sql.Bit, requires_diagram_check ? 1 : 0)
+            .input('diagram_types_expected', sql.VarChar(200), diagram_types_expected || null)
             .query(`
                 UPDATE marking_guide
                 SET title = @title,

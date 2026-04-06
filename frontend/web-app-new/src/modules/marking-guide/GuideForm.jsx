@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { createGuide, updateGuide } from "../../services/markingGuideService";
+import { getAssessments } from "../../services/assessmentService";
 
-// 🔥 Toggle Component
+// Toggle
 const Toggle = ({ checked, onChange }) => (
   <button
     type="button"
@@ -30,12 +31,24 @@ const GuideForm = ({ loadGuides, editing, close }) => {
     diagram_types_expected: ""
   });
 
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState({});
+  const [assessments, setAssessments] = useState([]);
 
+  // LOAD ASSESSMENTS
+  useEffect(() => {
+    const load = async () => {
+      const data = await getAssessments();
+      setAssessments(data);
+    };
+    load();
+  }, []);
+
+  // EDIT MODE
   useEffect(() => {
     if (editing) {
       setForm({
         ...editing,
+        diagram_types_expected: editing.diagram_types_expected || "",
         order_sensitive: Boolean(editing.order_sensitive),
         requires_diagram_check: Boolean(editing.requires_diagram_check)
       });
@@ -43,20 +56,53 @@ const GuideForm = ({ loadGuides, editing, close }) => {
   }, [editing]);
 
   // VALIDATION
-  useEffect(() => {
-    if (!form.assessment_id || !form.title) {
-      setError("Assessment ID and Title are required");
+  const validate = () => {
+    let e = {};
+
+    // ASSESSMENT ID
+    if (!form.assessment_id) {
+      e.assessment_id = "Required";
+    } else if (isNaN(form.assessment_id)) {
+      e.assessment_id = "Must be a number";
     } else {
-      setError("");
+      const exists = assessments.some(
+        (a) => a.assessment_id === Number(form.assessment_id)
+      );
+      if (!exists) {
+        e.assessment_id = "Assessment does not exist";
+      }
     }
-  }, [form.assessment_id, form.title]);
+
+    // TITLE
+    if (!form.title) {
+      e.title = "Required";
+    }
+
+    // DIAGRAM VALIDATION
+    if (form.requires_diagram_check && !form.diagram_types_expected.trim()) {
+      e.diagram_types_expected = "Required when diagram enabled";
+    }
+
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  useEffect(() => {
+    validate();
+  }, [form, assessments]);
+
+  const isValid =
+    Object.keys(errors).length === 0 &&
+    form.assessment_id &&
+    form.title;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (error) return;
+    if (!validate()) return;
 
     const payload = {
       ...form,
+      assessment_id: Number(form.assessment_id),
       order_sensitive: form.order_sensitive ? 1 : 0,
       requires_diagram_check: form.requires_diagram_check ? 1 : 0
     };
@@ -82,17 +128,26 @@ const GuideForm = ({ loadGuides, editing, close }) => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
 
-          {/* TOP ROW */}
+          {/* TOP */}
           <div className="grid grid-cols-2 gap-3">
 
-            <input
-              placeholder="Assessment ID"
-              className="border p-2 rounded-lg"
-              value={form.assessment_id}
-              onChange={(e) =>
-                setForm({ ...form, assessment_id: e.target.value })
-              }
-            />
+            {/* ASSESSMENT ID */}
+            <div>
+              <input
+                placeholder="Assessment ID"
+                className="border p-2 rounded-lg w-full"
+                value={form.assessment_id}
+                onChange={(e) =>
+                  setForm({ ...form, assessment_id: e.target.value })
+                }
+              />
+
+              {errors.assessment_id && (
+                <p className="text-red-500 text-xs">{errors.assessment_id}</p>
+              )}
+
+             
+            </div>
 
             <input
               type="number"
@@ -107,14 +162,19 @@ const GuideForm = ({ loadGuides, editing, close }) => {
           </div>
 
           {/* TITLE */}
-          <input
-            placeholder="Guide Title"
-            className="border p-2 rounded-lg w-full"
-            value={form.title}
-            onChange={(e) =>
-              setForm({ ...form, title: e.target.value })
-            }
-          />
+          <div>
+            <input
+              placeholder="Guide Title"
+              className="border p-2 rounded-lg w-full"
+              value={form.title}
+              onChange={(e) =>
+                setForm({ ...form, title: e.target.value })
+              }
+            />
+            {errors.title && (
+              <p className="text-red-500 text-xs">{errors.title}</p>
+            )}
+          </div>
 
           {/* DESCRIPTION */}
           <textarea
@@ -144,9 +204,15 @@ const GuideForm = ({ loadGuides, editing, close }) => {
               }
             />
 
-            {/* Preview Chips */}
+            {errors.diagram_types_expected && (
+              <p className="text-red-500 text-xs">
+                {errors.diagram_types_expected}
+              </p>
+            )}
+
+            {/* CHIPS */}
             <div className="flex flex-wrap gap-2 mt-2">
-              {form.diagram_types_expected
+              {(form.diagram_types_expected || "")
                 .split(",")
                 .map((d, i) =>
                   d.trim() && (
@@ -164,9 +230,7 @@ const GuideForm = ({ loadGuides, editing, close }) => {
           {/* TOGGLES */}
           <div className="space-y-3">
 
-            {/* ORDER */}
             <div className="flex justify-between items-center border rounded-lg p-3">
-
               <div>
                 <p className="text-sm font-medium">Order Sensitive</p>
                 <p className="text-xs text-gray-500">
@@ -182,9 +246,7 @@ const GuideForm = ({ loadGuides, editing, close }) => {
               />
             </div>
 
-            {/* DIAGRAM CHECK */}
             <div className="flex justify-between items-center border rounded-lg p-3">
-
               <div>
                 <p className="text-sm font-medium">Diagram Required</p>
                 <p className="text-xs text-gray-500">
@@ -202,11 +264,6 @@ const GuideForm = ({ loadGuides, editing, close }) => {
 
           </div>
 
-          {/* ERROR */}
-          {error && (
-            <p className="text-sm text-red-500">{error}</p>
-          )}
-
           {/* ACTIONS */}
           <div className="flex justify-end gap-3 pt-3">
 
@@ -220,11 +277,11 @@ const GuideForm = ({ loadGuides, editing, close }) => {
 
             <button
               type="submit"
-              disabled={!!error}
-              className={`px-5 py-2 rounded-lg text-white shadow-sm transition ${
-                error
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-blue-600 hover:bg-blue-700"
+              disabled={!isValid}
+              className={`px-5 py-2 rounded-lg text-white ${
+                isValid
+                  ? "bg-blue-600 hover:bg-blue-700"
+                  : "bg-gray-400 cursor-not-allowed"
               }`}
             >
               {editing ? "Update" : "Create"} Guide

@@ -7,11 +7,11 @@ const GuideList = ({ guides, loadGuides, setEditing }) => {
   const [deleteId, setDeleteId] = useState(null);
   const navigate = useNavigate();
 
-  // 🔥 FILTER STATES
+  // FILTERS
   const [subjectFilter, setSubjectFilter] = useState("ALL");
   const [assessmentFilter, setAssessmentFilter] = useState("ALL");
 
-  // 🔥 PAGINATION
+  // PAGINATION
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
@@ -21,33 +21,41 @@ const GuideList = ({ guides, loadGuides, setEditing }) => {
     loadGuides();
   };
 
-  const onBuild = (guide) => {
+  const onBuild = (guide, e) => {
+    e.stopPropagation();
     navigate(`/guide-builder/${guide.marking_guide_id}`);
   };
 
-  const onView = (guide) => {
+  const onEdit = (guide, e) => {
+    e.stopPropagation();
+    setEditing(guide);
+  };
+
+  const onRowClick = (guide) => {
     navigate(`/guide-preview/${guide.marking_guide_id}`);
   };
 
-  // 🔥 UNIQUE SUBJECTS
+  // SUBJECT OPTIONS
   const subjectOptions = useMemo(() => {
-    const map = new Map();
-    guides.forEach(g => {
-      map.set(g.subject_name, g.subject_name);
-    });
-    return Array.from(map.values());
+    return [...new Set(guides.map(g => g.subject_name))];
   }, [guides]);
 
-  // 🔥 UNIQUE ASSESSMENTS
+  // 🔥 FILTERED ASSESSMENTS BASED ON SUBJECT
   const assessmentOptions = useMemo(() => {
-    const map = new Map();
-    guides.forEach(g => {
-      map.set(g.assessment_title, g.assessment_title);
-    });
-    return Array.from(map.values());
-  }, [guides]);
+    return [
+      ...new Set(
+        guides
+          .filter(g =>
+            subjectFilter === "ALL"
+              ? true
+              : g.subject_name === subjectFilter
+          )
+          .map(g => g.assessment_title)
+      )
+    ];
+  }, [guides, subjectFilter]);
 
-  // 🔥 FILTER LOGIC
+  // FILTER LOGIC
   const filteredGuides = useMemo(() => {
     return guides.filter(g => {
       const matchSubject =
@@ -60,7 +68,7 @@ const GuideList = ({ guides, loadGuides, setEditing }) => {
     });
   }, [guides, subjectFilter, assessmentFilter]);
 
-  // 🔥 PAGINATION LOGIC
+  // PAGINATION
   const totalPages = Math.ceil(filteredGuides.length / itemsPerPage);
 
   const paginatedGuides = useMemo(() => {
@@ -71,16 +79,18 @@ const GuideList = ({ guides, loadGuides, setEditing }) => {
   }, [filteredGuides, currentPage]);
 
   return (
-    <div className="bg-white p-5 rounded-xl shadow">
+    <div className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
 
-      {/* 🔥 FILTERS */}
-      <div className="flex gap-3 mb-5">
+      {/* FILTER BAR */}
+      <div className="flex gap-3 p-4 border-b bg-gray-50">
 
-        {/* SUBJECT FILTER */}
+        {/* SUBJECT */}
         <select
-          className="border px-3 py-1 rounded-md"
+          className="border px-3 py-2 rounded-md text-sm"
+          value={subjectFilter}
           onChange={(e) => {
             setSubjectFilter(e.target.value);
+            setAssessmentFilter("ALL"); // reset
             setCurrentPage(1);
           }}
         >
@@ -90,9 +100,10 @@ const GuideList = ({ guides, loadGuides, setEditing }) => {
           ))}
         </select>
 
-        {/* ASSESSMENT FILTER */}
+        {/* ASSESSMENT */}
         <select
-          className="border px-3 py-1 rounded-md"
+          className="border px-3 py-2 rounded-md text-sm"
+          value={assessmentFilter}
           onChange={(e) => {
             setAssessmentFilter(e.target.value);
             setCurrentPage(1);
@@ -107,14 +118,15 @@ const GuideList = ({ guides, loadGuides, setEditing }) => {
       </div>
 
       {/* TABLE */}
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="bg-gray-100 text-gray-600 text-center">
-            <th className="py-2">ID</th>
-            <th>Assessment</th>
-            <th>Subject</th>
-            <th>Title</th>
-            <th>Version</th>
+      <table className="w-full text-sm border-collapse">
+
+        <thead className="bg-gray-50 border-b">
+          <tr className="text-gray-600 text-center">
+            <th className="py-3">ID</th>
+            <th className="">Subject</th>
+            <th className="">Assessment</th>
+            <th className="">Title</th>
+            <th className="">Version</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -123,35 +135,44 @@ const GuideList = ({ guides, loadGuides, setEditing }) => {
           {paginatedGuides.map((g, index) => (
             <tr
               key={g.marking_guide_id}
-              className={`text-center border-t ${
-                index % 2 === 0 ? "bg-gray-50" : "bg-white"
-              } hover:bg-gray-100 transition`}
+              onClick={() => onRowClick(g)}
+              className={`text-center border-b cursor-pointer transition hover:bg-gray-50 ${
+                index % 2 === 0 ? "bg-white" : "bg-gray-50"
+              }`}
             >
-              <td className="font-bold py-2">{g.marking_guide_id}</td>
-              <td>{g.assessment_title}</td>
-              <td>{g.subject_name}</td>
-              <td>{g.title}</td>
-              <td>v{g.version_no}</td>
+              <td className="py-3 font-bold ">
+                #{g.marking_guide_id}
+              </td>
 
-              <td>
-                <div className="flex justify-center gap-2 flex-wrap">
+              <td className="">
+                {g.subject_name}
+              </td>
+
+              <td className="">
+                {g.assessment_title}
+              </td>
+
+              <td className="">
+                {g.title}
+              </td>
+
+              <td className="">
+                v{g.version_no}
+              </td>
+
+              {/* ACTIONS */}
+              <td onClick={(e) => e.stopPropagation()}>
+                <div className="flex justify-center gap-2 ">
 
                   <button
-                    onClick={() => onBuild(g)}
-                    className="px-3 py-1 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 text-xs"
+                    onClick={(e) => onBuild(g, e)}
+                    className="px-3 py-1 bg-green-500 text-white rounded-md hover:bg-green-600 text-xs"
                   >
                     Build
                   </button>
 
                   <button
-                    onClick={() => onView(g)}
-                    className="px-3 py-1 bg-green-500 text-white rounded-md hover:bg-green-600 text-xs"
-                  >
-                    View
-                  </button>
-
-                  <button
-                    onClick={() => setEditing(g)}
+                    onClick={(e) => onEdit(g, e)}
                     className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 text-xs"
                   >
                     Edit
@@ -166,13 +187,15 @@ const GuideList = ({ guides, loadGuides, setEditing }) => {
 
                 </div>
               </td>
+
             </tr>
           ))}
         </tbody>
+
       </table>
 
       {/* PAGINATION */}
-      <div className="flex justify-between items-center mt-4">
+      <div className="flex justify-between items-center p-4 border-t">
 
         <p className="text-sm text-gray-500">
           Showing {paginatedGuides.length} of {filteredGuides.length}
@@ -205,6 +228,7 @@ const GuideList = ({ guides, loadGuides, setEditing }) => {
           onCancel={() => setDeleteId(null)}
         />
       )}
+
     </div>
   );
 };

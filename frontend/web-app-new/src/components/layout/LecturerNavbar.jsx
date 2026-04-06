@@ -1,5 +1,6 @@
 import logo from "../../assets/logo.png";
 
+
 const LecturerNavbar = ({ activePage = "Dashboard" }) => {
   // Helper to apply active styles
   const getItemStyle = (itemName) => 

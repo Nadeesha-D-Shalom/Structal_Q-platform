@@ -150,7 +150,7 @@ const QuestionCard = ({
           <div className="flex flex-wrap gap-3">
 
             <div>
-              <label className="text-xs text-gray-500">Marks</label>
+              <label className="text-xs text-gray-500">Marks </label>
               <input
                 type="number"
                 className="border px-2 py-1 rounded w-20 mt-1"
@@ -162,7 +162,7 @@ const QuestionCard = ({
             </div>
 
             <div>
-              <label className="text-xs text-gray-500">Keyword</label>
+              <label className="text-xs text-gray-500">Keyword </label>
               <input
                 type="number"
                 className="border px-2 py-1 rounded w-20 mt-1"
@@ -174,7 +174,7 @@ const QuestionCard = ({
             </div>
 
             <div>
-              <label className="text-xs text-gray-500">Semantic</label>
+              <label className="text-xs text-gray-500">Semantic </label>
               <input
                 type="number"
                 className="border px-2 py-1 rounded w-20 mt-1"

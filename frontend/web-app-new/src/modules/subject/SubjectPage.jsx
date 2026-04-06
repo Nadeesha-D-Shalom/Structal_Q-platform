@@ -23,72 +23,83 @@ const SubjectPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="p-6">
+      <div className="flex justify-center">
 
-        {/* HEADER */}
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-semibold">Manage Subjects</h1>
+      
+        <div className="w-full max-w-5xl px-4 py-6">
+
+          {/* HEADER */}
+          <div className="mb-6">
+            <h1 className="text-2xl font-semibold text-gray-800">
+              Manage Subjects
+            </h1>
             <p className="text-gray-400 text-sm">
               Configure and organize subjects
             </p>
           </div>
-        </div>
 
-        {/* STATS + BUTTONS */}
-        <div className="bg-white p-5 rounded-xl shadow flex justify-between items-center mb-6">
+          {/* STATS + ACTIONS */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm border flex justify-between items-center mb-6">
 
-          {/* LEFT */}
-          <div>
-            <p className="text-gray-400 text-sm">ACTIVE SUBJECTS</p>
-            <h2 className="text-2xl font-bold">{subjects.length}</h2>
+            {/* LEFT */}
+            <div>
+              <p className="text-gray-400 text-xs tracking-wide">
+                ACTIVE SUBJECTS
+              </p>
+              <h2 className="text-2xl font-bold text-gray-800">
+                {subjects.length}
+              </h2>
+            </div>
+
+            {/* RIGHT */}
+            <div className="flex gap-3">
+
+              <button
+                onClick={() => navigate("/assessments")}
+                className="bg-green-500 text-white px-4 py-2 rounded-lg text-sm shadow hover:bg-green-600 transition"
+              >
+                Assessments
+              </button>
+
+              <button
+                onClick={() => {
+                  setEditing(null);
+                  setShowForm(true);
+                }}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm shadow hover:bg-blue-700 transition"
+              >
+                +Add Subject
+              </button>
+
+            </div>
           </div>
 
-          {/* RIGHT - BUTTON GROUP */}
-          <div className="flex gap-3">
+          {/* TABLE CARD */}
+          <div className="bg-white p-4 rounded-2xl shadow-sm border">
 
-            {/* GO TO ASSESSMENTS */}
-            <button
-              onClick={() => navigate("/assessments")}
-              className="bg-green-500 text-white px-4 py-2 rounded-lg shadow hover:bg-green-600"
-            >
-              Assessments
-            </button>
-
-            {/* CREATE NEW */}
-            <button
-              onClick={() => {
-                setEditing(null);
+            <SubjectList
+              subjects={subjects}
+              loadSubjects={loadSubjects}
+              setEditing={(sub) => {
+                setEditing(sub);
                 setShowForm(true);
               }}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700"
-            >
-              + Create New
-            </button>
+            />
 
           </div>
+
         </div>
-
-        {/* TABLE */}
-        <SubjectList
-          subjects={subjects}
-          loadSubjects={loadSubjects}
-          setEditing={(sub) => {
-            setEditing(sub);
-            setShowForm(true);
-          }}
-        />
-
-        {/* MODAL */}
-        {showForm && (
-          <SubjectForm
-            loadSubjects={loadSubjects}
-            editing={editing}
-            setEditing={setEditing}
-            close={() => setShowForm(false)}
-          />
-        )}
       </div>
+
+      {/* MODAL */}
+      {showForm && (
+        <SubjectForm
+          loadSubjects={loadSubjects}
+          editing={editing}
+          setEditing={setEditing}
+          close={() => setShowForm(false)}
+        />
+      )}
     </DashboardLayout>
   );
 };

@@ -97,7 +97,21 @@ const getAssessments = async (req, res) => {
             ORDER BY a.created_at DESC
         `);
 
-        res.json(result.recordset);
+        const now = new Date();
+
+        const assessments = result.recordset.map(a => {
+            const due = new Date(a.due_date);
+
+            let status = "upcoming";
+            if (due < now) status = "overdue";
+
+            return {
+                ...a,
+                status
+            };
+        });
+
+        res.json(assessments);
 
     } catch (err) {
         res.status(500).json({ error: err.message });

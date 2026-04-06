@@ -91,7 +91,7 @@ const GuideBuilderPage = () => {
 
     } catch (err) {
       console.error(err);
-      alert("Reorder failed ❌");
+      alert("Reorder failed ");
     }
   };
 
@@ -104,7 +104,7 @@ const GuideBuilderPage = () => {
         `http://localhost:3000/api/marking-guides/${id}/new-version`
       );
 
-      alert("New version created 🚀");
+      alert("New version created");
       navigate("/guides");
 
     } catch (err) {
@@ -119,7 +119,7 @@ const GuideBuilderPage = () => {
     try {
       setLoading(true);
 
-      alert("Guide Published Successfully ✅");
+      alert("Guide Published Successfully");
       navigate("/guides");
 
     } catch (err) {
