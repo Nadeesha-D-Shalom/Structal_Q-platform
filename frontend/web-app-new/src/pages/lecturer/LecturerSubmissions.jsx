@@ -17,7 +17,7 @@ const LecturerSubmissions = () => {
 
   const fetchSubmissions = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/submission/lecturer/all`);
+      const res = await fetch(`${API_BASE}/api/submissions/lecturer/all`);
       const result = await res.json();
 
       console.log("SUBMISSIONS API RESPONSE:", result);
@@ -195,7 +195,7 @@ const LecturerSubmissions = () => {
                       onClick={() => handleView(row.submission_id)}
                       className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center hover:bg-purple-600 transition"
                     >
-                      
+
                       <i className="fa-solid fa-wand-magic-sparkles text-white"></i>
                     </button>
 
@@ -204,7 +204,7 @@ const LecturerSubmissions = () => {
                       onClick={() => handleAnalyze(row)}
                       className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center hover:bg-blue-600 transition"
                     >
-                      
+
                       <i className="fa-solid fa-code-compare text-white"></i>
                     </button>
 

@@ -1,30 +1,29 @@
-const express = require('express');
-const routes = require('./routes');
-const cors = require('cors');
+require("dotenv").config();
+
+const express = require("express");
+const cors = require("cors");
+const session = require("express-session");
+
+const routes = require("./routes");
+const authRoutes = require("./modules/auth/auth.routes");
 
 const app = express();
 
-app.use(express.json());
 app.use(cors());
+app.use(express.json());
 
-// Main API prefix
-app.use('/api', routes);
+app.use(session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: { secure: false }
+}));
 
-// Health check
-app.get('/health', (req, res) => {
-    res.json({ status: 'Backend running' });
-});
+app.use("/api/auth", authRoutes);
+app.use("/api", routes);
 
-app.get('/', (req, res) => {
-    res.send('StructaIQ Backend API is running');
-});
-
-app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({
-        message: 'Something went wrong!',
-        error: err.message
-    });
+app.get("/health", (req, res) => {
+    res.json({ status: "Backend running" });
 });
 
 module.exports = app;

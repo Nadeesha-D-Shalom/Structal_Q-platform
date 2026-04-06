@@ -1,15 +1,26 @@
-require('dotenv').config();
+const sql = require("mssql");
+require("dotenv").config();
 
 const config = {
-    user: process.env.DB_USER || 'structa_user',
-    password: process.env.DB_PASSWORD || 'Structa@123',
-    server: process.env.DB_SERVER || 'localhost',
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    server: process.env.DB_SERVER,
     port: Number(process.env.DB_PORT) || 1433,
-    database: process.env.DB_NAME || 'Structal_Q_platform',
+    database: process.env.DB_NAME,
     options: {
-        encrypt: process.env.DB_ENCRYPT === 'true',
-        trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE !== 'false'
+        encrypt: false,
+        trustServerCertificate: true
     }
 };
 
-module.exports = config;
+// CREATE CONNECTION POOL
+const pool = new sql.ConnectionPool(config);
+
+// CONNECT PROMISE
+const poolConnect = pool.connect();
+
+module.exports = {
+    pool,
+    sql,
+    poolConnect
+};

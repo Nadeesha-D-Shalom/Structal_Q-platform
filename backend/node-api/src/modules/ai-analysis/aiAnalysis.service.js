@@ -251,6 +251,27 @@ async function saveAnalysisToDB({
 }
 
 
+// ================= GET SUBMISSIONS BY ASSESSMENT =================
+exports.getSubmissionsByAssessment = async (assessmentId) => {
+    const result = await pool.request()
+        .input("assessmentId", sql.Int, assessmentId)
+        .query(`
+            SELECT 
+                s.submission_id,
+                s.marking_guide_id, -- IMPORTANT FIX
+                fs.storage_path,
+                mg.file_path AS guide_path
+            FROM submission s
+            JOIN file_storage fs ON s.file_id = fs.file_id
+            JOIN marking_guide mg ON s.assessment_id = mg.assessment_id
+            WHERE s.assessment_id = @assessmentId
+              AND fs.is_deleted = 0
+        `);
+
+    return result.recordset;
+};
+
+
 // ================= GET ANALYSIS RESULTS =================
 async function getAnalysisResults(submissionId) {
     try {

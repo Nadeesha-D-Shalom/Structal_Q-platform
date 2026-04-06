@@ -1,60 +1,31 @@
-/**
- * Role-based access helpers using `role` request header (Admin | Student).
- * HTTP headers are lowercased in Express; we read `req.headers.role`.
- */
+const jwt = require("jsonwebtoken");
 
-/** Normalizes role from headers (string, trimmed). */
-function getRole(req) {
-  const raw = req.headers.role ?? req.headers['role'];
-  if (raw == null || String(raw).trim() === '') return null;
-  return String(raw).trim();
-}
+exports.verifyToken = (req, res, next) => {
+    const authHeader = req.headers.authorization;
 
-/**
- * Ensures the request includes a valid role header (Admin or Student).
- * Returns 401 if missing or invalid.
- */
-function requireAuthenticatedRole(req, res, next) {
-  const role = getRole(req);
-  if (!role || !['Admin', 'Student'].includes(role)) {
-    return res.status(401).json({
-      message: 'Authentication required: set header "role" to "Admin" or "Student".',
-    });
-  }
-  req.userRole = role;
-  return next();
-}
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ message: "No token provided" });
+    }
 
-/**
- * Only Admin may proceed. Use after requireAuthenticatedRole on mutating routes.
- */
-function requireAdmin(req, res, next) {
-  if (getRole(req) !== 'Admin') {
-    return res.status(403).json({
-      message: 'Forbidden: Admin access required.',
-    });
-  }
-  return next();
-}
+    const token = authHeader.split(" ")[1];
 
-/**
- * Student may read published timetables; Admin may read all.
- * Attaches req.userRole for controllers.
- */
-function requireStudentOrAdmin(req, res, next) {
-  const role = getRole(req);
-  if (!role || !['Admin', 'Student'].includes(role)) {
-    return res.status(401).json({
-      message: 'Authentication required: set header "role" to "Admin" or "Student".',
-    });
-  }
-  req.userRole = role;
-  return next();
-}
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-module.exports = {
-  getRole,
-  requireAuthenticatedRole,
-  requireAdmin,
-  requireStudentOrAdmin,
+        req.user = decoded;
+        next();
+    } catch (err) {
+        return res.status(401).json({ message: "Invalid token" });
+    }
+};
+
+exports.requireRole = (role) => {
+    return (req, res, next) => {
+        if (req.user.role !== role) {
+            return res.status(403).json({
+                message: "Access denied"
+            });
+        }
+        next();
+    };
 };

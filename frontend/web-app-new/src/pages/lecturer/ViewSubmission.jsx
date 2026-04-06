@@ -348,7 +348,7 @@ const ViewSubmission = () => {
   const fetchSubmission = async () => {
     try {
       setError("");
-      const res = await fetch(`${API_BASE}/api/submission/${id}`);
+      const res = await fetch(`${API_BASE}/api/submissions/${id}`);
       const result = await res.json();
       const extracted = result?.data || result[0] || result;
       if (!extracted) throw new Error("Submission data not found");

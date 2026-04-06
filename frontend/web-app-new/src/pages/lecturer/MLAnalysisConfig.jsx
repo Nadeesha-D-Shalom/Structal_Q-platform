@@ -328,7 +328,7 @@ const MLAnalysisConfig = () => {
 
   // Fetch submissions
   useEffect(() => {
-    fetch(`${API_BASE}/api/submission/lecturer/all`)
+    fetch(`${API_BASE}/api/submissions/lecturer/all`)
       .then(res => res.json())
       .then(data => setSubmissions(Array.isArray(data) ? data : []))
       .catch(() => setSubmissions([]));
@@ -405,7 +405,7 @@ const MLAnalysisConfig = () => {
           </div>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 800, color: "#1a2050", letterSpacing: "-0.4px" }}>
-              Document Comparison
+              Document Comparison (Student to Student)
             </h1>
             <p style={{ fontSize: 13.5, color: "#6b7499", marginTop: 4 }}>
               AI-powered semantic similarity detection between student submissions

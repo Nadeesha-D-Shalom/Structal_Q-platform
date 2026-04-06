@@ -3,13 +3,17 @@ const router = express.Router();
 const axios = require("axios");
 const { ML_SERVICE_URL } = require("../../config/env");
 
-const { analyzeSubmission, getAnalysisResults } = require("./aiAnalysis.controller");
+// FIXED IMPORT
+const controller = require("./aiAnalysis.controller");
 
 // Main analysis endpoint
-router.post("/analyze", analyzeSubmission);
+router.post("/analyze", controller.analyzeSubmission);
 
 // Get analysis results
-router.get("/results/:submissionId", getAnalysisResults);
+router.get("/results/:submissionId", controller.getAnalysisResults);
+
+// Evaluate all submissions
+router.post("/evaluate-all/:assessmentId", controller.evaluateAllSubmissions);
 
 // Compare documents
 router.post("/compare", async (req, res) => {
@@ -23,13 +27,9 @@ router.post("/compare", async (req, res) => {
             });
         }
 
-        console.log("COMPARE REQUEST:");
-        console.log("File1:", file1);
-        console.log("File2:", file2);
-
         const response = await axios.post(`${ML_SERVICE_URL}/compare`, {
-            file1: file1,
-            file2: file2
+            file1,
+            file2
         });
 
         const ai = response.data;
@@ -41,15 +41,13 @@ router.post("/compare", async (req, res) => {
         return res.status(200).json({
             success: true,
             data: {
-                similarity: similarity,
+                similarity,
                 similarity_percentage: (similarity * 100).toFixed(2),
                 interpretation: ai.interpretation || "No interpretation"
             }
         });
 
     } catch (error) {
-        console.error("Compare API Error:", error.response?.data || error.message);
-
         return res.status(500).json({
             success: false,
             error: error.response?.data || error.message

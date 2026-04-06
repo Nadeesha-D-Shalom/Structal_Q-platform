@@ -1,7 +1,7 @@
 const { sql, pool, poolConnect } = require('../../config/db');
 
 /* =========================
-   CREATE MARKING GUIDE
+   CREATE MARKING GUIDE*/
 exports.createGuide = async (req, res) => {
     const {
         assessment_id,
@@ -76,7 +76,7 @@ exports.createGuide = async (req, res) => {
 
 
 /* =========================
-   GET ALL GUIDES (FIXED)
+   GET ALL GUIDES (FIXED)*/
 exports.getGuides = async (req, res) => {
     try {
         await poolConnect;
@@ -117,7 +117,7 @@ exports.getGuides = async (req, res) => {
 
 
 /* =========================
-   GET GUIDE BY ID
+   GET GUIDE BY ID*/
 exports.getGuideById = async (req, res) => {
     try {
         await poolConnect;
@@ -157,7 +157,7 @@ exports.getGuideById = async (req, res) => {
 
 
 /* =========================
-   UPDATE GUIDE
+   UPDATE GUIDE*/
 exports.updateGuide = async (req, res) => {
     const {
         title,
@@ -207,7 +207,7 @@ exports.updateGuide = async (req, res) => {
 
 
 /* =========================
-   DELETE GUIDE (SOFT)
+   DELETE GUIDE (SOFT)*/
 exports.deleteGuide = async (req, res) => {
     try {
         await poolConnect;
