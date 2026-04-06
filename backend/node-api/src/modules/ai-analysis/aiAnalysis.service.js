@@ -1,9 +1,8 @@
 const axios = require("axios");
 const sql = require("mssql");
-const { pool } = require("../../config/db");
 const { ML_SERVICE_URL } = require("../../config/env");
 const AI_BASE_URL = ML_SERVICE_URL;
-
+const { pool, poolConnect } = require("../../config/db");
 
 // ================= AI CALL =================
 async function runAIAnalysis(payload) {
@@ -137,6 +136,8 @@ async function saveAiQuestionScores(analysis_result_id, questionScores = []) {
 }
 
 
+
+
 // ================= DB SAVE =================
 async function saveAnalysisToDB({
     submission_id,
@@ -260,7 +261,7 @@ exports.getSubmissionsByAssessment = async (assessmentId) => {
                 s.submission_id,
                 s.marking_guide_id, -- IMPORTANT FIX
                 fs.storage_path,
-                mg.file_path AS guide_path
+                mg.file_id AS guide_path
             FROM submission s
             JOIN file_storage fs ON s.file_id = fs.file_id
             JOIN marking_guide mg ON s.assessment_id = mg.assessment_id
@@ -294,7 +295,7 @@ async function getAnalysisResults(submissionId) {
         }
 
         const record = result.recordset[0];
-        
+
         // Parse question scores if they exist
         if (record.question_scores) {
             try {
@@ -311,8 +312,61 @@ async function getAnalysisResults(submissionId) {
     }
 }
 
+const getAllEvaluatedResults = async () => {
+    await poolConnect;
+
+    const request = pool.request();
+
+    const result = await request.query(`
+        SELECT 
+    ar.analysis_result_id,
+    ar.submission_id,
+
+    CAST(ar.similarity_avg * 100 AS DECIMAL(10,2)) AS final_score,
+
+    ISNULL(ar.risk_level, 'LOW') AS risk_level,
+
+    fs.original_file_name AS student_file,
+    fg.original_file_name AS guide_file,
+
+    a.assessment_title AS assessment_name
+
+FROM analysis_result ar
+
+INNER JOIN (
+    -- GET LATEST RESULT PER SUBMISSION
+    SELECT submission_id, MAX(analysis_result_id) AS latest_id
+    FROM analysis_result
+    WHERE status = 'COMPLETED'
+    GROUP BY submission_id
+) latest
+    ON ar.analysis_result_id = latest.latest_id
+
+INNER JOIN submission s 
+    ON ar.submission_id = s.submission_id
+
+INNER JOIN file_storage fs 
+    ON s.file_id = fs.file_id
+
+INNER JOIN marking_guide mg 
+    ON ar.marking_guide_id = mg.marking_guide_id
+
+INNER JOIN file_storage fg 
+    ON mg.file_id = fg.file_id
+
+INNER JOIN assessment a 
+    ON s.assessment_id = a.assessment_id
+
+ORDER BY ar.analysis_result_id DESC
+    `);
+
+    return result.recordset;
+};
+
+
 module.exports = {
     runAIAnalysis,
     saveAnalysisToDB,
-    getAnalysisResults
+    getAnalysisResults,
+    getAllEvaluatedResults
 };

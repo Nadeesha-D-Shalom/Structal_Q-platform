@@ -7,8 +7,32 @@ const { pool, sql } = require("../../config/db");
 const fs = require("fs");
 
 
+const uploadDir = "storage/students";
+
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        const ext = path.extname(file.originalname);
+
+        const fileName =
+            "submission_" +
+            Date.now() +
+            "_" +
+            Math.round(Math.random() * 1e9) +
+            ext;
+
+        cb(null, fileName);
+    },
+});
+
 const upload = multer({
-    dest: 'uploads/',
+    storage: storage,
     limits: { fileSize: 20 * 1024 * 1024 }
 });
 

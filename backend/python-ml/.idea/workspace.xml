@@ -5,16 +5,14 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="73978067-b5a3-4b9e-bce9-b1f97c06eaa6" name="Changes" comment="feat: implement hybrid semantic retrieval with TOC filtering and rubric-driven scoring">
-      <change beforePath="$PROJECT_DIR$/../node-api/.env" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/.env" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/marking-guide/markingGuide.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/marking-guide/markingGuide.controller.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/src/routes/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/routes/index.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/src/server.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/server.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/ai-analysis/aiAnalysis.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/ai-analysis/aiAnalysis.controller.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/ai-analysis/aiAnalysis.routes.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/ai-analysis/aiAnalysis.routes.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/ai-analysis/aiAnalysis.service.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/ai-analysis/aiAnalysis.service.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/submission/submission.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/submission/submission.controller.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/submission/submission.routes.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/submission/submission.routes.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/submission/submission.service.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/submission/submission.service.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/LecturerSubmissions.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/LecturerSubmissions.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../storage/lecturer/~$t_lab3_answer.docx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../storage/students/~$24102244.docx" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

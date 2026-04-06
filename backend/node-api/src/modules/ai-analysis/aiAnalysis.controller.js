@@ -1,12 +1,13 @@
 const {
     runAIAnalysis,
     saveAnalysisToDB,
-    getAnalysisResults
+    getAnalysisResults,
+    getAllEvaluatedResults
 } = require("./aiAnalysis.service");
 
-const service = require("./aiAnalysis.service");
+const submissionService = require("../submission/submission.service");
 
-// ================= NORMALIZE AI RESPONSE =================
+// ================= NORMALIZE =================
 function normalizeAIResponse(result) {
     if (!result) return null;
     if (result.data) return result.data;
@@ -14,7 +15,8 @@ function normalizeAIResponse(result) {
     return result;
 }
 
-// ================= SINGLE ANALYSIS =================
+
+// ================= SINGLE =================
 async function analyzeSubmission(req, res) {
     try {
         const {
@@ -24,12 +26,7 @@ async function analyzeSubmission(req, res) {
             guide_file
         } = req.body;
 
-        if (
-            !submission_id ||
-            !marking_guide_id ||
-            !submission_path ||
-            !guide_file
-        ) {
+        if (!submission_id || !marking_guide_id || !submission_path || !guide_file) {
             return res.status(400).json({
                 success: false,
                 error: "All fields are required"
@@ -43,37 +40,44 @@ async function analyzeSubmission(req, res) {
 
         const aiData = normalizeAIResponse(result);
 
-        const dbResult = await saveAnalysisToDB({
+        const saved = await saveAnalysisToDB({
             submission_id,
             marking_guide_id,
             aiResult: aiData
         });
 
-        return res.status(200).json({
+        return res.json({
             success: true,
-            analysis_result_id: dbResult.analysis_result_id,
-            data: aiData
+            analysis_result_id: saved.analysis_result_id
         });
 
-    } catch (error) {
+    } catch (err) {
         return res.status(500).json({
             success: false,
-            error: error.message
+            error: err.message
         });
     }
 }
+
 
 // ================= EVALUATE ALL =================
 async function evaluateAllSubmissions(req, res) {
     try {
         const { assessmentId } = req.params;
 
-        const submissions = await service.getSubmissionsByAssessment(assessmentId);
+        if (!assessmentId) {
+            return res.status(400).json({
+                success: false,
+                error: "assessmentId is required"
+            });
+        }
 
-        if (!submissions.length) {
+        const submissions = await submissionService.getSubmissionsByAssessment(assessmentId);
+
+        if (!submissions || submissions.length === 0) {
             return res.status(404).json({
                 success: false,
-                message: "No submissions found"
+                error: "No submissions found"
             });
         }
 
@@ -88,7 +92,7 @@ async function evaluateAllSubmissions(req, res) {
 
                 const aiData = normalizeAIResponse(aiResponse);
 
-                await saveAnalysisToDB({
+                const saved = await saveAnalysisToDB({
                     submission_id: sub.submission_id,
                     marking_guide_id: sub.marking_guide_id,
                     aiResult: aiData
@@ -96,7 +100,8 @@ async function evaluateAllSubmissions(req, res) {
 
                 results.push({
                     submission_id: sub.submission_id,
-                    status: "success"
+                    status: "success",
+                    analysis_result_id: saved.analysis_result_id
                 });
 
             } catch (err) {
@@ -110,16 +115,45 @@ async function evaluateAllSubmissions(req, res) {
 
         return res.json({
             success: true,
-            total: submissions.length,
-            results
+            message: "All submissions evaluated",
+            total: results.length,
+            data: results
         });
 
     } catch (err) {
-        return res.status(500).json({ error: err.message });
+        console.error("Evaluate All Error:", err);
+        return res.status(500).json({
+            success: false,
+            error: err.message
+        });
     }
 }
 
-// ================= GET RESULTS =================
+
+// ================= GET ALL =================
+
+const getAllEvaluatedResultsController = async (req, res) => {
+    try {
+        const data = await getAllEvaluatedResults();
+
+        res.json({
+            success: true,
+            message: "All evaluated results",
+            data
+        });
+
+    } catch (error) {
+        console.error("Get All Evaluated Results Error:", error);
+
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+};
+
+
+// ================= GET SINGLE =================
 async function getResultsController(req, res) {
     try {
         const { submissionId } = req.params;
@@ -146,9 +180,11 @@ async function getResultsController(req, res) {
     }
 }
 
+
 // ================= EXPORT =================
 module.exports = {
     analyzeSubmission,
     evaluateAllSubmissions,
+    getAllEvaluatedResults: getAllEvaluatedResultsController,
     getAnalysisResults: getResultsController
 };
