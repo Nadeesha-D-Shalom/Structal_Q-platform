@@ -2,6 +2,7 @@ const { pool, sql } = require("../../config/db");
 const path = require("path");
 const mime = require('mime-types');
 const fs = require("fs");
+const { DateTime } = require("mssql");
 
 exports.getAllAssessments = async (req, res, next) => {
     try {
@@ -149,14 +150,14 @@ exports.getDiagramPages = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-exports.publishingleMark = async (req, res, next) => {
+exports.publishingMark = async (req, res, next) => {
     try {
         const { submission_id, final_mark, enable_concern_window } = req.body;
 
-        // Once developed: const lecturer_id = req.session?.user?.user_id;
-        const lecturer_id = "1"; 
+        // Once developed: const lecturer_name = req.session?.user?.user_name;
+        const published_by = "Dr Robert Fox"; 
 
-        if (!lecturer_id) {
+        if (!published_by) {
             return res.status(401).json({ message: "Unauthorized: No lecturer session found." });
         }
 
@@ -201,19 +202,19 @@ exports.publishingleMark = async (req, res, next) => {
         const result = await pool.request()
             .input("sub_id",  sql.BigInt,  submission_id)
             .input("stu_id",  sql.BigInt,  student_id)
-            .input("lec_id",  sql.VarChar,  lecturer_id)
             .input("mark",    sql.Decimal(5, 2), final_mark)
             .input("status",  sql.VarChar,  "PUBLISHED")
-            .input("window",  sql.Bit,      enable_concern_window ? 1 : 0)
-            .input("now",     sql.DateTime, new Date())
+            .input("published_by",  sql.VarChar,  published_by)
+            .input("published_at", sql.DateTimeOffset, new Date())
+            .input("window",  sql.Bit, enable_concern_window ? 1 : 0)
             .query(`
                 INSERT INTO final_mark (
-                    submission_id, student_id, lecturer_id, 
-                    total_marks_awarded, marking_status, published_at, 
-                    updated_at, concern_window_open
+                    submission_id, student_id, 
+                    total_marks_awarded, marking_status, published_by, published_at,
+                    concern_window_open
                 )
                 OUTPUT INSERTED.id
-                VALUES (@sub_id, @stu_id, @lec_id, @mark, @status, @now, @now, @window)
+                VALUES (@sub_id, @stu_id, @mark, @status, @published_by, @published_at, @window)
             `);
 
         // Generate specific ids for final marks

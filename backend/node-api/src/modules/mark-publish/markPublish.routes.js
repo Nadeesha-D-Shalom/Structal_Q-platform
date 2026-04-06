@@ -18,6 +18,6 @@ router.get("/ai-scores/:submission_id", marksController.getAiScores);
 router.get("/diagram-pages/:submission_id", marksController.getDiagramPages);
 
 // Final POST request to publish the marks to the database
-router.post("/publish", marksController.publishingleMark);
+router.post("/publish", marksController.publishingMark);
 
 module.exports = router;

@@ -3,6 +3,7 @@ import StudentNavbar from "./StudentNavbar";
 import { useNavigate } from "react-router-dom";
 
 const PER_PAGE = 5;
+const API_BASE_URL = "http://localhost:5000";
 
 export default function StudentMarksList() {
   const navigate = useNavigate();
@@ -26,38 +27,62 @@ export default function StudentMarksList() {
 
   // ── Navigation ───────────────────────────────────────────────────────────
   const [page, setPage] = useState(1);
+  
+  // ── Filter Options ───────────────────────────────────────────────────────
+  const [academicYears, setAcademicYears] = useState(["All"]);
+  const [subjects, setSubjects] = useState(["All"]);
+
+  // ── PDF Export State ─────────────────────────────────────────────────────
+  const [exporting, setExporting] = useState(false);
 
   // ── Fetch session ────────────────────────────────────────────────────────
   useEffect(() => {
     fetch("/api/auth/session", { credentials: "include" })
       .then(r => r.ok ? r.json() : null)
-      .then(data => { setSession(data); setSessionLoading(false); })
+      .then(data => { 
+        setSession(data); 
+        setSessionLoading(false); 
+      })
       .catch(() => setSessionLoading(false));
   }, []);
 
   // ── Fetch submissions from backend ───────────────────────────────────────
   useEffect(() => {
-    if (!session?.student_id) return;
-    setSubmissionsLoading(true);
-    setFetchError(false);
-    fetch(`/api/submissions/student/${session.student_id}`, { credentials: "include" })
-      .then(r => { if (!r.ok) throw new Error("Failed"); return r.json(); })
-      .then(data => {
-        // Transform data to match expected format
-        const formattedData = data.map(item => ({
-          ...item,
-          total_marks_awarded: item.total_marks_awarded || item.mark,
-          concern_window_open: item.concern_window_open === 1 || item.concern_window_open === true
-        }));
-        setSubmissions(formattedData);
-      })
-      .catch(() => setFetchError(true))
-      .finally(() => setSubmissionsLoading(false));
-  }, [session?.student_id]);
-
-  // ── Derived filter options ────────────────────────────────────────────────
-  const academicYears = ["All", ...new Set(submissions.map(s => s.academic_year))].filter(Boolean);
-  const subjects = ["All", ...new Set(submissions.map(s => s.subject_name))].filter(Boolean);
+    //if (!session?.student_id) return;
+    
+    const fetchMarks = async () => {
+      setSubmissionsLoading(true);
+      setFetchError(false);
+      try {
+        const response = await fetch(`/api/student/marks/2`, { 
+          credentials: "include" 
+        });
+        if (!response.ok) throw new Error("Failed to fetch");
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          setSubmissions(result.data);
+          
+          // Extract unique academic years and subjects for filters
+          const years = ["All", ...new Set(result.data.map(s => s.academic_year).filter(Boolean))];
+          const uniqueSubjects = ["All", ...new Set(result.data.map(s => s.subject_name).filter(Boolean))];
+          
+          setAcademicYears(years);
+          setSubjects(uniqueSubjects);
+        } else {
+          throw new Error(result.message);
+        }
+      } catch (err) {
+        console.error("Error fetching marks:", err);
+        setFetchError(true);
+      } finally {
+        setSubmissionsLoading(false);
+      }
+    };
+    
+    fetchMarks();
+  }, []);
 
   // ── Filter + Search + Sort ────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -72,8 +97,8 @@ export default function StudentMarksList() {
         s.subject_code?.toLowerCase().includes(q)
       );
     }
-    if (sortOrder === "high-low") list.sort((a, b) => (b.total_marks_awarded || 0) - (a.total_marks_awarded || 0));
-    if (sortOrder === "low-high") list.sort((a, b) => (a.total_marks_awarded || 0) - (b.total_marks_awarded || 0));
+    if (sortOrder === "high-low") list.sort((a, b) => (b.mark || 0) - (a.mark || 0));
+    if (sortOrder === "low-high") list.sort((a, b) => (a.mark || 0) - (b.mark || 0));
     return list;
   }, [submissions, academicYearFilter, subjectFilter, searchQuery, sortOrder]);
 
@@ -88,9 +113,92 @@ export default function StudentMarksList() {
   const totalAssignments = submissions.length;
 
   // ── Handle Raise Concern ─────────────────────────────────────────────────
-  const handleRaiseConcern = (submission) => {
-    // Navigate to raise concern page with submission data
-    navigate("/student/raise-concern", { state: { submission } });
+  const handleRaiseConcern = async (submission) => {
+    console.log("Raising concern for submission:", submission);
+    try {
+      // Fetch detailed submission data for the concern form
+      const response = await fetch(`/api/student/marks/details?submission_id=${submission.submission_id}`, {
+        credentials: "include"
+      });
+      
+      const result = await response.json();
+      console.log(result);
+      
+      if (result.success) {
+        // Navigate to raise concern page with submission data
+        navigate("/student/raise-concern", { state: { submission: result.data } });
+        
+      } else {
+        console.error("Failed to fetch submission details");
+        alert("Unable to load submission details. Please try again.");
+      }
+    } catch (err) {
+      console.error("Error fetching submission details:", err);
+      alert("Failed to load submission details");
+    }
+  };
+
+  // ── Handle Export PDF ─────────────────────────────────────────────────
+  const handleExportPDF = async () => {
+    if (filtered.length === 0) {
+      alert("No data to export");
+      return;
+    }
+    
+    setExporting(true);
+    try {
+      const response = await fetch('/api/student/marks/export-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          marks: filtered,
+          student: {
+            name: session?.student_name || "Student",
+            id: session?.student_id || "N/A",
+            email: session?.student_email || "N/A"
+          },
+          filters: {
+            academicYear: academicYearFilter,
+            subject: subjectFilter,
+            search: searchQuery,
+            sortBy: sortOrder
+          },
+          exportDate: new Date().toISOString(),
+          summary: {
+            totalSubjects: totalSubjects,
+            totalAssignments: totalAssignments,
+            averageMark: submissions.length > 0 
+              ? (submissions.reduce((sum, s) => sum + ((s.mark / s.total) * 100), 0) / submissions.length).toFixed(1)
+              : 0
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+
+      // Get the blob from the response
+      const blob = await response.blob();
+      
+      // Create a download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `my_marks_${new Date().toISOString().split('T')[0]}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+    } catch (err) {
+      console.error("Error exporting PDF:", err);
+      alert("Failed to export PDF. Please try again.");
+    } finally {
+      setExporting(false);
+    }
   };
 
   // ── Mark Color Function ─────────────────────────────────────────────────
@@ -104,6 +212,14 @@ export default function StudentMarksList() {
 
   const initials = session?.student_name
     ?.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "S";
+
+  if (sessionLoading) {
+    return (
+      <div style={{ minHeight: "100vh", backgroundColor: "#f5f6fa", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={spinnerStyle} />
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f5f6fa", fontFamily: "'Inter', sans-serif" }}>
@@ -192,14 +308,20 @@ export default function StudentMarksList() {
             />
 
             {/* Export Button */}
-            <button style={{
-              marginLeft: "auto", padding: "8px 18px", borderRadius: 8,
-              border: "1px solid #e2e8f0", backgroundColor: "#fff",
-              color: "#475569", fontSize: 13, fontWeight: 500,
-              cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
-              transition: "all 0.2s",
-            }}>
-              📄 Export PDF
+            <button 
+              onClick={handleExportPDF}
+              disabled={exporting || filtered.length === 0}
+              style={{
+                marginLeft: "auto", padding: "8px 18px", borderRadius: 8,
+                border: "1px solid #e2e8f0", backgroundColor: "#dc2626",
+                color: "#fff", fontSize: 13, fontWeight: 500,
+                cursor: exporting || filtered.length === 0 ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", gap: 6,
+                transition: "all 0.2s",
+                opacity: exporting || filtered.length === 0 ? 0.6 : 1,
+              }}
+            >
+              {exporting ? "⏳ Exporting..." : "📄 Export PDF"}
             </button>
           </div>
 
@@ -328,7 +450,7 @@ export default function StudentMarksList() {
 
           {/* Table Rows */}
           {!submissionsLoading && !fetchError && paged.map((sub, index) => {
-            const mark = sub.total_marks_awarded || sub.mark || 0;
+            const mark = sub.mark || 0;
             const total = sub.total || 100;
             const isConcernWindowOpen = sub.concern_window_open === true || sub.concern_window_open === 1;
             
@@ -354,6 +476,15 @@ export default function StudentMarksList() {
                 <div>
                   <div style={{ fontSize: 14, color: "#334155", fontWeight: 500 }}>{sub.assignment_name || "N/A"}</div>
                   <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{sub.academic_year || ""}</div>
+                  <a 
+                    href={`${API_BASE_URL}/api/marks/pdf/${sub.submission_id}`} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    style={{ fontSize: 11, fontWeight: "bold", color: "#3c74ff", textDecoration: "none", marginBottom: 8, display: "flex", alignItems: "center" }}
+                  >
+                    <i className="fas fa-file-pdf" style={{ marginRight: 6 }}></i>
+                    Open Submission File
+                  </a>
                 </div>
 
                 {/* Marks */}
@@ -391,7 +522,7 @@ export default function StudentMarksList() {
                     backgroundColor: "#f1f5f9", color: "#94a3b8",
                     fontSize: 11, fontWeight: 500, width: "fit-content",
                   }}>
-                    Window Closed
+                    Concern Window Closed
                   </div>
                 )}
               </div>

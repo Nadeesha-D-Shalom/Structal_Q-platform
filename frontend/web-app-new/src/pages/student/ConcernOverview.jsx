@@ -19,7 +19,7 @@ const ViewDetailsModal = ({ isOpen, onClose, concern }) => {
     }
   };
 
-  const statusStyle = getStatusStyle(concern?.status);
+  const statusStyle = getStatusStyle(concern?.concern_status);
 
   return (
     <div style={modalOverlayStyle} onClick={onClose}>
@@ -34,7 +34,7 @@ const ViewDetailsModal = ({ isOpen, onClose, concern }) => {
           <div style={infoSectionStyle}>
             <div style={infoRowStyle}>
               <span style={infoLabelStyle}>Concern ID:</span>
-              <span style={infoValueStyle}>{concern?.id}</span>
+              <span style={infoValueStyle}>{concern?.concern_id}</span>
             </div>
             <div style={infoRowStyle}>
               <span style={infoLabelStyle}>Assignment:</span>
@@ -42,22 +42,26 @@ const ViewDetailsModal = ({ isOpen, onClose, concern }) => {
             </div>
             <div style={infoRowStyle}>
               <span style={infoLabelStyle}>Subject:</span>
-              <span style={infoValueStyle}>{concern?.subject}</span>
+              <span style={infoValueStyle}>{concern?.subject_name}</span>
             </div>
             <div style={infoRowStyle}>
               <span style={infoLabelStyle}>Date Submitted:</span>
-              <span style={infoValueStyle}>{concern?.date}</span>
+              <span style={infoValueStyle}>{concern?.created_at ? new Date(concern.created_at).toLocaleDateString() : "N/A"}</span>
             </div>
             <div style={infoRowStyle}>
               <span style={infoLabelStyle}>Status:</span>
               <span style={{ ...statusBadgeStyle, backgroundColor: statusStyle.bgColor, color: statusStyle.color }}>
                 <span style={{ ...statusDotStyle, backgroundColor: statusStyle.dot }}></span>
-                {concern?.status}
+                {concern?.concern_status}
               </span>
             </div>
             <div style={infoRowStyle}>
+              <span style={infoLabelStyle}>Priority:</span>
+              <span style={priorityValueStyle(concern?.priority_level)}>{concern?.priority_level || "Low"}</span>
+            </div>
+            <div style={infoRowStyle}>
               <span style={infoLabelStyle}>Original Mark:</span>
-              <span style={markValueStyle}>{concern?.originalMark}/100</span>
+              <span style={markValueStyle}>{concern?.original_mark}/100</span>
             </div>
           </div>
 
@@ -65,28 +69,22 @@ const ViewDetailsModal = ({ isOpen, onClose, concern }) => {
           <div style={messageSectionStyle}>
             <label style={sectionLabelStyle}>Your Concern Message</label>
             <div style={messageBoxStyle}>
-              "{concern?.message}"
+              "{concern?.concern_message}"
             </div>
           </div>
 
           {/* Lecturer Response (if any) */}
-          {concern?.response && (
+          {concern?.lecturer_comment && (
             <div style={responseSectionStyle}>
               <label style={sectionLabelStyle}>Lecturer's Response</label>
               <div style={responseBoxStyle}>
                 <div style={responseHeaderStyle}>
-                  <span style={lecturerNameStyle}>Dr. Robert Fox</span>
-                  <span style={responseDateStyle}>{concern?.responseDate || "Oct 20, 2023"}</span>
+                  <span style={lecturerNameStyle}>Lecturer</span>
+                  <span style={responseDateStyle}>{concern?.revised_on ? new Date(concern.revised_on).toLocaleDateString() : "N/A"}</span>
                 </div>
                 <div style={responseMessageStyle}>
-                  "{concern?.response}"
+                  "{concern?.lecturer_comment}"
                 </div>
-                {concern?.revisedMark && (
-                  <div style={revisedMarkStyle}>
-                    <span style={revisedMarkLabel}>Revised Mark:</span>
-                    <span style={revisedMarkValue}>{concern?.revisedMark}/100</span>
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -133,22 +131,31 @@ export default function StudentConcernsOverview() {
 
   // Fetch student's concerns
   useEffect(() => {
-    if (!session?.student_id) return;
+    //if (!session?.student_id) return;
 
     const fetchConcerns = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/concerns/student/${session.student_id}`, {
+        const res = await fetch(`/api/concern/2`, {
           credentials: "include"
         });
         const data = await res.json();
         
-        if (data.success) {
-          setConcerns(data.data);
-          setFilteredConcerns(data.data);
+        if (Array.isArray(data)) {
+          // Transform data to match expected format
+          const formattedConcerns = data.map(concern => ({
+            ...concern,
+            original_mark: concern.original_mark || 0,
+            assignment: concern.assignment || "N/A",
+            subject_name: concern.subject_name || "N/A",
+            created_at: concern.created_at || concern.created_at,
+            concern_status: concern.concern_status || "Pending"
+          }));
+          setConcerns(formattedConcerns);
+          setFilteredConcerns(formattedConcerns);
           
           // Extract unique subjects for filter
-          const uniqueSubjects = ["All", ...new Set(data.data.map(c => c.subject))];
+          const uniqueSubjects = ["All", ...new Set(formattedConcerns.map(c => c.subject_name).filter(Boolean))];
           setSubjects(uniqueSubjects);
         }
       } catch (err) {
@@ -166,11 +173,11 @@ export default function StudentConcernsOverview() {
     let filtered = [...concerns];
     
     if (subjectFilter !== "All") {
-      filtered = filtered.filter(c => c.subject === subjectFilter);
+      filtered = filtered.filter(c => c.subject_name === subjectFilter);
     }
     
     if (statusFilter !== "All") {
-      filtered = filtered.filter(c => c.status === statusFilter);
+      filtered = filtered.filter(c => c.concern_status === statusFilter);
     }
     
     setFilteredConcerns(filtered);
@@ -183,16 +190,16 @@ export default function StudentConcernsOverview() {
 
   const getInitials = (name) => {
     return name
-      .split(" ")
+      ?.split(" ")
       .map(word => word[0])
       .join("")
       .toUpperCase()
-      .slice(0, 2);
+      .slice(0, 2) || "S";
   };
 
   const getAvatarColor = (name) => {
     const colors = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6", "#ec4899"];
-    const index = name.length % colors.length;
+    const index = (name?.length || 0) % colors.length;
     return colors[index];
   };
 
@@ -204,6 +211,15 @@ export default function StudentConcernsOverview() {
       case "Rejected": return { color: "#dc2626", dot: "#dc2626" };
       case "Revised": return { color: "#3b82f6", dot: "#3b82f6" };
       default: return { color: "#6b7280", dot: "#6b7280" };
+    }
+  };
+
+  const getPriorityStyle = (priority) => {
+    switch(priority) {
+      case "High": return { color: "#dc2626", bgColor: "#fee2e2" };
+      case "Medium": return { color: "#f59e0b", bgColor: "#fef3c7" };
+      case "Low": return { color: "#10b981", bgColor: "#d1fae5" };
+      default: return { color: "#6b7280", bgColor: "#f3f4f6" };
     }
   };
 
@@ -284,6 +300,7 @@ export default function StudentConcernsOverview() {
             <div style={headerCellStyle}>STUDENT</div>
             <div style={headerCellStyle}>ASSIGNMENT</div>
             <div style={headerCellStyle}>DATE SUBMITTED</div>
+            <div style={headerCellStyle}>PRIORITY</div>
             <div style={headerCellStyle}>STATUS</div>
             <div style={headerCellStyle}>ACTION</div>
           </div>
@@ -305,30 +322,45 @@ export default function StudentConcernsOverview() {
             </div>
           ) : (
             filteredConcerns.map((concern, index) => {
-              const statusStyle = getStatusStyle(concern.status);
+              const statusStyle = getStatusStyle(concern.concern_status);
+              const priorityStyle = getPriorityStyle(concern.priority_level);
               const avatarColor = getAvatarColor(concern.student_name || session?.student_name);
               const initials = getInitials(concern.student_name || session?.student_name);
               
               return (
-                <div key={concern.id} style={tableRowStyle(index === filteredConcerns.length - 1)}>
+                <div key={concern.concern_id} style={tableRowStyle(index === filteredConcerns.length - 1)}>
                   <div style={studentCellStyle}>
-                    <div style={avatarStyle(avatarColor)}>{initials}</div>
+                    
                     <div>
                       <div style={studentNameStyle}>{concern.student_name || session?.student_name}</div>
-                      <div style={studentIdStyle}>ID: {concern.student_id || session?.student_id}</div>
+                      <div style={studentIdStyle}>ID: STU - {concern.student_id || session?.student_id}</div>
                     </div>
                   </div>
                   <div style={assignmentCellStyle}>
-                    <div style={assignmentNameStyle}>{concern.assignment}</div>
-                    <div style={subjectNameStyle}>{concern.subject}</div>
+                    <div style={assignmentNameStyle}>{concern.assignment || "N/A"}</div>
+                    <div style={subjectNameStyle}>{concern.subject_name || "N/A"}</div>
+                    <a 
+                    href={`${API_BASE_URL}/api/marks/pdf/${concern.submission_id}`} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    style={{ fontSize: 11, fontWeight: "bold", color: "#3c74ff", textDecoration: "none", marginBottom: 8, display: "flex", alignItems: "center" }}
+                    >
+                    <i className="fas fa-file-pdf" style={{ marginRight: 6 }}></i>
+                    Open Submission File
+                  </a>
                   </div>
                   <div style={dateCellStyle}>
-                    <span style={dateStyle}>{concern.date}</span>
+                    <span style={dateStyle}>{concern.created_at ? new Date(concern.created_at).toLocaleDateString() : "N/A"}</span>
+                  </div>
+                  <div style={priorityCellStyle}>
+                    <span style={{ ...priorityBadgeStyle, backgroundColor: priorityStyle.bgColor, color: priorityStyle.color }}>
+                      {concern.priority_level || "Low"}
+                    </span>
                   </div>
                   <div style={statusCellStyle}>
                     <span style={{ ...statusBadgeStyle, color: statusStyle.color }}>
                       <span style={{ ...statusDotStyle, backgroundColor: statusStyle.dot }}></span>
-                      {concern.status}
+                      {concern.concern_status}
                     </span>
                   </div>
                   <div style={actionCellStyle}>
@@ -465,7 +497,7 @@ const tableCardStyle = {
 
 const tableHeaderStyle = {
   display: "grid",
-  gridTemplateColumns: "1.5fr 1.5fr 1fr 1fr 1fr",
+  gridTemplateColumns: "1.5fr 1.5fr 1fr 0.8fr 0.8fr 0.8fr",
   backgroundColor: "#f8fafc",
   borderBottom: "1px solid #e2e8f0",
   padding: "14px 20px"
@@ -481,7 +513,7 @@ const headerCellStyle = {
 
 const tableRowStyle = (isLast) => ({
   display: "grid",
-  gridTemplateColumns: "1.5fr 1.5fr 1fr 1fr 1fr",
+  gridTemplateColumns: "1.5fr 1.5fr 1fr 0.8fr 0.8fr 0.8fr",
   padding: "16px 20px",
   borderBottom: isLast ? "none" : "1px solid #f1f5f9",
   transition: "background 0.2s",
@@ -546,6 +578,20 @@ const dateCellStyle = {
 const dateStyle = {
   fontSize: "13px",
   color: "#64748b"
+};
+
+const priorityCellStyle = {
+  display: "flex",
+  alignItems: "center"
+};
+
+const priorityBadgeStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  padding: "4px 10px",
+  borderRadius: "20px",
+  fontSize: "11px",
+  fontWeight: "600"
 };
 
 const statusCellStyle = {
@@ -732,6 +778,15 @@ const infoValueStyle = {
   fontWeight: "600"
 };
 
+const priorityValueStyle = (priority) => ({
+  fontSize: "12px",
+  fontWeight: "600",
+  padding: "2px 8px",
+  borderRadius: "12px",
+  backgroundColor: priority === "High" ? "#fee2e2" : priority === "Medium" ? "#fef3c7" : "#d1fae5",
+  color: priority === "High" ? "#dc2626" : priority === "Medium" ? "#f59e0b" : "#10b981"
+});
+
 const markValueStyle = {
   fontSize: "16px",
   color: "#3d6df2",
@@ -797,27 +852,6 @@ const responseMessageStyle = {
   color: "#1e293b",
   lineHeight: "1.6",
   marginBottom: "10px"
-};
-
-const revisedMarkStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "10px",
-  marginTop: "10px",
-  paddingTop: "8px",
-  borderTop: "1px solid #d1fae5"
-};
-
-const revisedMarkLabel = {
-  fontSize: "11px",
-  fontWeight: "600",
-  color: "#059669"
-};
-
-const revisedMarkValue = {
-  fontSize: "14px",
-  fontWeight: "bold",
-  color: "#059669"
 };
 
 // Add CSS animations

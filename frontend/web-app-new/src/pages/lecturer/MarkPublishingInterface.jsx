@@ -21,7 +21,7 @@ const Toggle = ({ value, onChange }) => (
 );
 
 // Success Popup Component with Animation
-const SuccessPopup = ({ isVisible, onClose, mark, studentName, submissionId }) => {
+const SuccessPopup = ({ isVisible, onClose, mark, submissionId, studentName }) => {
   useEffect(() => {
     if (isVisible) {
       const timer = setTimeout(() => {
@@ -48,13 +48,15 @@ const SuccessPopup = ({ isVisible, onClose, mark, studentName, submissionId }) =
           <h2 style={popupTitleStyle}>✓ Mark Published Successfully!</h2>
           
           <div style={popupDetailsStyle}>
-            <div style={detailRowStyle}>
-              <span style={detailLabelStyle}>Student:</span>
-              <span style={detailValueStyle}>{studentName || submissionId}</span>
-            </div>
+            {studentName && (
+              <div style={detailRowStyle}>
+                <span style={detailLabelStyle}>Student:</span>
+                <span style={detailValueStyle}>{studentName}</span>
+              </div>
+            )}
             <div style={detailRowStyle}>
               <span style={detailLabelStyle}>Submission ID:</span>
-              <span style={detailValueStyle}>{submissionId}</span>
+              <span style={detailValueStyle}>{submissionId || "N/A"}</span>
             </div>
             <div style={detailRowStyle}>
               <span style={detailLabelStyle}>Final Mark:</span>
@@ -92,6 +94,7 @@ export default function PublishMarksConfig() {
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [publishedMark, setPublishedMark] = useState(null);
   const [publishedStudentName, setPublishedStudentName] = useState("");
+  const [publishedSubmissionId, setPublishedSubmissionId] = useState("");
   const [isLoadingSubmissions, setIsLoadingSubmissions] = useState(false);
 
   // Check if document has diagrams
@@ -232,8 +235,13 @@ export default function PublishMarksConfig() {
       const data = await res.json();
       
       if (Array.isArray(data) && data.length > 0) {
-        setPendingSubmissions(data);
-        // Auto-select the first submission
+        // Enhance submissions with student info
+        const submissionsWithDetails = data.map(sub => ({
+          ...sub,
+          student_name: sub.student_name || `Submission : ${sub.submission_id}`,
+          student_id: sub.student_id || sub.submission_id
+        }));
+        setPendingSubmissions(submissionsWithDetails);
       } else {
         setPendingSubmissions([]);
       }
@@ -300,13 +308,17 @@ export default function PublishMarksConfig() {
       const responseData = await res.json();
       
       if (res.ok) {
-        // Show success popup
+        // Store the published data for popup
         setPublishedMark(finalMark);
-        setPublishedStudentName(selectedSub.student_id);
+        setPublishedSubmissionId(selectedSub.submission_id);
+        setPublishedStudentName(selectedSub.student_name || `Student ${selectedSub.student_id}`);
         setShowSuccessPopup(true);
         
         // Refresh the pending submissions list
         await handleAssessmentChange({ target: { value: selectedAssessmentId } });
+        
+        // Reset selected submission after successful publish
+        setSelectedSub(null);
       } else {
         alert(`Error: ${responseData.message || "Failed to publish mark"}`);
       }
@@ -344,10 +356,14 @@ export default function PublishMarksConfig() {
       {/* Success Popup */}
       <SuccessPopup 
         isVisible={showSuccessPopup}
-        onClose={() => setShowSuccessPopup(false)}
+        onClose={() => {
+          setShowSuccessPopup(false);
+          // Optional: reset form after popup closes
+          // window.location.reload();
+        }}
         mark={publishedMark}
+        submissionId={publishedSubmissionId}
         studentName={publishedStudentName}
-        submissionId={selectedSub?.submission_id}
       />
 
       <main style={{ padding: "34px 44px" }}>
@@ -360,7 +376,7 @@ export default function PublishMarksConfig() {
           <div style={cardHeaderStyle}>
             <div style={iconBoxStyle}>✔</div>
             <div>
-              <h3 style={{ fontSize: 14, fontWeight: 600, color: "#24324a" }}>Mark Publication Settings</h3>
+              <h3 style={{ fontSize: 20, fontWeight: 700, color: "#24324a" }}>Mark Publication Settings</h3>
               <p style={{ fontSize: 12, color: "#74839a" }}>Select subject data and verify marking accuracy.</p>
             </div>
           </div>
@@ -425,7 +441,7 @@ export default function PublishMarksConfig() {
                   <option value="">{isLoadingSubmissions ? "Loading..." : "Choose a Submission"}</option>
                   {Array.isArray(pendingSubmissions) && pendingSubmissions.map(s => (
                     <option key={s.submission_id} value={s.submission_id}>
-                      {s.submission_id}
+                      {s.student_name || s.submission_id}
                     </option>
                   ))}
                 </select>
@@ -599,15 +615,8 @@ export default function PublishMarksConfig() {
               </div>
             )}
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, padding: "24px 0", borderTop: "1px solid #edf1f5" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <p style={{ fontWeight: 600, fontSize: 13, color: "#2e3b52" }}>Instant Publication</p>
-                  <p style={{ fontSize: 12, color: "#74839a" }}>Make grades visible instantly.</p>
-                </div>
-                <Toggle value={true} onChange={() => {}} />
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, padding: "24px 0", borderTop: "1px solid #edf1f5" }}>
+              <div style={{ display: "flex", gap: "40px", alignItems: "center" }}>
                 <div>
                   <p style={{ fontWeight: 600, fontSize: 13, color: "#2e3b52" }}>Concern Window</p>
                   <p style={{ fontSize: 12, color: "#74839a" }}>Allow formal inquiries.</p>
@@ -774,8 +783,8 @@ const errorSummaryStyle = {
   marginBottom: 20
 };
 const mainCardStyle = { backgroundColor: "#fff", border: "1px solid #d8dee8", borderRadius: 14, overflow: "hidden" };
-const cardHeaderStyle = { height: 50, padding: "0 24px", display: "flex", alignItems: "center", gap: 12, borderBottom: "1px solid #edf1f5" };
-const iconBoxStyle = { width: 30, height: 30, backgroundColor: "#3c74ff", borderRadius: 8, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 };
+const cardHeaderStyle = { height: 70, padding: "0 28px", display: "flex", alignItems: "center", gap: 12, borderBottom: "1px solid #edf1f5" };
+const iconBoxStyle = { width: 40, height: 40, backgroundColor: "#3c74ff", borderRadius: 10, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 };
 const imageLabelStyle = { display: "block", fontSize: 11, fontWeight: "bold", color: "#9aa8bb", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 };
 const imageSelectStyle = { width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #dde3eb", fontSize: 13, color: "#2e3b52", outline: "none", transition: "border-color 0.2s" };
 const markingDetailContainer = { display: "grid", gridTemplateColumns: "1fr 2fr 1fr", backgroundColor: "#f9fafb", padding: "20px 24px", borderRadius: 12, marginBottom: 24, border: "1px solid #edf1f5" };

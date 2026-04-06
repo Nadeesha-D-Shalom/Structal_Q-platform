@@ -2,6 +2,7 @@ const express = require('express');
 require('dotenv').config();
 
 const { poolConnect } = require('./config/db');
+const { startConcernWindowScheduler } = require('./modules/concern/concernWindowAutomation');
 
 // KEEP ONLY WORKING MODULES
 const subjectRoutes = require('./modules/subject/subject.routes');
@@ -10,6 +11,7 @@ const markingGuideRoutes = require('./modules/marking-guide/markingGuide.routes'
 const concernRoutes = require('./modules/concern/concern.routes');
 const markPublishRoutes = require('./modules/mark-publish/markPublish.routes');
 const viewMarksRoutes = require('./modules/mark-publish/viewMarks.routes');
+const markRevisionRoutes = require('./modules/mark-publish/markRevision.routes');
 
 // (MAIN FOCUS)
 const aiAnalysisRoutes = require('./modules/ai-analysis/aiAnalysis.routes');
@@ -24,7 +26,12 @@ app.use(express.json());
 
 // ================= DATABASE =================
 poolConnect
-    .then(() => console.log("DB Connected Successfully"))
+    .then(() => {
+        console.log("DB Connected Successfully")
+        
+        //make the raise concern button automated
+        startConcernWindowScheduler();
+    })
     .catch(err => console.error("Database connection failed:", err));
 
 
@@ -37,6 +44,7 @@ app.use('/api/marking-guides', markingGuideRoutes);
 app.use('/api/concern', concernRoutes);
 app.use('/api/marks', markPublishRoutes);
 app.use('/api/student/marks', viewMarksRoutes);
+app.use('/api/lecturer/marks', markRevisionRoutes);
 
 // AI MODULE
 app.use('/api/ai-analysis', aiAnalysisRoutes);

@@ -76,13 +76,13 @@ const DeleteConfirmationModal = ({ isOpen, onClose, concern, onConfirm }) => {
         
         <div style={modalBodyStyle}>
           <p style={deleteMessageStyle}>
-            Are you sure you want to delete this concern from <strong>{concern?.student}</strong>?
+            Are you sure you want to delete this concern from <strong>{concern?.student_name}</strong>?
           </p>
           <p style={deleteSubMessageStyle}>
-            Concern ID: <strong>{concern?.id}</strong><br/>
+            Concern ID: <strong>{concern?.concern_id}</strong><br/>
             Assignment: <strong>{concern?.assignment}</strong><br/>
-            Priority: <strong style={{ color: getPriorityColor(concern?.priority) }}>{concern?.priority}</strong><br/>
-            Status: <strong>{concern?.status}</strong>
+            Priority: <strong style={{ color: getPriorityColor(concern?.priority_level) }}>{concern?.priority_level}</strong><br/>
+            Status: <strong>{concern?.concern_status}</strong>
           </p>
           <p style={deleteWarningStyle}>
             This action cannot be undone. The concern will be permanently removed from the system.
@@ -98,19 +98,66 @@ const DeleteConfirmationModal = ({ isOpen, onClose, concern, onConfirm }) => {
   );
 };
 
-// Respond Modal with Status Selector
+// View Message Modal
+const ViewMessageModal = ({ isOpen, onClose, concern }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div style={modalOverlayStyle} onClick={onClose}>
+      <div style={modalContainerStyle} onClick={(e) => e.stopPropagation()}>
+        <div style={modalHeaderStyle}>
+          <h3 style={modalTitleStyle}>Concern Message</h3>
+          <button onClick={onClose} style={modalCloseBtnStyle}>✕</button>
+        </div>
+        
+        <div style={modalBodyStyle}>
+          <div style={infoSectionStyle}>
+            <div style={infoRowStyle}>
+              <span style={infoLabelStyle}>Student:</span>
+              <span style={infoValueStyle}>{concern?.student_name}</span>
+            </div>
+            <div style={infoRowStyle}>
+              <span style={infoLabelStyle}>Concern ID:</span>
+              <span style={infoValueStyle}>{concern?.concern_id}</span>
+            </div>
+            <div style={infoRowStyle}>
+              <span style={infoLabelStyle}>Assignment:</span>
+              <span style={infoValueStyle}>{concern?.assignment}</span>
+            </div>
+          </div>
+          
+          <div style={messageSectionStyle}>
+            <label style={sectionLabelStyle}>Concern Message</label>
+            <div style={messageBoxStyle}>
+              "{concern?.concern_message}"
+            </div>
+          </div>
+        </div>
+        
+        <div style={modalFooterStyle}>
+          <button onClick={onClose} style={modalCancelBtnStyle}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Respond Modal with Status Selector and Real-time Validations
 const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
   const [comment, setComment] = useState("");
   const [revisedMark, setRevisedMark] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
   const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({});
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     if (concern) {
-      setComment("");
+      setComment(concern.lecturer_comment || "");
       setRevisedMark("");
-      setSelectedStatus(concern.status || "Pending");
+      setSelectedStatus(concern.concern_status || "Pending");
       setErrors({});
+      setTouched({});
     }
   }, [concern]);
 
@@ -121,42 +168,117 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
     { value: "Revised", label: "Revised", color: "#3b82f6", bgColor: "#dbeafe" }
   ];
 
+  const validateRevisedMark = (value) => {
+    if (!value || value === "") {
+      return null;
+    }
+    const markNum = parseFloat(value);
+    if (isNaN(markNum)) {
+      return "Please enter a valid number";
+    }
+    if (markNum < 0) {
+      return "Mark cannot be negative";
+    }
+    if (markNum > 100) {
+      return "Mark cannot exceed 100";
+    }
+    if (markNum === concern?.originalMark) {
+      return "New mark is the same as the original mark. Please enter a different value or leave blank.";
+    }
+    return null;
+  };
+
+  const validateComment = (value) => {
+    if (!value || value.trim() === "") {
+      return "Please enter a response comment";
+    }
+    if (value.trim().length < 10) {
+      return "Please provide a detailed response (minimum 10 characters)";
+    }
+    return null;
+  };
+
+  const handleRevisedMarkChange = (e) => {
+    const value = e.target.value;
+    setRevisedMark(value);
+    setTouched(prev => ({ ...prev, revisedMark: true }));
+    const error = validateRevisedMark(value);
+    setErrors(prev => ({ ...prev, revisedMark: error }));
+  };
+
+  const handleCommentChange = (e) => {
+    const value = e.target.value;
+    setComment(value);
+    setTouched(prev => ({ ...prev, comment: true }));
+    const error = validateComment(value);
+    setErrors(prev => ({ ...prev, comment: error }));
+  };
+
+  const handleRevisedMarkBlur = () => {
+    setTouched(prev => ({ ...prev, revisedMark: true }));
+    const error = validateRevisedMark(revisedMark);
+    setErrors(prev => ({ ...prev, revisedMark: error }));
+  };
+
+  const handleCommentBlur = () => {
+    setTouched(prev => ({ ...prev, comment: true }));
+    const error = validateComment(comment);
+    setErrors(prev => ({ ...prev, comment: error }));
+  };
+
   const validate = () => {
-    const newErrors = {};
-    if (!comment.trim()) {
-      newErrors.comment = "Please enter a response comment";
-    } else if (comment.trim().length < 10) {
-      newErrors.comment = "Please provide a detailed response (minimum 10 characters)";
-    }
+    const commentError = validateComment(comment);
+    const revisedMarkError = validateRevisedMark(revisedMark);
     
-    if (revisedMark && revisedMark !== "") {
-      const markNum = parseFloat(revisedMark);
-      if (isNaN(markNum)) {
-        newErrors.revisedMark = "Please enter a valid number";
-      } else if (markNum < 0) {
-        newErrors.revisedMark = "Mark cannot be negative";
-      } else if (markNum > 100) {
-        newErrors.revisedMark = "Mark cannot exceed 100";
-      }
-    }
+    const newErrors = {};
+    if (commentError) newErrors.comment = commentError;
+    if (revisedMarkError) newErrors.revisedMark = revisedMarkError;
     
     setErrors(newErrors);
+    setTouched({ comment: true, revisedMark: true });
+    
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSend = () => {
-    if (validate()) {
+  const handleSend = async () => {
+    if (!validate()) return;
+    
+    setSending(true);
+    try {
+      const response = await fetch(`/api/concern/${concern.concern_id}/respond`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          concern_status: selectedStatus,
+          lecturer_comment: comment.trim(),
+          original_mark: concern.originalMark,
+          submission_id: concern.submission_id,
+          revised_mark: revisedMark ? parseFloat(revisedMark) : null
+        })
+      });
+      
+      if (!response.ok) throw new Error('Failed to send response');
+      
       onSend({
-        concern_id: concern.id,
+        concern_id: concern.concern_id,
         student_email: concern.student_email,
-        student_name: concern.student,
+        student_name: concern.student_name,
         comment: comment.trim(),
         revised_mark: revisedMark ? parseFloat(revisedMark) : null,
         assignment: concern.assignment,
         original_mark: concern.originalMark,
-        priority: concern.priority,
+        priority: concern.priority_level,
         status: selectedStatus
       });
+      
+      onClose();
+    } catch (err) {
+      console.error("Error sending response:", err);
+      alert("Failed to send response. Please try again.");
+    } finally {
+      setSending(false);
     }
   };
 
@@ -181,6 +303,26 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
     };
   };
 
+  const isFormValid = () => {
+    const commentError = validateComment(comment);
+    const revisedMarkError = validateRevisedMark(revisedMark);
+    return !commentError && !revisedMarkError && comment.trim() !== "";
+  };
+
+  const getRevisedMarkBorderColor = () => {
+    if (!touched.revisedMark) return "#dde3eb";
+    if (errors.revisedMark) return "#ff4d4f";
+    if (revisedMark && !errors.revisedMark) return "#10b981";
+    return "#dde3eb";
+  };
+
+  const getCommentBorderColor = () => {
+    if (!touched.comment) return "#dde3eb";
+    if (errors.comment) return "#ff4d4f";
+    if (comment && !errors.comment) return "#10b981";
+    return "#dde3eb";
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -195,7 +337,7 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
           <div style={infoBoxStyle}>
             <div style={infoRowStyle}>
               <span style={infoLabelStyle}>Student:</span>
-              <span style={infoValueStyle}>{concern?.student}</span>
+              <span style={infoValueStyle}>{concern?.student_name}</span>
             </div>
             <div style={infoRowStyle}>
               <span style={infoLabelStyle}>Assignment:</span>
@@ -203,8 +345,8 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
             </div>
             <div style={infoRowStyle}>
               <span style={infoLabelStyle}>Priority:</span>
-              <span style={{ ...infoValueStyle, color: getPriorityColor(concern?.priority), fontWeight: "bold" }}>
-                {concern?.priority}
+              <span style={{ ...infoValueStyle, color: getPriorityColor(concern?.priority_level), fontWeight: "bold" }}>
+                {concern?.priority_level}
               </span>
             </div>
             <div style={infoRowStyle}>
@@ -213,7 +355,7 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
             </div>
             <div style={infoRowStyle}>
               <span style={infoLabelStyle}>Current Status:</span>
-              <span style={getStatusStyle(concern?.status)}>{concern?.status}</span>
+              <span style={getStatusStyle(concern?.concern_status)}>{concern?.concern_status}</span>
             </div>
           </div>
           
@@ -241,15 +383,24 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
             <label style={modalLabelStyle}>Response Comment *</label>
             <textarea
               value={comment}
-              onChange={(e) => setComment(e.target.value)}
+              onChange={handleCommentChange}
+              onBlur={handleCommentBlur}
               style={{
                 ...modalTextareaStyle,
-                borderColor: errors.comment ? "#ff4d4f" : "#dde3eb"
+                borderColor: getCommentBorderColor()
               }}
               rows="5"
               placeholder="Provide your detailed response to the student's concern..."
             />
-            {errors.comment && <p style={errorTextStyle}>{errors.comment}</p>}
+            {touched.comment && errors.comment && (
+              <p style={errorTextStyle}>{errors.comment}</p>
+            )}
+            {touched.comment && !errors.comment && comment && (
+              <p style={successTextStyle}>✓ Valid response</p>
+            )}
+            <div style={charCountStyle(comment.length)}>
+              {comment.length} / 2000 characters {comment.length < 10 && `(minimum 10 required)`}
+            </div>
           </div>
           
           <div style={formGroupStyle}>
@@ -258,21 +409,37 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
               type="number"
               step="0.01"
               value={revisedMark}
-              onChange={(e) => setRevisedMark(e.target.value)}
+              onChange={handleRevisedMarkChange}
+              onBlur={handleRevisedMarkBlur}
               style={{
                 ...modalInputStyle,
-                borderColor: errors.revisedMark ? "#ff4d4f" : "#dde3eb"
+                borderColor: getRevisedMarkBorderColor()
               }}
               placeholder="Enter revised mark if applicable"
             />
-            {errors.revisedMark && <p style={errorTextStyle}>{errors.revisedMark}</p>}
+            {touched.revisedMark && errors.revisedMark && (
+              <p style={errorTextStyle}>{errors.revisedMark}</p>
+            )}
+            {touched.revisedMark && !errors.revisedMark && revisedMark && (
+              <p style={successTextStyle}>✓ Valid revised mark</p>
+            )}
             <p style={hintTextStyle}>Leave blank if no change to the original mark</p>
           </div>
         </div>
         
         <div style={modalFooterStyle}>
           <button onClick={onClose} style={modalCancelBtnStyle}>Cancel</button>
-          <button onClick={handleSend} style={modalSaveBtnStyle}>Send Response</button>
+          <button 
+            onClick={handleSend} 
+            disabled={sending || !isFormValid()} 
+            style={{
+              ...modalSaveBtnStyle,
+              opacity: (sending || !isFormValid()) ? 0.6 : 1,
+              cursor: (sending || !isFormValid()) ? "not-allowed" : "pointer"
+            }}
+          >
+            {sending ? "Sending..." : "Send Response"}
+          </button>
         </div>
       </div>
     </div>
@@ -282,22 +449,26 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
 // Email Modal
 const EmailModal = ({ isOpen, onClose, concern, onSend }) => {
   const [emailContent, setEmailContent] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
   const [errors, setErrors] = useState({});
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     if (concern && isOpen) {
-      const template = `Dear ${concern?.student},
+      const template = `Dear ${concern?.student_name},
 
-Regarding your ${concern?.priority} priority concern for ${concern?.assignment} (Concern ID: ${concern?.id})
+Regarding your ${concern?.priority_level} priority concern for ${concern?.assignment} (Concern ID: ${concern?.concern_id})
 
 We have reviewed your concern about the mark you received (${concern?.originalMark}/100).
 
-[Insert your response here]
+${concern?.lecturer_comment ? `Lecturer's Response: "${concern?.lecturer_comment}"` : '[Insert your response here]'}
 
 Best regards,
 Dr. Robert Fox
 Lecturer, ${concern?.subject || "Department"}`;
+      
       setEmailContent(template);
+      setEmailSubject(`Response to ${concern?.priority_level} Priority Concern: ${concern?.assignment}`);
       setErrors({});
     }
   }, [concern, isOpen]);
@@ -307,19 +478,49 @@ Lecturer, ${concern?.subject || "Department"}`;
     if (!emailContent.trim()) {
       newErrors.emailContent = "Please enter email content";
     }
+    if (!emailSubject.trim()) {
+      newErrors.emailSubject = "Please enter email subject";
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSend = () => {
-    if (validate()) {
-      onSend({
-        concern_id: concern.id,
-        student_email: concern.student_email,
-        student_name: concern.student,
-        email_content: emailContent,
-        subject: `Response to ${concern.priority} Priority Concern: ${concern.assignment}`
+  const handleSend = async () => {
+    if (!validate()) return;
+    
+    setSending(true);
+    try {
+      const response = await fetch('/api/concern/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          concern_id: concern?.concern_id,
+          email_content: emailContent,
+          subject: emailSubject
+        })
       });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        onSend({
+          concern_id: concern?.concern_id,
+          student_email: concern?.student_email,
+          student_name: concern?.student_name,
+          email_content: emailContent,
+          subject: emailSubject
+        });
+        onClose();
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (err) {
+      console.error("Error sending email:", err);
+      alert("Failed to send email. Please try again.");
+    } finally {
+      setSending(false);
     }
   };
 
@@ -337,12 +538,23 @@ Lecturer, ${concern?.subject || "Department"}`;
           <div style={infoBoxStyle}>
             <div style={infoRowStyle}>
               <span style={infoLabelStyle}>To:</span>
-              <span style={infoValueStyle}>{concern?.student} ({concern?.student_email})</span>
+              <span style={infoValueStyle}>{concern?.student_name} ({concern?.student_email})</span>
             </div>
-            <div style={infoRowStyle}>
-              <span style={infoLabelStyle}>Subject:</span>
-              <span style={infoValueStyle}>Response to {concern?.priority} Priority Concern: {concern?.assignment}</span>
-            </div>
+          </div>
+          
+          <div style={formGroupStyle}>
+            <label style={modalLabelStyle}>Email Subject *</label>
+            <input
+              type="text"
+              value={emailSubject}
+              onChange={(e) => setEmailSubject(e.target.value)}
+              style={{
+                ...modalInputStyle,
+                borderColor: errors.emailSubject ? "#ff4d4f" : "#dde3eb"
+              }}
+              placeholder="Enter email subject"
+            />
+            {errors.emailSubject && <p style={errorTextStyle}>{errors.emailSubject}</p>}
           </div>
           
           <div style={formGroupStyle}>
@@ -353,18 +565,30 @@ Lecturer, ${concern?.subject || "Department"}`;
               style={{
                 ...modalTextareaStyle,
                 borderColor: errors.emailContent ? "#ff4d4f" : "#dde3eb",
-                minHeight: "250px"
+                minHeight: "300px"
               }}
-              rows="10"
+              rows="12"
               placeholder="Write your email response..."
             />
             {errors.emailContent && <p style={errorTextStyle}>{errors.emailContent}</p>}
+          </div>
+          
+          <div style={emailPreviewStyle}>
+            <p style={previewLabelStyle}>Preview:</p>
+            <div style={previewContentStyle}>
+              <p><strong>To:</strong> {concern?.student_name} ({concern?.student_email})</p>
+              <p><strong>Subject:</strong> {emailSubject}</p>
+              <hr />
+              <div style={{ whiteSpace: 'pre-wrap' }}>{emailContent}</div>
+            </div>
           </div>
         </div>
         
         <div style={modalFooterStyle}>
           <button onClick={onClose} style={modalCancelBtnStyle}>Cancel</button>
-          <button onClick={handleSend} style={modalSaveBtnStyle}>Send Email</button>
+          <button onClick={handleSend} disabled={sending} style={modalSaveBtnStyle}>
+            {sending ? "Sending..." : "Send Email"}
+          </button>
         </div>
       </div>
     </div>
@@ -423,135 +647,16 @@ export default function ConcernReviewResolution() {
   const [showRespondModal, setShowRespondModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [showMessageModal, setShowMessageModal] = useState(false);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [popupMessage, setPopupMessage] = useState("");
   const [popupTitle, setPopupTitle] = useState("");
   const [popupDetails, setPopupDetails] = useState({});
   const [submissionUrl, setSubmissionUrl] = useState("");
-
-  // Sample concerns data with expanded details
-  const [concerns, setConcerns] = useState([
-    {
-      id: "CN-001",
-      student: "John Perera",
-      student_email: "john.perera@example.com",
-      student_id: "STU-2024001",
-      assignment: "Software Architecture Project",
-      subject: "Software Engineering",
-      subject_code: "SE-301",
-      originalMark: 72,
-      status: "Pending",
-      priority: "High",
-      date: "Mar 12, 2026",
-      message: "I believe my project was undervalued in the documentation section. I have provided additional evidence regarding the architectural diagrams which were not fully captured in the initial review.",
-      submission_pdf: `${API_BASE_URL}/api/marks/pdf/SUB-001`
-    },
-    {
-      id: "CN-002",
-      student: "Sarah Johnson",
-      student_email: "sarah.johnson@example.com",
-      student_id: "STU-2024002",
-      assignment: "Database Design Assignment",
-      subject: "Database Systems",
-      subject_code: "DB-201",
-      originalMark: 68,
-      status: "Pending",
-      priority: "Medium",
-      date: "Mar 13, 2026",
-      message: "I believe my ER diagram was incorrectly marked. The relationships I modeled were correct according to the requirements.",
-      submission_pdf: `${API_BASE_URL}/api/marks/pdf/SUB-002`
-    },
-    {
-      id: "CN-003",
-      student: "Michael Chen",
-      student_email: "michael.chen@example.com",
-      student_id: "STU-2024003",
-      assignment: "Network Security Report",
-      subject: "Computer Networks",
-      subject_code: "CN-401",
-      originalMark: 85,
-      status: "Accepted",
-      priority: "Low",
-      date: "Mar 14, 2026",
-      message: "Requesting clarification on the security analysis section. I think my analysis was comprehensive.",
-      submission_pdf: `${API_BASE_URL}/api/marks/pdf/SUB-003`
-    },
-    {
-      id: "CN-004",
-      student: "Emily Watson",
-      student_email: "emily.watson@example.com",
-      student_id: "STU-2024004",
-      assignment: "AI Final Project",
-      subject: "Artificial Intelligence",
-      subject_code: "AI-501",
-      originalMark: 45,
-      status: "Rejected",
-      priority: "High",
-      date: "Oct 18, 2023",
-      message: "The evaluation seems unfair considering the complexity of my implementation. I spent over 50 hours on this project.",
-      submission_pdf: `${API_BASE_URL}/api/marks/pdf/SUB-004`
-    },
-    {
-      id: "CN-005",
-      student: "David Kim",
-      student_email: "david.kim@example.com",
-      student_id: "STU-2024005",
-      assignment: "Cloud Computing Report",
-      subject: "Cloud Computing",
-      subject_code: "CC-601",
-      originalMark: 78,
-      status: "Revised",
-      priority: "Medium",
-      date: "Mar 16, 2026",
-      message: "Requesting review of the architecture diagram section. I believe I properly documented all components.",
-      submission_pdf: `${API_BASE_URL}/api/marks/pdf/SUB-005`
-    },
-    {
-      id: "CN-006",
-      student: "Lisa Wang",
-      student_email: "lisa.wang@example.com",
-      student_id: "STU-2024006",
-      assignment: "Mobile App Development",
-      subject: "Mobile Computing",
-      subject_code: "MC-301",
-      originalMark: 92,
-      status: "Accepted",
-      priority: "Low",
-      date: "Oct 5, 2023",
-      message: "Minor clarification on the UI/UX evaluation criteria.",
-      submission_pdf: `${API_BASE_URL}/api/marks/pdf/SUB-006`
-    },
-    {
-      id: "CN-007",
-      student: "James Wilson",
-      student_email: "james.wilson@example.com",
-      student_id: "STU-2024007",
-      assignment: "Operating Systems Project",
-      subject: "Operating Systems",
-      subject_code: "OS-401",
-      originalMark: 55,
-      status: "Pending",
-      priority: "High",
-      date: "Oct 22, 2023",
-      message: "The process synchronization implementation was marked incorrectly. My solution handles all edge cases.",
-      submission_pdf: `${API_BASE_URL}/api/marks/pdf/SUB-007`
-    },
-    {
-      id: "CN-008",
-      student: "Maria Garcia",
-      student_email: "maria.garcia@example.com",
-      student_id: "STU-2024008",
-      assignment: "Web Development Final",
-      subject: "Web Technologies",
-      subject_code: "WEB-201",
-      originalMark: 88,
-      status: "Revised",
-      priority: "Medium",
-      date: "Oct 19, 2023",
-      message: "Requesting review of the responsive design section. My implementation meets all requirements.",
-      submission_pdf: `${API_BASE_URL}/api/marks/pdf/SUB-008`
-    }
-  ]);
+  const [concerns, setConcerns] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
   const statuses = ["All", "Pending", "Accepted", "Rejected", "Revised"];
   const priorities = ["All", "High", "Medium", "Low"];
@@ -563,32 +668,110 @@ export default function ConcernReviewResolution() {
     { value: "status", label: "Status" }
   ];
 
+  // Fetch all concerns from backend
+  const fetchConcerns = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/concern');
+      if (!response.ok) {
+        throw new Error('Failed to fetch concerns');
+      }
+      const data = await response.json();
+      setConcerns(data);
+      setError(null);
+    } catch (err) {
+      console.error("Error fetching concerns:", err);
+      setError("Failed to load concerns. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchConcerns();
+  }, []);
+
+  // Export to PDF function
+  const handleExportPDF = async () => {
+    setExporting(true);
+    try {
+      const response = await fetch('/api/concern/export-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          concerns: filteredConcerns,
+          filters: {
+            status: statusFilter,
+            priority: priorityFilter,
+            search: searchQuery,
+            sortBy: sortBy
+          },
+          exportDate: new Date().toISOString()
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+
+      // Get the blob from the response
+      const blob = await response.blob();
+      
+      // Create a download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `concerns_report_${new Date().toISOString().split('T')[0]}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      setPopupTitle("✓ PDF Exported");
+      setPopupMessage("Concerns report has been successfully exported to PDF.");
+      setPopupDetails({
+        "Records Exported": filteredConcerns.length,
+        "Date": new Date().toLocaleString(),
+        "Status Filter": statusFilter,
+        "Priority Filter": priorityFilter
+      });
+      setShowSuccessPopup(true);
+    } catch (err) {
+      console.error("Error exporting PDF:", err);
+      alert("Failed to export PDF. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // Filter and sort concerns
   const filteredConcerns = concerns
     .filter(concern => {
       const matchesSearch = 
-        concern.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        concern.student.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        concern.assignment.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        concern.student_id.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStatus = statusFilter === "All" || concern.status === statusFilter;
-      const matchesPriority = priorityFilter === "All" || concern.priority === priorityFilter;
+        concern.concern_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        concern.student_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        concern.assignment?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        concern.student_id?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus = statusFilter === "All" || concern.concern_status === statusFilter;
+      const matchesPriority = priorityFilter === "All" || concern.priority_level === priorityFilter;
       return matchesSearch && matchesStatus && matchesPriority;
     })
     .sort((a, b) => {
       if (sortBy === "date") {
-        return new Date(b.date) - new Date(a.date);
+        return new Date(b.created_at) - new Date(a.created_at);
       } else if (sortBy === "date-old") {
-        return new Date(a.date) - new Date(b.date);
+        return new Date(a.created_at) - new Date(b.created_at);
       } else if (sortBy === "priority-high") {
         const priorityOrder = { High: 3, Medium: 2, Low: 1 };
-        return priorityOrder[b.priority] - priorityOrder[a.priority];
+        return priorityOrder[b.priority_level] - priorityOrder[a.priority_level];
       } else if (sortBy === "priority-low") {
         const priorityOrder = { High: 3, Medium: 2, Low: 1 };
-        return priorityOrder[a.priority] - priorityOrder[b.priority];
+        return priorityOrder[a.priority_level] - priorityOrder[b.priority_level];
       } else if (sortBy === "status") {
         const statusOrder = { Pending: 1, Revised: 2, Accepted: 3, Rejected: 4 };
-        return statusOrder[a.status] - statusOrder[b.status];
+        return statusOrder[a.concern_status] - statusOrder[b.concern_status];
       }
       return 0;
     });
@@ -597,34 +780,38 @@ export default function ConcernReviewResolution() {
     if (!selectedConcern) return;
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setConcerns(concerns.filter(c => c.id !== selectedConcern.id));
+      const response = await fetch(`/api/concern/${selectedConcern.concern_id}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete concern');
+      }
+      
+      await fetchConcerns();
+      
       setPopupTitle("✓ Concern Deleted");
-      setPopupMessage(`Concern #${selectedConcern.id} from ${selectedConcern.student} has been deleted.`);
+      setPopupMessage(`Concern #${selectedConcern.concern_id} from ${selectedConcern.student_name} has been deleted.`);
       setPopupDetails({
-        "Student": selectedConcern.student,
+        "Student": selectedConcern.student_name,
         "Assignment": selectedConcern.assignment,
-        "Priority": selectedConcern.priority,
-        "Status": selectedConcern.status,
-        "Concern ID": selectedConcern.id
+        "Priority": selectedConcern.priority_level,
+        "Status": selectedConcern.concern_status,
+        "Concern ID": selectedConcern.concern_id
       });
       setShowSuccessPopup(true);
       setShowDeleteModal(false);
       setSelectedConcern(null);
     } catch (err) {
       console.error("Error deleting concern:", err);
-      alert("Failed to delete concern");
+      alert("Failed to delete concern. Please try again.");
     }
   };
 
   const handleSendResponse = async (responseData) => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setConcerns(concerns.map(c => 
-        c.id === responseData.concern_id 
-          ? { ...c, status: responseData.status, response: responseData.comment, revisedMark: responseData.revised_mark }
-          : c
-      ));
+      await fetchConcerns();
+      
       setPopupTitle("✓ Response Sent");
       setPopupMessage(`Response has been sent to ${responseData.student_name}.`);
       setPopupDetails({
@@ -640,13 +827,14 @@ export default function ConcernReviewResolution() {
       setSelectedConcern(null);
     } catch (err) {
       console.error("Error sending response:", err);
-      alert("Failed to send response");
+      alert("Failed to send response. Please try again.");
     }
   };
 
   const handleSendEmail = async (emailData) => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await fetchConcerns();
+      
       setPopupTitle("✉️ Email Sent");
       setPopupMessage(`Email has been sent to ${emailData.student_name}.`);
       setPopupDetails({
@@ -659,7 +847,7 @@ export default function ConcernReviewResolution() {
       setSelectedConcern(null);
     } catch (err) {
       console.error("Error sending email:", err);
-      alert("Failed to send email");
+      alert("Failed to send email. Please try again.");
     }
   };
 
@@ -668,7 +856,6 @@ export default function ConcernReviewResolution() {
     setShowViewModal(true);
   };
 
-  // Priority color functions
   const getPriorityColor = (priority) => {
     switch(priority) {
       case "High": return "#dc2626";
@@ -696,6 +883,34 @@ export default function ConcernReviewResolution() {
       default: return { backgroundColor: "#f3f4f6", color: "#6b7280" };
     }
   };
+
+  if (loading) {
+    return (
+      <div style={pageContainerStyle}>
+        <LecturerNavbar activePage="Review Concerns" />
+        <div style={loadingContainerStyle}>
+          <div style={loadingSpinnerStyle}></div>
+          <p style={loadingTextStyle}>Loading concerns...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={pageContainerStyle}>
+        <LecturerNavbar activePage="Review Concerns" />
+        <div style={errorContainerStyle}>
+          <div style={errorIconStyle}>⚠️</div>
+          <h3 style={errorTitleStyle}>Error Loading Data</h3>
+          <p style={errorMessageStyle}>{error}</p>
+          <button onClick={fetchConcerns} style={retryButtonStyle}>
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={pageContainerStyle}>
@@ -791,6 +1006,17 @@ export default function ConcernReviewResolution() {
                   <span style={filterArrowStyle}>▼</span>
                 </div>
               </div>
+
+              {/* Export PDF Button */}
+              <div style={exportButtonWrapperStyle}>
+                <button 
+                  onClick={handleExportPDF} 
+                  disabled={exporting || filteredConcerns.length === 0}
+                  style={exportPdfBtnStyle}
+                >
+                  {exporting ? "📄 Exporting..." : "📄 Export PDF"}
+                </button>
+              </div>
             </div>
 
             {/* Results Count */}
@@ -820,17 +1046,17 @@ export default function ConcernReviewResolution() {
               </div>
             </div>
 
-            {/* Ultra Expanded Table */}
+            {/* Table */}
             <div style={tableContainerStyle}>
-              <div style={ultraExpandedTableHeaderStyle}>
-                <div style={ultraExpandedHeaderCellStyle}>ID</div>
-                <div style={ultraExpandedHeaderCellStyle}>Student Details</div>
-                <div style={ultraExpandedHeaderCellStyle}>Assignment Details</div>
-                <div style={ultraExpandedHeaderCellStyle}>Priority</div>
-                <div style={ultraExpandedHeaderCellStyle}>Mark</div>
-                <div style={ultraExpandedHeaderCellStyle}>Date</div>
-                <div style={ultraExpandedHeaderCellStyle}>Status</div>
-                <div style={ultraExpandedHeaderCellStyle}>Actions</div>
+              <div style={updatedTableHeaderStyle}>
+                <div style={headerCellStyle}>ID</div>
+                <div style={headerCellStyle}>Student Details</div>
+                <div style={headerCellStyle}>Submission</div>
+                <div style={headerCellStyle}>Priority</div>
+                <div style={headerCellStyle}>Date</div>
+                <div style={headerCellStyle}>Status</div>
+                <div style={headerCellStyle}>Concern Message</div>
+                <div style={headerCellStyle}>Actions</div>
               </div>
 
               {filteredConcerns.length === 0 ? (
@@ -845,56 +1071,66 @@ export default function ConcernReviewResolution() {
                 </div>
               ) : (
                 filteredConcerns.map((concern, index) => (
-                  <div key={concern.id} style={ultraExpandedTableRowStyle(index === filteredConcerns.length - 1)}>
-                    <div style={ultraExpandedCellStyle}>
-                      <span style={concernIdStyle}>{concern.id}</span>
+                  <div key={concern.concern_id} style={updatedTableRowStyle(index === filteredConcerns.length - 1)}>
+                    <div style={cellStyle}>
+                      <span style={concernIdStyle}>{concern.concern_id}</span>
                     </div>
-                    <div style={ultraExpandedCellStyle}>
-                      <span style={studentNameStyle}>{concern.student}</span>
-                      <span style={studentIdStyle}>{concern.student_id}</span>
+                    <div style={cellStyle}>
+                      <span style={studentNameStyle}>{concern.student_name}</span>
+                      <span style={studentIdStyle}>ID: {concern.student_id}</span>
                       <span style={studentEmailStyle}>{concern.student_email}</span>
                     </div>
-                    <div style={ultraExpandedCellStyle}>
+                    <div style={cellStyle}>
                       <div style={assignmentWithButtonStyle}>
                         <span style={assignmentNameStyle}>{concern.assignment}</span>
-                        <button
-                          onClick={() => handleViewSubmission(concern.submission_pdf)}
-                          style={viewPdfBtnStyle}
-                          title="View Submission"
-                        >
-                          📄 View
-                        </button>
+                        {concern.submission_id && (
+                          <button
+                            onClick={() => handleViewSubmission(`${API_BASE_URL}/api/marks/pdf/${concern.submission_id}`)}
+                            style={viewPdfBtnStyle}
+                            title="View Submission"
+                          >
+                            📄 View
+                          </button>
+                        )}
                       </div>
                       <span style={subjectNameStyle}>{concern.subject}</span>
                       <span style={subjectCodeStyle}>{concern.subject_code}</span>
                     </div>
-                    <div style={ultraExpandedCellStyle}>
+                    <div style={cellStyle}>
                       <span style={{
                         ...priorityBadgeStyle,
-                        backgroundColor: getPriorityBgColor(concern.priority),
-                        color: getPriorityColor(concern.priority)
+                        backgroundColor: getPriorityBgColor(concern.priority_level),
+                        color: getPriorityColor(concern.priority_level)
                       }}>
-                        {concern.priority}
+                        {concern.priority_level}
                       </span>
                     </div>
-                    <div style={ultraExpandedCellStyle}>
-                      <span style={markStyle(concern.originalMark)}>{concern.originalMark}/100</span>
-                      <span style={percentageStyle}>{((concern.originalMark / 100) * 100).toFixed(0)}%</span>
+                    <div style={cellStyle}>
+                      <span style={dateStyle}>{new Date(concern.created_at).toLocaleDateString()}</span>
                     </div>
-                    <div style={ultraExpandedCellStyle}>
-                      <span style={dateStyle}>{concern.date}</span>
-                    </div>
-                    <div style={ultraExpandedCellStyle}>
+                    <div style={cellStyle}>
                       <span style={{
                         ...statusBadgeStyle,
-                        backgroundColor: getStatusStyle(concern.status).backgroundColor,
-                        color: getStatusStyle(concern.status).color
+                        backgroundColor: getStatusStyle(concern.concern_status).backgroundColor,
+                        color: getStatusStyle(concern.concern_status).color
                       }}>
-                        {concern.status}
+                        {concern.concern_status}
                       </span>
                     </div>
-                    <div style={ultraExpandedCellStyle}>
-                      <div style={actionButtonsStyle}>
+                    <div style={cellStyle}>
+                      <button
+                        onClick={() => {
+                          setSelectedConcern(concern);
+                          setShowMessageModal(true);
+                        }}
+                        style={viewMessageBtnStyle}
+                        title="View Concern Message"
+                      >
+                        💬 View Message
+                      </button>
+                    </div>
+                    <div style={cellStyle}>
+                      <div style={stackedActionButtonsStyle}>
                         <button
                           onClick={() => {
                             setSelectedConcern(concern);
@@ -903,7 +1139,7 @@ export default function ConcernReviewResolution() {
                           style={respondBtnStyle}
                           title="Respond to Concern"
                         >
-                          💬 Respond
+                          ✏️ Respond
                         </button>
                         <button
                           onClick={() => {
@@ -913,7 +1149,7 @@ export default function ConcernReviewResolution() {
                           style={emailBtnStyle}
                           title="Send Email"
                         >
-                          ✉️ Email
+                          📧 Email
                         </button>
                         <button
                           onClick={() => {
@@ -936,6 +1172,15 @@ export default function ConcernReviewResolution() {
       </main>
 
       {/* Modals */}
+      <ViewMessageModal
+        isOpen={showMessageModal}
+        onClose={() => {
+          setShowMessageModal(false);
+          setSelectedConcern(null);
+        }}
+        concern={selectedConcern}
+      />
+
       <DeleteConfirmationModal
         isOpen={showDeleteModal}
         onClose={() => {
@@ -983,7 +1228,47 @@ export default function ConcernReviewResolution() {
   );
 }
 
-// Ultra Expanded Styles
+// Additional Styles
+const successTextStyle = {
+  color: "#10b981",
+  fontSize: "11px",
+  marginTop: "4px",
+  display: "block"
+};
+
+const charCountStyle = (length) => ({
+  color: length > 1900 ? (length > 2000 ? "#ef4444" : "#f59e0b") : "#94a3b8",
+  fontSize: "11px",
+  marginTop: "4px"
+});
+
+const exportButtonWrapperStyle = {
+  flex: "0.5",
+  minWidth: "120px",
+  display: "flex",
+  alignItems: "flex-end"
+};
+
+const exportPdfBtnStyle = {
+  padding: "12px 20px",
+  borderRadius: "10px",
+  border: "none",
+  backgroundColor: "#dc2626",
+  color: "#fff",
+  fontSize: "13px",
+  fontWeight: "600",
+  cursor: "pointer",
+  transition: "all 0.2s",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "8px",
+  whiteSpace: "nowrap",
+  width: "100%",
+  justifyContent: "center"
+};
+
+// ... (keep all existing styles from the previous code)
+
 const pageContainerStyle = {
   minHeight: "100vh",
   backgroundColor: "#f5f6fa",
@@ -992,7 +1277,7 @@ const pageContainerStyle = {
 
 const mainContainerStyle = {
   padding: "34px 44px",
-  maxWidth: "1800px",
+  maxWidth: "1600px",
   margin: "0 auto"
 };
 
@@ -1001,14 +1286,14 @@ const headerSectionStyle = {
 };
 
 const pageTitleStyle = {
-  fontSize: "32px",
+  fontSize: "28px",
   fontWeight: "bold",
   color: "#18243d",
   margin: 0
 };
 
 const pageSubtitleStyle = {
-  fontSize: "15px",
+  fontSize: "14px",
   color: "#74839a",
   marginTop: "8px"
 };
@@ -1016,62 +1301,62 @@ const pageSubtitleStyle = {
 const mainCardStyle = {
   backgroundColor: "#fff",
   border: "1px solid #e2e8f0",
-  borderRadius: "20px",
+  borderRadius: "16px",
   overflow: "hidden",
-  boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
+  boxShadow: "0 2px 8px rgba(0,0,0,0.04)"
 };
 
 const cardHeaderStyle = {
-  height: "90px",
-  padding: "0 36px",
+  height: "80px",
+  padding: "0 32px",
   display: "flex",
   alignItems: "center",
-  gap: "18px",
+  gap: "16px",
   borderBottom: "1px solid #edf1f5",
   backgroundColor: "#fafbfc"
 };
 
 const iconBoxStyle = {
-  width: "48px",
-  height: "48px",
+  width: "44px",
+  height: "44px",
   backgroundColor: "#3c74ff",
-  borderRadius: "14px",
+  borderRadius: "12px",
   color: "#fff",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  fontSize: "22px"
+  fontSize: "20px"
 };
 
 const cardTitleStyle = {
-  fontSize: "20px",
+  fontSize: "18px",
   fontWeight: "700",
   color: "#18243d",
   margin: 0
 };
 
 const cardSubtitleStyle = {
-  fontSize: "14px",
+  fontSize: "13px",
   color: "#64748b",
   margin: "4px 0 0 0"
 };
 
 const cardContentStyle = {
-  padding: "32px 36px"
+  padding: "28px 32px"
 };
 
 // Search and Filter Styles
 const searchFilterContainer = {
   display: "flex",
-  gap: "24px",
-  marginBottom: "32px",
+  gap: "20px",
+  marginBottom: "28px",
   flexWrap: "wrap",
   alignItems: "flex-end"
 };
 
 const searchWrapperStyle = {
-  flex: "2.5",
-  minWidth: "350px"
+  flex: "2",
+  minWidth: "320px"
 };
 
 const searchInputWrapperStyle = {
@@ -1081,10 +1366,10 @@ const searchInputWrapperStyle = {
 
 const searchIconStyle = {
   position: "absolute",
-  left: "16px",
+  left: "14px",
   top: "50%",
   transform: "translateY(-50%)",
-  fontSize: "18px",
+  fontSize: "16px",
   color: "#9aa8bb",
   pointerEvents: "none",
   zIndex: 1
@@ -1092,31 +1377,27 @@ const searchIconStyle = {
 
 const searchInputStyle = {
   width: "100%",
-  padding: "14px 45px 14px 48px",
-  borderRadius: "12px",
+  padding: "12px 40px 12px 42px",
+  borderRadius: "10px",
   border: "1px solid #e2e8f0",
-  fontSize: "15px",
+  fontSize: "14px",
   color: "#1e293b",
   outline: "none",
   transition: "all 0.2s",
   backgroundColor: "#fff",
-  boxSizing: "border-box",
-  "&:focus": {
-    borderColor: "#3c74ff",
-    boxShadow: "0 0 0 3px rgba(60, 116, 255, 0.1)"
-  }
+  boxSizing: "border-box"
 };
 
 const clearSearchBtnStyle = {
   position: "absolute",
-  right: "14px",
+  right: "12px",
   top: "50%",
   transform: "translateY(-50%)",
   background: "none",
   border: "none",
   cursor: "pointer",
   color: "#9aa8bb",
-  fontSize: "16px",
+  fontSize: "14px",
   padding: "4px",
   borderRadius: "4px",
   transition: "all 0.2s",
@@ -1127,15 +1408,15 @@ const clearSearchBtnStyle = {
 
 const filterWrapperStyle = {
   flex: "1",
-  minWidth: "200px"
+  minWidth: "180px"
 };
 
 const filterLabelStyle = {
   display: "block",
-  fontSize: "12px",
+  fontSize: "11px",
   fontWeight: "700",
   color: "#5c6b80",
-  marginBottom: "8px",
+  marginBottom: "6px",
   textTransform: "uppercase",
   letterSpacing: "0.5px"
 };
@@ -1147,8 +1428,8 @@ const filterSelectWrapperStyle = {
 
 const filterSelectStyle = {
   width: "100%",
-  padding: "14px 40px 14px 16px",
-  borderRadius: "12px",
+  padding: "12px 36px 12px 14px",
+  borderRadius: "10px",
   border: "1px solid #e2e8f0",
   fontSize: "14px",
   color: "#1e293b",
@@ -1157,16 +1438,12 @@ const filterSelectStyle = {
   cursor: "pointer",
   appearance: "none",
   boxSizing: "border-box",
-  transition: "all 0.2s",
-  "&:focus": {
-    borderColor: "#3c74ff",
-    boxShadow: "0 0 0 3px rgba(60, 116, 255, 0.1)"
-  }
+  transition: "all 0.2s"
 };
 
 const filterArrowStyle = {
   position: "absolute",
-  right: "16px",
+  right: "14px",
   top: "50%",
   transform: "translateY(-50%)",
   pointerEvents: "none",
@@ -1179,34 +1456,34 @@ const resultsCountContainerStyle = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  marginBottom: "24px",
-  paddingBottom: "20px",
+  marginBottom: "20px",
+  paddingBottom: "16px",
   borderBottom: "1px solid #edf1f5",
   flexWrap: "wrap",
   gap: "12px"
 };
 
 const resultsCountStyle = {
-  fontSize: "14px",
+  fontSize: "13px",
   color: "#5c6b80",
   fontWeight: "500"
 };
 
 const activeFiltersStyle = {
   display: "flex",
-  gap: "12px",
+  gap: "10px",
   flexWrap: "wrap"
 };
 
 const activeFilterStyle = {
-  fontSize: "13px",
+  fontSize: "12px",
   color: "#3c74ff",
   backgroundColor: "#eef2ff",
-  padding: "6px 14px",
-  borderRadius: "24px",
+  padding: "6px 12px",
+  borderRadius: "20px",
   display: "inline-flex",
   alignItems: "center",
-  gap: "10px",
+  gap: "8px",
   fontWeight: "500"
 };
 
@@ -1215,7 +1492,7 @@ const clearFilterBtnStyle = {
   border: "none",
   cursor: "pointer",
   color: "#3c74ff",
-  fontSize: "13px",
+  fontSize: "12px",
   padding: "2px",
   marginLeft: "4px",
   display: "inline-flex",
@@ -1224,217 +1501,130 @@ const clearFilterBtnStyle = {
   transition: "all 0.2s"
 };
 
-// Ultra Expanded Table Styles
-const tableContainerStyle = {
-  border: "1px solid #e2e8f0",
-  borderRadius: "16px",
-  overflow: "auto",
-  maxHeight: "calc(100vh - 520px)",
-  minHeight: "450px"
-};
-
-const ultraExpandedTableHeaderStyle = {
+// Table Styles
+const updatedTableHeaderStyle = {
   display: "grid",
-  gridTemplateColumns: "0.6fr 1.3fr 1.8fr 0.7fr 0.8fr 0.9fr 0.9fr 1.2fr",
+  gridTemplateColumns: "0.6fr 1.2fr 1.4fr 0.6fr 0.7fr 0.7fr 0.8fr 0.8fr",
   backgroundColor: "#f8fafc",
   borderBottom: "1px solid #e2e8f0",
   position: "sticky",
   top: 0,
   zIndex: 10,
-  padding: "18px 28px",
-  gap: "12px"
+  padding: "14px 20px"
 };
 
-const ultraExpandedHeaderCellStyle = {
-  fontSize: "13px",
+const updatedTableRowStyle = (isLast) => ({
+  display: "grid",
+  gridTemplateColumns: "0.6fr 1.2fr 1.4fr 0.6fr 0.7fr 0.7fr 0.8fr 0.8fr",
+  padding: "14px 20px",
+  borderBottom: isLast ? "none" : "1px solid #f1f5f9",
+  transition: "background 0.2s",
+  alignItems: "center"
+});
+
+const tableContainerStyle = {
+  border: "1px solid #e2e8f0",
+  borderRadius: "12px",
+  overflow: "auto"
+};
+
+const headerCellStyle = {
+  fontSize: "11px",
   fontWeight: "700",
-  color: "#475569",
+  color: "#64748b",
   textTransform: "uppercase",
   letterSpacing: "0.06em"
 };
 
-const ultraExpandedTableRowStyle = (isLast) => ({
-  display: "grid",
-  gridTemplateColumns: "0.6fr 1.3fr 1.8fr 0.7fr 0.8fr 0.9fr 0.9fr 1.2fr",
-  padding: "18px 28px",
-  borderBottom: isLast ? "none" : "1px solid #eef2f6",
-  transition: "background 0.2s",
-  alignItems: "center",
-  gap: "12px",
-  backgroundColor: "#fff",
-  cursor: "pointer",
-  "&:hover": {
-    backgroundColor: "#fafbff"
-  }
-});
-
-const ultraExpandedCellStyle = {
+const cellStyle = {
   display: "flex",
   flexDirection: "column",
-  gap: "6px"
+  gap: "4px"
 };
 
 // Cell Content Styles
 const concernIdStyle = {
-  fontSize: "13px",
+  fontSize: "12px",
   fontWeight: "600",
   color: "#3c74ff",
   fontFamily: "monospace"
 };
 
 const studentNameStyle = {
-  fontSize: "15px",
+  fontSize: "14px",
   fontWeight: "600",
   color: "#0f172a"
 };
 
 const studentIdStyle = {
-  fontSize: "12px",
-  color: "#64748b",
-  fontFamily: "monospace"
+  fontSize: "11px",
+  color: "#64748b"
 };
 
 const studentEmailStyle = {
-  fontSize: "12px",
-  color: "#9aa8bb",
-  marginTop: "2px"
+  fontSize: "11px",
+  color: "#94a3b8"
 };
 
 const assignmentWithButtonStyle = {
   display: "flex",
   alignItems: "center",
-  gap: "12px",
+  gap: "8px",
   flexWrap: "wrap"
 };
 
 const assignmentNameStyle = {
-  fontSize: "14px",
-  fontWeight: "600",
+  fontSize: "13px",
+  fontWeight: "500",
   color: "#1e293b"
 };
 
 const subjectNameStyle = {
-  fontSize: "13px",
-  color: "#475569",
-  fontWeight: "500"
+  fontSize: "12px",
+  color: "#475569"
 };
 
 const subjectCodeStyle = {
-  fontSize: "11px",
+  fontSize: "10px",
   color: "#94a3b8"
 };
 
 const priorityBadgeStyle = {
-  padding: "6px 14px",
-  borderRadius: "24px",
-  fontSize: "13px",
+  padding: "4px 10px",
+  borderRadius: "20px",
+  fontSize: "11px",
   fontWeight: "600",
   width: "fit-content"
 };
 
-const markStyle = (mark) => ({
-  fontSize: "15px",
-  fontWeight: "bold",
-  color: mark >= 75 ? "#10b981" : mark >= 55 ? "#3b82f6" : "#ef4444"
-});
-
-const percentageStyle = {
-  fontSize: "11px",
-  color: "#94a3b8"
-};
-
 const dateStyle = {
-  fontSize: "13px",
+  fontSize: "12px",
   color: "#64748b"
 };
 
 const statusBadgeStyle = {
-  padding: "6px 14px",
-  borderRadius: "24px",
-  fontSize: "12px",
+  padding: "4px 10px",
+  borderRadius: "20px",
+  fontSize: "11px",
   fontWeight: "600",
   width: "fit-content"
 };
 
-const actionButtonsStyle = {
+// Stacked Action Buttons Styles
+const stackedActionButtonsStyle = {
   display: "flex",
-  gap: "12px",
-  flexWrap: "wrap"
+  flexDirection: "column",
+  gap: "8px",
+  alignItems: "flex-start"
 };
 
 // Button Styles
 const respondBtnStyle = {
-  padding: "8px 16px",
-  borderRadius: "10px",
-  border: "1px solid #e2e8f0",
-  backgroundColor: "#fff",
+  padding: "6px 14px",
+  borderRadius: "6px",
+  border: "none",
+  backgroundColor: "#eef2ff",
   color: "#3c74ff",
-  fontSize: "12px",
-  fontWeight: "600",
-  cursor: "pointer",
-  transition: "all 0.2s",
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "8px",
-  whiteSpace: "nowrap",
-  "&:hover": {
-    backgroundColor: "#3c74ff",
-    color: "#fff",
-    borderColor: "#3c74ff",
-    transform: "translateY(-1px)"
-  }
-};
-
-const emailBtnStyle = {
-  padding: "8px 16px",
-  borderRadius: "10px",
-  border: "1px solid #e2e8f0",
-  backgroundColor: "#fff",
-  color: "#10b981",
-  fontSize: "12px",
-  fontWeight: "600",
-  cursor: "pointer",
-  transition: "all 0.2s",
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "8px",
-  whiteSpace: "nowrap",
-  "&:hover": {
-    backgroundColor: "#10b981",
-    color: "#fff",
-    borderColor: "#10b981",
-    transform: "translateY(-1px)"
-  }
-};
-
-const deleteActionBtnStyle = {
-  padding: "8px 16px",
-  borderRadius: "10px",
-  border: "1px solid #e2e8f0",
-  backgroundColor: "#fff",
-  color: "#dc2626",
-  fontSize: "12px",
-  fontWeight: "600",
-  cursor: "pointer",
-  transition: "all 0.2s",
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "8px",
-  whiteSpace: "nowrap",
-  "&:hover": {
-    backgroundColor: "#dc2626",
-    color: "#fff",
-    borderColor: "#dc2626",
-    transform: "translateY(-1px)"
-  }
-};
-
-const viewPdfBtnStyle = {
-  padding: "5px 12px",
-  borderRadius: "8px",
-  border: "1px solid #e2e8f0",
-  backgroundColor: "#fff",
-  color: "#f59e0b",
   fontSize: "11px",
   fontWeight: "500",
   cursor: "pointer",
@@ -1443,43 +1633,127 @@ const viewPdfBtnStyle = {
   alignItems: "center",
   gap: "6px",
   whiteSpace: "nowrap",
-  "&:hover": {
-    backgroundColor: "#f59e0b",
-    color: "#fff",
-    borderColor: "#f59e0b"
-  }
+  width: "fit-content"
+};
+
+const emailBtnStyle = {
+  padding: "6px 14px",
+  borderRadius: "6px",
+  border: "none",
+  backgroundColor: "#ecfdf5",
+  color: "#10b981",
+  fontSize: "11px",
+  fontWeight: "500",
+  cursor: "pointer",
+  transition: "all 0.2s",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "6px",
+  whiteSpace: "nowrap",
+  width: "fit-content"
+};
+
+const deleteActionBtnStyle = {
+  padding: "6px 14px",
+  borderRadius: "6px",
+  border: "none",
+  backgroundColor: "#fef2f2",
+  color: "#dc2626",
+  fontSize: "11px",
+  fontWeight: "500",
+  cursor: "pointer",
+  transition: "all 0.2s",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "6px",
+  whiteSpace: "nowrap",
+  width: "fit-content"
+};
+
+const viewPdfBtnStyle = {
+  padding: "4px 10px",
+  borderRadius: "6px",
+  border: "none",
+  backgroundColor: "#eef2ff",
+  color: "#3c74ff",
+  fontSize: "10px",
+  fontWeight: "500",
+  cursor: "pointer",
+  transition: "all 0.2s",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "4px",
+  whiteSpace: "nowrap"
+};
+
+const viewMessageBtnStyle = {
+  padding: "6px 14px",
+  borderRadius: "6px",
+  border: "none",
+  backgroundColor: "#f5f3ff",
+  color: "#8b5cf6",
+  fontSize: "11px",
+  fontWeight: "500",
+  cursor: "pointer",
+  transition: "all 0.2s",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "6px",
+  whiteSpace: "nowrap",
+  width: "fit-content"
+};
+
+// Email Preview Styles
+const emailPreviewStyle = {
+  marginTop: "20px",
+  padding: "16px",
+  backgroundColor: "#f8f9fc",
+  borderRadius: "10px",
+  border: "1px solid #e2e8f0"
+};
+
+const previewLabelStyle = {
+  fontSize: "12px",
+  fontWeight: "600",
+  color: "#5c6b80",
+  marginBottom: "10px"
+};
+
+const previewContentStyle = {
+  fontSize: "12px",
+  color: "#1e293b",
+  lineHeight: "1.5",
+  maxHeight: "200px",
+  overflow: "auto"
 };
 
 // Status Selector Styles
 const statusSelectorStyle = {
   display: "flex",
-  gap: "12px",
+  gap: "10px",
   flexWrap: "wrap"
 };
 
 const statusOptionStyle = {
-  padding: "8px 20px",
+  padding: "6px 16px",
   borderRadius: "30px",
   border: "2px solid",
-  fontSize: "13px",
+  fontSize: "12px",
   fontWeight: "600",
   cursor: "pointer",
   transition: "all 0.2s",
-  background: "none",
-  "&:hover": {
-    transform: "translateY(-2px)"
-  }
+  background: "none"
 };
 
 // View Modal Styles
 const viewModalContainerStyle = {
   backgroundColor: "#fff",
-  borderRadius: "20px",
+  borderRadius: "16px",
   width: "90%",
-  maxWidth: "1400px",
+  maxWidth: "1200px",
   maxHeight: "90vh",
   overflow: "hidden",
-  boxShadow: "0 25px 50px rgba(0, 0, 0, 0.25)",
+  boxShadow: "0 20px 40px rgba(0, 0, 0, 0.2)",
   animation: "slideUp 0.3s ease-out",
   display: "flex",
   flexDirection: "column"
@@ -1492,48 +1766,109 @@ const viewModalBodyStyle = {
 };
 
 const openNewTabBtnStyle = {
-  padding: "10px 24px",
-  borderRadius: "10px",
+  padding: "10px 20px",
+  borderRadius: "8px",
   border: "1px solid #e2e8f0",
   backgroundColor: "#fff",
   color: "#3c74ff",
-  fontWeight: "600",
+  fontWeight: "500",
   fontSize: "13px",
   cursor: "pointer",
-  textDecoration: "none",
-  transition: "all 0.2s"
+  textDecoration: "none"
+};
+
+// Loading and Error Styles
+const loadingContainerStyle = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: "400px",
+  gap: "20px"
+};
+
+const loadingSpinnerStyle = {
+  width: "40px",
+  height: "40px",
+  border: "3px solid #e2e8f0",
+  borderTopColor: "#3c74ff",
+  borderRadius: "50%",
+  animation: "spin 1s linear infinite"
+};
+
+const loadingTextStyle = {
+  fontSize: "14px",
+  color: "#64748b"
+};
+
+const errorContainerStyle = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: "400px",
+  gap: "16px",
+  textAlign: "center"
+};
+
+const errorIconStyle = {
+  fontSize: "48px"
+};
+
+const errorTitleStyle = {
+  fontSize: "18px",
+  fontWeight: "600",
+  color: "#dc2626",
+  margin: 0
+};
+
+const errorMessageStyle = {
+  fontSize: "14px",
+  color: "#64748b",
+  maxWidth: "400px"
+};
+
+const retryButtonStyle = {
+  padding: "8px 20px",
+  borderRadius: "8px",
+  border: "none",
+  backgroundColor: "#3c74ff",
+  color: "#fff",
+  fontWeight: "500",
+  fontSize: "13px",
+  cursor: "pointer"
 };
 
 // Empty State Styles
 const emptyContainerStyle = {
-  padding: "100px",
+  padding: "60px",
   textAlign: "center"
 };
 
 const emptyIconStyle = {
-  fontSize: "72px",
-  marginBottom: "24px"
+  fontSize: "48px",
+  marginBottom: "16px"
 };
 
 const emptyTitleStyle = {
-  fontSize: "20px",
+  fontSize: "16px",
   fontWeight: "600",
   color: "#2e3b52",
-  marginBottom: "10px"
+  marginBottom: "8px"
 };
 
 const emptyMessageStyle = {
-  fontSize: "14px",
+  fontSize: "13px",
   color: "#74839a"
 };
 
 const hintTextStyle = {
   fontSize: "11px",
-  color: "#9aa8bb",
+  color: "#94a3b8",
   marginTop: "4px"
 };
 
-// Modal Styles (keep existing modal styles)
+// Modal Styles
 const modalOverlayStyle = {
   position: "fixed",
   top: 0,
@@ -1550,26 +1885,26 @@ const modalOverlayStyle = {
 
 const modalContainerStyle = {
   backgroundColor: "#fff",
-  borderRadius: "20px",
+  borderRadius: "16px",
   width: "90%",
-  maxWidth: "650px",
+  maxWidth: "600px",
   maxHeight: "90vh",
   overflow: "auto",
-  boxShadow: "0 25px 50px rgba(0, 0, 0, 0.25)",
+  boxShadow: "0 20px 40px rgba(0, 0, 0, 0.2)",
   animation: "slideUp 0.3s ease-out"
 };
 
 const deleteModalContainerStyle = {
   backgroundColor: "#fff",
-  borderRadius: "20px",
+  borderRadius: "16px",
   width: "90%",
-  maxWidth: "550px",
-  boxShadow: "0 25px 50px rgba(0, 0, 0, 0.25)",
+  maxWidth: "500px",
+  boxShadow: "0 20px 40px rgba(0, 0, 0, 0.2)",
   animation: "slideUp 0.3s ease-out"
 };
 
 const modalHeaderStyle = {
-  padding: "24px 28px",
+  padding: "20px 24px",
   borderBottom: "1px solid #edf1f5",
   display: "flex",
   justifyContent: "space-between",
@@ -1577,22 +1912,22 @@ const modalHeaderStyle = {
 };
 
 const deleteModalHeaderStyle = {
-  padding: "24px 28px",
+  padding: "20px 24px",
   borderBottom: "1px solid #edf1f5",
   display: "flex",
   alignItems: "center",
-  gap: "14px"
+  gap: "12px"
 };
 
 const modalTitleStyle = {
-  fontSize: "20px",
+  fontSize: "18px",
   fontWeight: "bold",
   color: "#18243d",
   margin: 0
 };
 
 const deleteModalTitleStyle = {
-  fontSize: "20px",
+  fontSize: "18px",
   fontWeight: "bold",
   color: "#18243d",
   margin: 0
@@ -1601,7 +1936,7 @@ const deleteModalTitleStyle = {
 const modalCloseBtnStyle = {
   background: "none",
   border: "none",
-  fontSize: "22px",
+  fontSize: "20px",
   cursor: "pointer",
   color: "#94a3b8",
   padding: "4px 8px",
@@ -1609,14 +1944,14 @@ const modalCloseBtnStyle = {
 };
 
 const modalBodyStyle = {
-  padding: "28px"
+  padding: "24px"
 };
 
-const infoBoxStyle = {
+const infoSectionStyle = {
   backgroundColor: "#f8f9fc",
-  padding: "18px 22px",
-  borderRadius: "14px",
-  marginBottom: "28px",
+  padding: "16px",
+  borderRadius: "12px",
+  marginBottom: "20px",
   border: "1px solid #edf1f5"
 };
 
@@ -1624,12 +1959,12 @@ const infoRowStyle = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  padding: "10px 0",
+  padding: "8px 0",
   borderBottom: "1px solid #e9ecef"
 };
 
 const infoLabelStyle = {
-  fontSize: "13px",
+  fontSize: "12px",
   color: "#74839a",
   fontWeight: "500"
 };
@@ -1646,8 +1981,113 @@ const currentMarkStyle = {
   fontWeight: "bold"
 };
 
+const messageSectionStyle = {
+  marginBottom: "20px"
+};
+
+const sectionLabelStyle = {
+  display: "block",
+  fontSize: "12px",
+  fontWeight: "600",
+  color: "#374151",
+  marginBottom: "8px"
+};
+
+const messageBoxStyle = {
+  backgroundColor: "#f8f9fc",
+  border: "1px solid #e2e8f0",
+  borderRadius: "10px",
+  padding: "14px 16px",
+  fontSize: "13px",
+  color: "#1e293b",
+  lineHeight: "1.6",
+  fontStyle: "italic"
+};
+
+const infoBoxStyle = {
+  backgroundColor: "#f8f9fc",
+  padding: "16px 20px",
+  borderRadius: "12px",
+  marginBottom: "24px",
+  border: "1px solid #edf1f5"
+};
+
+const modalFooterStyle = {
+  padding: "20px 24px",
+  borderTop: "1px solid #edf1f5",
+  display: "flex",
+  justifyContent: "flex-end",
+  gap: "12px"
+};
+
+const modalCancelBtnStyle = {
+  padding: "10px 20px",
+  borderRadius: "8px",
+  border: "1px solid #e2e8f0",
+  backgroundColor: "#fff",
+  color: "#5c6b80",
+  fontWeight: "500",
+  fontSize: "13px",
+  cursor: "pointer"
+};
+
+const modalSaveBtnStyle = {
+  padding: "10px 20px",
+  borderRadius: "8px",
+  border: "none",
+  backgroundColor: "#3c74ff",
+  color: "#fff",
+  fontWeight: "500",
+  fontSize: "13px",
+  cursor: "pointer"
+};
+
+const deleteConfirmBtnStyle = {
+  padding: "10px 20px",
+  borderRadius: "8px",
+  border: "none",
+  backgroundColor: "#dc2626",
+  color: "#fff",
+  fontWeight: "500",
+  fontSize: "13px",
+  cursor: "pointer"
+};
+
+const warningIconStyle = {
+  fontSize: "24px"
+};
+
+const deleteMessageStyle = {
+  fontSize: "14px",
+  color: "#2e3b52",
+  marginBottom: "16px",
+  lineHeight: "1.5"
+};
+
+const deleteSubMessageStyle = {
+  fontSize: "13px",
+  color: "#64748b",
+  marginBottom: "16px",
+  lineHeight: "1.5"
+};
+
+const deleteWarningStyle = {
+  fontSize: "12px",
+  color: "#dc2626",
+  backgroundColor: "#fee2e2",
+  padding: "10px",
+  borderRadius: "8px",
+  marginTop: "16px"
+};
+
+const errorTextStyle = {
+  color: "#ff4d4f",
+  fontSize: "11px",
+  marginTop: "4px"
+};
+
 const formGroupStyle = {
-  marginBottom: "28px"
+  marginBottom: "24px"
 };
 
 const modalLabelStyle = {
@@ -1655,13 +2095,13 @@ const modalLabelStyle = {
   fontSize: "13px",
   fontWeight: "600",
   color: "#2e3b52",
-  marginBottom: "10px"
+  marginBottom: "8px"
 };
 
 const modalInputStyle = {
   width: "100%",
-  padding: "12px 16px",
-  borderRadius: "12px",
+  padding: "12px 14px",
+  borderRadius: "10px",
   border: "1px solid #e2e8f0",
   fontSize: "14px",
   color: "#1e293b",
@@ -1673,8 +2113,8 @@ const modalInputStyle = {
 
 const modalTextareaStyle = {
   width: "100%",
-  padding: "12px 16px",
-  borderRadius: "12px",
+  padding: "12px 14px",
+  borderRadius: "10px",
   border: "1px solid #e2e8f0",
   fontSize: "14px",
   color: "#1e293b",
@@ -1684,83 +2124,6 @@ const modalTextareaStyle = {
   boxSizing: "border-box",
   backgroundColor: "#fff",
   lineHeight: "1.5"
-};
-
-const modalFooterStyle = {
-  padding: "20px 28px",
-  borderTop: "1px solid #edf1f5",
-  display: "flex",
-  justifyContent: "flex-end",
-  gap: "12px"
-};
-
-const modalCancelBtnStyle = {
-  padding: "10px 24px",
-  borderRadius: "10px",
-  border: "1px solid #e2e8f0",
-  backgroundColor: "#fff",
-  color: "#5c6b80",
-  fontWeight: "500",
-  fontSize: "13px",
-  cursor: "pointer",
-  transition: "all 0.2s"
-};
-
-const modalSaveBtnStyle = {
-  padding: "10px 24px",
-  borderRadius: "10px",
-  border: "none",
-  backgroundColor: "#3c74ff",
-  color: "#fff",
-  fontWeight: "600",
-  fontSize: "13px",
-  cursor: "pointer",
-  transition: "all 0.2s"
-};
-
-const deleteConfirmBtnStyle = {
-  padding: "10px 24px",
-  borderRadius: "10px",
-  border: "none",
-  backgroundColor: "#dc2626",
-  color: "#fff",
-  fontWeight: "600",
-  fontSize: "13px",
-  cursor: "pointer",
-  transition: "all 0.2s"
-};
-
-const warningIconStyle = {
-  fontSize: "28px"
-};
-
-const deleteMessageStyle = {
-  fontSize: "15px",
-  color: "#2e3b52",
-  marginBottom: "20px",
-  lineHeight: "1.5"
-};
-
-const deleteSubMessageStyle = {
-  fontSize: "13px",
-  color: "#64748b",
-  marginBottom: "20px",
-  lineHeight: "1.6"
-};
-
-const deleteWarningStyle = {
-  fontSize: "12px",
-  color: "#dc2626",
-  backgroundColor: "#fee2e2",
-  padding: "12px",
-  borderRadius: "10px",
-  marginTop: "20px"
-};
-
-const errorTextStyle = {
-  color: "#ff4d4f",
-  fontSize: "11px",
-  marginTop: "6px"
 };
 
 // Popup Styles
@@ -1781,15 +2144,15 @@ const popupOverlayStyle = {
 
 const popupContainerStyle = {
   position: "relative",
-  maxWidth: "550px",
+  maxWidth: "450px",
   width: "90%",
   margin: "20px"
 };
 
 const popupAnimationStyle = {
   backgroundColor: "#fff",
-  borderRadius: "24px",
-  boxShadow: "0 25px 50px rgba(0, 0, 0, 0.2)",
+  borderRadius: "20px",
+  boxShadow: "0 20px 40px rgba(0, 0, 0, 0.15)",
   overflow: "hidden",
   animation: "slideUp 0.4s cubic-bezier(0.34, 1.2, 0.64, 1)"
 };
@@ -1797,50 +2160,50 @@ const popupAnimationStyle = {
 const successIconContainerStyle = {
   display: "flex",
   justifyContent: "center",
-  marginTop: "35px",
-  marginBottom: "25px"
+  marginTop: "30px",
+  marginBottom: "20px"
 };
 
 const successIconStyle = {
-  width: "90px",
-  height: "90px",
+  width: "80px",
+  height: "80px",
   backgroundColor: "#52c41a",
   borderRadius: "50%",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  boxShadow: "0 8px 20px rgba(82, 196, 26, 0.3)",
+  boxShadow: "0 4px 12px rgba(82, 196, 26, 0.3)",
   animation: "scaleIn 0.5s ease-out"
 };
 
 const popupTitleStyle = {
-  fontSize: "26px",
+  fontSize: "24px",
   fontWeight: "bold",
   textAlign: "center",
   color: "#2e3b52",
-  margin: "0 0 14px 0"
+  margin: "0 0 12px 0"
 };
 
 const popupMessageStyle = {
-  fontSize: "15px",
+  fontSize: "14px",
   textAlign: "center",
   color: "#64748b",
-  margin: "0 28px 20px 28px",
+  margin: "0 24px 16px 24px",
   lineHeight: "1.5"
 };
 
 const popupDetailsStyle = {
   backgroundColor: "#f8f9fa",
-  margin: "0 28px 28px 28px",
-  padding: "18px",
-  borderRadius: "14px",
+  margin: "0 24px 24px 24px",
+  padding: "16px",
+  borderRadius: "12px",
   border: "1px solid #e9ecef"
 };
 
 const detailRowStyle = {
   display: "flex",
   justifyContent: "space-between",
-  padding: "8px 0",
+  padding: "6px 0",
   borderBottom: "1px solid #e9ecef"
 };
 
@@ -1857,7 +2220,7 @@ const detailValueStyle = {
 };
 
 const popupFooterStyle = {
-  padding: "0 28px 28px 28px",
+  padding: "0 24px 24px 24px",
   display: "flex",
   justifyContent: "center"
 };
@@ -1866,8 +2229,8 @@ const popupButtonStyle = {
   backgroundColor: "#3d6df2",
   color: "#fff",
   border: "none",
-  padding: "12px 36px",
-  borderRadius: "12px",
+  padding: "10px 32px",
+  borderRadius: "10px",
   fontWeight: "bold",
   fontSize: "14px",
   cursor: "pointer",
@@ -1886,7 +2249,7 @@ if (typeof document !== 'undefined') {
     @keyframes slideUp {
       from {
         opacity: 0;
-        transform: translateY(40px);
+        transform: translateY(30px);
       }
       to {
         opacity: 1;
@@ -1908,12 +2271,13 @@ if (typeof document !== 'undefined') {
       }
     }
     
-    button {
-      transition: all 0.2s ease;
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
     
-    button:active {
-      transform: scale(0.98);
+    button:hover {
+      transform: translateY(-1px);
+      opacity: 0.8;
     }
   `;
   document.head.appendChild(style);

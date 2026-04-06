@@ -54,41 +54,106 @@ const SuccessPopup = ({ isVisible, onClose, message, title, details }) => {
 };
 
 // Edit Mark Modal Component
+// Edit Mark Modal Component with Real-time Validation
 const EditMarkModal = ({ isOpen, onClose, submission, onSave }) => {
   const [newMark, setNewMark] = useState("");
   const [reason, setReason] = useState("");
   const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({});
 
   useEffect(() => {
     if (submission) {
       setNewMark(submission.mark?.toString() || "");
       setReason("");
       setErrors({});
+      setTouched({});
     }
   }, [submission]);
 
-  const validate = () => {
-    const newErrors = {};
-    if (!newMark || newMark === "") {
-      newErrors.mark = "Please enter a mark";
-    } else {
-      const markNum = parseFloat(newMark);
-      if (isNaN(markNum)) {
-        newErrors.mark = "Please enter a valid number";
-      } else if (markNum < 0) {
-        newErrors.mark = "Mark cannot be negative";
-      } else if (markNum > submission.total) {
-        newErrors.mark = `Mark cannot exceed ${submission.total}`;
-      }
+  // Real-time validation for mark
+  const validateMark = (value) => {
+    if (!value || value === "") {
+      return "Please enter a mark";
     }
+    const markNum = parseFloat(value);
+    if (isNaN(markNum)) {
+      return "Please enter a valid number";
+    }
+    if (markNum < 0) {
+      return "Mark cannot be negative";
+    }
+    if (markNum > submission.total) {
+      return `Mark cannot exceed ${submission.total}`;
+    }
+    // Check if the new mark is the same as the old mark
+    if (markNum === submission.mark) {
+      return "New mark is the same as the current mark. Please enter a different value.";
+    }
+    return null;
+  };
+
+  // Real-time validation for reason
+  const validateReason = (value) => {
+    if (!value || value.trim() === "") {
+      return "Please provide a reason for changing the mark";
+    }
+    if (value.trim().length < 10) {
+      return "Please provide a detailed reason (minimum 10 characters)";
+    }
+    return null;
+  };
+
+  // Handle real-time mark change
+  const handleMarkChange = (e) => {
+    const value = e.target.value;
+    setNewMark(value);
+    setTouched(prev => ({ ...prev, mark: true }));
     
-    if (!reason.trim()) {
-      newErrors.reason = "Please provide a reason for changing the mark";
-    } else if (reason.trim().length < 10) {
-      newErrors.reason = "Please provide a detailed reason (minimum 10 characters)";
+    const error = validateMark(value);
+    setErrors(prev => ({ ...prev, mark: error }));
+    
+    // Clear reason error if it exists when mark becomes valid
+    if (!error && errors.reason) {
+      setErrors(prev => ({ ...prev, reason: validateReason(reason) }));
     }
+  };
+
+  // Handle real-time reason change
+  const handleReasonChange = (e) => {
+    const value = e.target.value;
+    setReason(value);
+    setTouched(prev => ({ ...prev, reason: true }));
+    
+    const error = validateReason(value);
+    setErrors(prev => ({ ...prev, reason: error }));
+  };
+
+  // Handle blur for mark field
+  const handleMarkBlur = () => {
+    setTouched(prev => ({ ...prev, mark: true }));
+    const error = validateMark(newMark);
+    setErrors(prev => ({ ...prev, mark: error }));
+  };
+
+  // Handle blur for reason field
+  const handleReasonBlur = () => {
+    setTouched(prev => ({ ...prev, reason: true }));
+    const error = validateReason(reason);
+    setErrors(prev => ({ ...prev, reason: error }));
+  };
+
+  // Validate all for submit
+  const validate = () => {
+    const markError = validateMark(newMark);
+    const reasonError = validateReason(reason);
+    
+    const newErrors = {};
+    if (markError) newErrors.mark = markError;
+    if (reasonError) newErrors.reason = reasonError;
     
     setErrors(newErrors);
+    setTouched({ mark: true, reason: true });
+    
     return Object.keys(newErrors).length === 0;
   };
 
@@ -105,7 +170,30 @@ const EditMarkModal = ({ isOpen, onClose, submission, onSave }) => {
     }
   };
 
+  // Check if form is valid
+  const isFormValid = () => {
+    return newMark && 
+           newMark !== "" && 
+           !validateMark(newMark) && 
+           reason && 
+           reason.trim().length >= 10 &&
+           parseFloat(newMark) !== submission.mark;
+  };
+
   if (!isOpen) return null;
+
+  // Get border color based on validation state
+  const getMarkBorderColor = () => {
+    if (!touched.mark) return "#dde3eb";
+    if (errors.mark) return "#ff4d4f";
+    return "#10b981";
+  };
+
+  const getReasonBorderColor = () => {
+    if (!touched.reason) return "#dde3eb";
+    if (errors.reason) return "#ff4d4f";
+    return "#10b981";
+  };
 
   return (
     <div style={modalOverlayStyle} onClick={onClose}>
@@ -132,40 +220,70 @@ const EditMarkModal = ({ isOpen, onClose, submission, onSave }) => {
           </div>
           
           <div style={formGroupStyle}>
-            <label style={modalLabelStyle}>New Mark *</label>
+            <label style={modalLabelStyle}>
+              New Mark <span style={{ color: "#ef4444" }}>*</span>
+            </label>
             <input
               type="number"
               step="0.01"
               value={newMark}
-              onChange={(e) => setNewMark(e.target.value)}
+              onChange={handleMarkChange}
+              onBlur={handleMarkBlur}
               style={{
                 ...modalInputStyle,
-                borderColor: errors.mark ? "#ff4d4f" : "#dde3eb"
+                borderColor: getMarkBorderColor()
               }}
               placeholder="Enter new mark"
             />
-            {errors.mark && <p style={errorTextStyle}>{errors.mark}</p>}
+            {touched.mark && errors.mark && (
+              <p style={errorTextStyle}>{errors.mark}</p>
+            )}
+            {touched.mark && !errors.mark && newMark && newMark !== "" && (
+              <p style={successTextStyle}>✓ Valid mark</p>
+            )}
           </div>
           
           <div style={formGroupStyle}>
-            <label style={modalLabelStyle}>Reason for Change *</label>
+            <label style={modalLabelStyle}>
+              Reason for Change <span style={{ color: "#ef4444" }}>*</span>
+            </label>
             <textarea
               value={reason}
-              onChange={(e) => setReason(e.target.value)}
+              onChange={handleReasonChange}
+              onBlur={handleReasonBlur}
               style={{
                 ...modalTextareaStyle,
-                borderColor: errors.reason ? "#ff4d4f" : "#dde3eb"
+                borderColor: getReasonBorderColor(),
+                minHeight: "100px"
               }}
               rows="4"
               placeholder="Please provide a detailed reason for modifying this mark..."
             />
-            {errors.reason && <p style={errorTextStyle}>{errors.reason}</p>}
+            {touched.reason && errors.reason && (
+              <p style={errorTextStyle}>{errors.reason}</p>
+            )}
+            {touched.reason && !errors.reason && reason && reason.trim().length >= 10 && (
+              <p style={successTextStyle}>✓ Valid reason</p>
+            )}
+            <div style={charCountStyle(reason.length)}>
+              {reason.length} / 2000 characters {reason.length < 10 && `(minimum 10 required)`}
+            </div>
           </div>
         </div>
         
         <div style={modalFooterStyle}>
           <button onClick={onClose} style={modalCancelBtnStyle}>Cancel</button>
-          <button onClick={handleSave} style={modalSaveBtnStyle}>Save Changes</button>
+          <button 
+            onClick={handleSave} 
+            disabled={!isFormValid()}
+            style={{
+              ...modalSaveBtnStyle,
+              opacity: !isFormValid() ? 0.6 : 1,
+              cursor: !isFormValid() ? "not-allowed" : "pointer"
+            }}
+          >
+            Save Changes
+          </button>
         </div>
       </div>
     </div>
@@ -206,10 +324,246 @@ const DeleteConfirmationModal = ({ isOpen, onClose, submission, onConfirm }) => 
   );
 };
 
+// Mark Revision Log Table Component
+const MarkRevisionLogTable = ({ revisions, loading, onRefresh }) => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(8);
+  const [submissionIdFilter, setSubmissionIdFilter] = useState("");
+  const [filteredRevisions, setFilteredRevisions] = useState([]);
+
+  useEffect(() => {
+    let filtered = [...revisions];
+    if (submissionIdFilter.trim()) {
+      filtered = filtered.filter(rev => 
+        rev.submission_id?.toString().toLowerCase().includes(submissionIdFilter.toLowerCase())
+      );
+    }
+    setFilteredRevisions(filtered);
+    setCurrentPage(1);
+  }, [revisions, submissionIdFilter]);
+
+  const totalPages = Math.ceil(filteredRevisions.length / itemsPerPage);
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredRevisions.slice(indexOfFirstItem, indexOfLastItem);
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "N/A";
+    return new Date(dateString).toLocaleString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  };
+
+  const getPageNumbers = () => {
+    const pageNumbers = [];
+    const maxPagesToShow = 5;
+    
+    if (totalPages <= maxPagesToShow) {
+      for (let i = 1; i <= totalPages; i++) pageNumbers.push(i);
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 4; i++) pageNumbers.push(i);
+        pageNumbers.push('...');
+        pageNumbers.push(totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pageNumbers.push(1);
+        pageNumbers.push('...');
+        for (let i = totalPages - 3; i <= totalPages; i++) pageNumbers.push(i);
+      } else {
+        pageNumbers.push(1);
+        pageNumbers.push('...');
+        for (let i = currentPage - 1; i <= currentPage + 1; i++) pageNumbers.push(i);
+        pageNumbers.push('...');
+        pageNumbers.push(totalPages);
+      }
+    }
+    return pageNumbers;
+  };
+
+  const handleClearFilter = () => {
+    setSubmissionIdFilter("");
+  };
+
+  return (
+    <div style={revisionTableCardStyle}>
+      <div style={revisionCardHeaderStyle}>
+        <div style={iconBoxStyle}>📝</div>
+        <div>
+          <h3 style={cardTitleStyle}>Mark Revision Audit Log</h3>
+          <p style={cardSubtitleStyle}>Track all mark changes with revision history.</p>
+        </div>
+      </div>
+
+      <div style={cardContentStyle}>
+        {/* Filter by Submission ID */}
+        <div style={filterContainerStyle}>
+          <div style={filterInputWrapperStyle}>
+            <label style={filterLabelStyle}>Filter by Submission ID</label>
+            <div style={filterInputContainerStyle}>
+              <span style={filterIconStyle}>🔍</span>
+              <input
+                type="text"
+                placeholder="Enter Submission ID..."
+                value={submissionIdFilter}
+                onChange={(e) => setSubmissionIdFilter(e.target.value)}
+                style={filterInputStyle}
+              />
+              {submissionIdFilter && (
+                <button onClick={handleClearFilter} style={clearFilterInputBtnStyle}>
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+          <div style={itemsPerPageWrapperStyle}>
+            <label style={filterLabelStyle}>Show</label>
+            <div style={itemsPerPageSelectStyle}>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(parseInt(e.target.value));
+                  setCurrentPage(1);
+                }}
+                style={filterSelectStyle}
+              >
+                <option value={6}>6 per page</option>
+                <option value={8}>8 per page</option>
+                <option value={10}>10 per page</option>
+              </select>
+              <span style={filterArrowStyle}>▼</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Results Count */}
+        <div style={resultsCountContainerStyle}>
+          <div style={resultsCountStyle}>
+            Showing <strong>{indexOfFirstItem + 1}</strong> - <strong>{Math.min(indexOfLastItem, filteredRevisions.length)}</strong> of <strong>{filteredRevisions.length}</strong> revisions
+          </div>
+        </div>
+
+        {/* Table */}
+        <div style={revisionTableContainerStyle}>
+          <div style={revisionTableHeaderStyle}>
+            <div style={revisionHeaderCellStyle}>Submission ID</div>
+            <div style={revisionHeaderCellStyle}>Old Mark</div>
+            <div style={revisionHeaderCellStyle}>New Mark</div>
+            <div style={revisionHeaderCellStyle}>Change</div>
+            <div style={revisionHeaderCellStyle}>Revision Reason</div>
+            <div style={revisionHeaderCellStyle}>Revised By</div>
+            <div style={revisionHeaderCellStyle}>Revised Date</div>
+          </div>
+
+          {loading ? (
+            <div style={loadingContainerStyle}>
+              <div style={spinnerStyle} />
+              <p style={loadingTextStyle}>Loading revision history...</p>
+            </div>
+          ) : currentItems.length === 0 ? (
+            <div style={emptyContainerStyle}>
+              <div style={emptyIconStyle}>📭</div>
+              <p style={emptyTitleStyle}>No revisions found</p>
+              <p style={emptyMessageStyle}>
+                {submissionIdFilter ? "No revisions found for this submission ID." : "No mark revisions recorded yet."}
+              </p>
+            </div>
+          ) : (
+            currentItems.map((rev, index) => {
+              const change = rev.new_mark - rev.old_mark;
+              const changeColor = change > 0 ? "#10b981" : change < 0 ? "#ef4444" : "#6b7280";
+              const changeSymbol = change > 0 ? "↑" : change < 0 ? "↓" : "→";
+              
+              return (
+                <div key={rev.revision_id || index} style={revisionTableRowStyle(index === currentItems.length - 1)}>
+                  <div style={revisionCellStyle}>
+                    <span style={submissionIdStyle}>SUB - {rev.submission_id}</span>
+                  </div>
+                  <div style={revisionCellStyle}>
+                    <span style={oldMarkStyle}>{rev.old_mark}</span>
+                  </div>
+                  <div style={revisionCellStyle}>
+                    <span style={newMarkStyle}>{rev.new_mark}</span>
+                  </div>
+                  <div style={revisionCellStyle}>
+                    <span style={{ ...changeStyle, color: changeColor }}>
+                      {changeSymbol} {Math.abs(change).toFixed(2)}
+                    </span>
+                  </div>
+                  <div style={revisionCellStyle}>
+                    <span style={reasonStyle} title={rev.revision_reason}>
+                      {rev.revision_reason?.length > 60 
+                        ? `${rev.revision_reason.substring(0, 60)}...` 
+                        : rev.revision_reason || "N/A"}
+                    </span>
+                  </div>
+                  <div style={revisionCellStyle}>
+                    <span style={modifiedByNameStyle}>{rev.lecturer_name || "N/A"}</span>
+                  </div>
+                  <div style={revisionCellStyle}>
+                    <span style={dateStyle}>{formatDate(rev.revised_at)}</span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Pagination */}
+        {!loading && filteredRevisions.length > 0 && (
+          <div style={paginationContainerStyle}>
+            <div style={paginationInfoStyle}>
+              <span>Page {currentPage} of {totalPages}</span>
+            </div>
+            <div style={paginationControlsStyle}>
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                style={paginationButtonStyle(currentPage === 1)}
+              >
+                ← Previous
+              </button>
+              
+              <div style={pageNumbersStyle}>
+                {getPageNumbers().map((page, idx) => (
+                  page === '...' ? (
+                    <span key={`ellipsis-${idx}`} style={ellipsisStyle}>...</span>
+                  ) : (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      style={pageNumberButtonStyle(currentPage === page)}
+                    >
+                      {page}
+                    </button>
+                  )
+                ))}
+              </div>
+              
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                style={paginationButtonStyle(currentPage === totalPages)}
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export default function MarkRevisionAuditLog() {
   const [submissions, setSubmissions] = useState([]);
   const [filteredSubmissions, setFilteredSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [revisions, setRevisions] = useState([]);
+  const [revisionsLoading, setRevisionsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [assessmentFilter, setAssessmentFilter] = useState("All");
   const [assessments, setAssessments] = useState(["All"]);
@@ -220,16 +574,38 @@ export default function MarkRevisionAuditLog() {
   const [popupMessage, setPopupMessage] = useState("");
   const [popupTitle, setPopupTitle] = useState("");
   const [popupDetails, setPopupDetails] = useState({});
+  const [session, setSession] = useState(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(8);
+
+  // Fetch session to get lecturer info
+  useEffect(() => {
+    const fetchSession = async () => {
+      try {
+        const res = await fetch("/api/auth/session", { credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          setSession(data);
+        }
+      } catch (err) {
+        console.error("Error fetching session:", err);
+      }
+    };
+    fetchSession();
+  }, []);
 
   // Fetch all published marks
   useEffect(() => {
     fetchPublishedMarks();
+    fetchRevisionLog();
   }, []);
 
   const fetchPublishedMarks = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/marks/published-marks", {
+      const res = await fetch("/api/lecturer/marks", {
         credentials: "include"
       });
       const data = await res.json();
@@ -237,7 +613,6 @@ export default function MarkRevisionAuditLog() {
         setSubmissions(data.data);
         setFilteredSubmissions(data.data);
         
-        // Extract unique assessment names for filter
         const uniqueAssessments = ["All", ...new Set(data.data.map(s => s.assignment_name))];
         setAssessments(uniqueAssessments);
       }
@@ -248,16 +623,31 @@ export default function MarkRevisionAuditLog() {
     }
   };
 
+  const fetchRevisionLog = async () => {
+    setRevisionsLoading(true);
+    try {
+      const res = await fetch("/api/lecturer/marks/audits", {
+        credentials: "include"
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRevisions(data.data);
+      }
+    } catch (err) {
+      console.error("Error fetching revision log:", err);
+    } finally {
+      setRevisionsLoading(false);
+    }
+  };
+
   // Filter submissions based on search and assessment filter
   useEffect(() => {
     let filtered = [...submissions];
     
-    // Filter by assessment
     if (assessmentFilter !== "All") {
       filtered = filtered.filter(s => s.assignment_name === assessmentFilter);
     }
     
-    // Filter by search (submission_id or assignment name)
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(s => 
@@ -268,12 +658,28 @@ export default function MarkRevisionAuditLog() {
     }
     
     setFilteredSubmissions(filtered);
+    setCurrentPage(1);
   }, [searchQuery, assessmentFilter, submissions]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredSubmissions.length / itemsPerPage);
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredSubmissions.slice(indexOfFirstItem, indexOfLastItem);
+
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+  };
+
+  const handleItemsPerPageChange = (e) => {
+    setItemsPerPage(parseInt(e.target.value));
+    setCurrentPage(1);
+  };
 
   // Handle Edit Mark
   const handleEditMark = async (data) => {
     try {
-      const res = await fetch("/api/marks/update-mark", {
+      const res = await fetch("/api/lecturer/marks/update", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -294,10 +700,12 @@ export default function MarkRevisionAuditLog() {
           "Submission ID": data.submission_id,
           "Old Mark": `${data.old_mark}/${data.total}`,
           "New Mark": `${data.new_mark}/${data.total}`,
+          "Modified By": session?.lecturer_name || session?.name || "Lecturer",
           "Reason": data.reason
         });
         setShowSuccessPopup(true);
-        fetchPublishedMarks(); // Refresh the list
+        fetchPublishedMarks();
+        fetchRevisionLog();
         setShowEditModal(false);
         setSelectedSubmission(null);
       } else {
@@ -314,13 +722,10 @@ export default function MarkRevisionAuditLog() {
     if (!selectedSubmission) return;
     
     try {
-      const res = await fetch(`/api/marks/delete-mark/${selectedSubmission.submission_id}`, {
+      const res = await fetch(`/api/lecturer/marks/delete/${selectedSubmission.submission_id}`, {
         method: "DELETE",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          reason: "Deleted via audit log"
-        })
+        headers: { "Content-Type": "application/json" }
       });
       
       const response = await res.json();
@@ -332,10 +737,10 @@ export default function MarkRevisionAuditLog() {
           "Submission ID": selectedSubmission.submission_id,
           "Assignment": selectedSubmission.assignment_name,
           "Previous Mark": `${selectedSubmission.mark}/${selectedSubmission.total}`,
-          "Deleted By": "Lecturer"
+          "Deleted By": session?.lecturer_name || session?.name || "Lecturer"
         });
         setShowSuccessPopup(true);
-        fetchPublishedMarks(); // Refresh the list
+        fetchPublishedMarks();
         setShowDeleteModal(false);
         setSelectedSubmission(null);
       } else {
@@ -347,10 +752,9 @@ export default function MarkRevisionAuditLog() {
     }
   };
 
-  // Format date
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString("en-US", {
+    return new Date(dateString).toLocaleString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -359,10 +763,34 @@ export default function MarkRevisionAuditLog() {
     });
   };
 
+  const getPageNumbers = () => {
+    const pageNumbers = [];
+    const maxPagesToShow = 5;
+    
+    if (totalPages <= maxPagesToShow) {
+      for (let i = 1; i <= totalPages; i++) pageNumbers.push(i);
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 4; i++) pageNumbers.push(i);
+        pageNumbers.push('...');
+        pageNumbers.push(totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pageNumbers.push(1);
+        pageNumbers.push('...');
+        for (let i = totalPages - 3; i <= totalPages; i++) pageNumbers.push(i);
+      } else {
+        pageNumbers.push(1);
+        pageNumbers.push('...');
+        for (let i = currentPage - 1; i <= currentPage + 1; i++) pageNumbers.push(i);
+        pageNumbers.push('...');
+        pageNumbers.push(totalPages);
+      }
+    }
+    return pageNumbers;
+  };
+
   return (
     <div style={pageContainerStyle}>
-      
-      {/* Pass "Mark Revision" as activePage to highlight the correct nav item */}
       <LecturerNavbar activePage="Mark Revision" />
 
       <main style={mainContainerStyle}>
@@ -371,6 +799,7 @@ export default function MarkRevisionAuditLog() {
           <p style={pageSubtitleStyle}>View, edit, and manage all published marks with revision history.</p>
         </section>
 
+        {/* Published Marks Table */}
         <div style={mainCardStyle}>
           <div style={cardHeaderStyle}>
             <div style={iconBoxStyle}>📊</div>
@@ -389,7 +818,7 @@ export default function MarkRevisionAuditLog() {
                   <span style={searchIconStyle}>🔍</span>
                   <input
                     type="text"
-                    placeholder="Search by submission ID..."
+                    placeholder="Search by submission ID, assignment, or subject..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     style={searchInputStyle}
@@ -419,12 +848,27 @@ export default function MarkRevisionAuditLog() {
                   <span style={filterArrowStyle}>▼</span>
                 </div>
               </div>
+
+              <div style={itemsPerPageWrapperStyle}>
+                <label style={filterLabelStyle}>Show</label>
+                <div style={itemsPerPageSelectStyle}>
+                  <select
+                    value={itemsPerPage}
+                    onChange={handleItemsPerPageChange}
+                    style={filterSelectStyle}
+                  >
+                    <option value={6}>6 per page</option>
+                    <option value={8}>8 per page</option>
+                    <option value={10}>10 per page</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             {/* Results Count */}
             <div style={resultsCountContainerStyle}>
               <div style={resultsCountStyle}>
-                Showing <strong>{filteredSubmissions.length}</strong> of <strong>{submissions.length}</strong> submissions
+                Showing <strong>{indexOfFirstItem + 1}</strong> - <strong>{Math.min(indexOfLastItem, filteredSubmissions.length)}</strong> of <strong>{filteredSubmissions.length}</strong> submissions
               </div>
               {assessmentFilter !== "All" && (
                 <div style={activeFilterStyle}>
@@ -437,14 +881,17 @@ export default function MarkRevisionAuditLog() {
               )}
             </div>
 
-            {/* Table */}
+            {/* Table - Properly Aligned with Stacked Buttons */}
             <div style={tableContainerStyle}>
               <div style={tableHeaderStyle}>
                 <div style={headerCellStyle}>Submission ID</div>
                 <div style={headerCellStyle}>Assignment Name</div>
                 <div style={headerCellStyle}>Subject</div>
                 <div style={headerCellStyle}>Marks</div>
+                <div style={headerCellStyle}>Published By</div>
                 <div style={headerCellStyle}>Published Date</div>
+                <div style={headerCellStyle}>Modified By</div>
+                <div style={headerCellStyle}>Modified Date</div>
                 <div style={headerCellStyle}>Actions</div>
               </div>
 
@@ -453,7 +900,7 @@ export default function MarkRevisionAuditLog() {
                   <div style={spinnerStyle} />
                   <p style={loadingTextStyle}>Loading marks...</p>
                 </div>
-              ) : filteredSubmissions.length === 0 ? (
+              ) : currentItems.length === 0 ? (
                 <div style={emptyContainerStyle}>
                   <div style={emptyIconStyle}>📭</div>
                   <p style={emptyTitleStyle}>No marks found</p>
@@ -464,13 +911,21 @@ export default function MarkRevisionAuditLog() {
                   </p>
                 </div>
               ) : (
-                filteredSubmissions.map((sub, index) => (
-                  <div key={sub.submission_id} style={tableRowStyle(index === filteredSubmissions.length - 1)}>
+                currentItems.map((sub, index) => (
+                  <div key={sub.submission_id} style={tableRowStyle(index === currentItems.length - 1)}>
                     <div style={cellStyle}>
-                      <span style={submissionIdStyle}>{sub.submission_id}</span>
+                      <span style={submissionIdStyle}>SUB - {sub.submission_id}</span>
                     </div>
                     <div style={cellStyle}>
                       <span style={assignmentNameStyle}>{sub.assignment_name}</span>
+                      <a 
+                        href={`${API_BASE_URL}/api/marks/pdf/${sub.submission_id}`} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        style={pdfLinkStyle}
+                      >
+                        📄 Open Submission File
+                      </a>
                     </div>
                     <div style={cellStyle}>
                       <span style={subjectNameStyle}>{sub.subject_name}</span>
@@ -485,16 +940,25 @@ export default function MarkRevisionAuditLog() {
                       </span>
                     </div>
                     <div style={cellStyle}>
+                      <span style={publishedByNameStyle}>{sub.published_by || "N/A"}</span>
+                    </div>
+                    <div style={cellStyle}>
                       <span style={dateStyle}>{formatDate(sub.published_at)}</span>
                     </div>
                     <div style={cellStyle}>
-                      <div style={actionButtonsStyle}>
+                      <span style={modifiedByNameStyle}>{sub.updated_by || "N/A"}</span>
+                    </div>
+                    <div style={cellStyle}>
+                      <span style={dateStyle}>{sub.updated_at ? formatDate(sub.updated_at) : "N/A"}</span>
+                    </div>
+                    <div style={cellStyle}>
+                      <div style={stackedButtonsStyle}>
                         <button
                           onClick={() => {
                             setSelectedSubmission(sub);
                             setShowEditModal(true);
                           }}
-                          style={editBtnStyle}
+                          style={stackedEditBtnStyle}
                           title="Edit Mark"
                         >
                           ✏️ Edit
@@ -504,7 +968,7 @@ export default function MarkRevisionAuditLog() {
                             setSelectedSubmission(sub);
                             setShowDeleteModal(true);
                           }}
-                          style={deleteBtnStyle}
+                          style={stackedDeleteBtnStyle}
                           title="Delete Mark"
                         >
                           🗑️ Delete
@@ -515,8 +979,57 @@ export default function MarkRevisionAuditLog() {
                 ))
               )}
             </div>
+
+            {/* Pagination */}
+            {!loading && filteredSubmissions.length > 0 && (
+              <div style={paginationContainerStyle}>
+                <div style={paginationInfoStyle}>
+                  <span>Page {currentPage} of {totalPages}</span>
+                </div>
+                <div style={paginationControlsStyle}>
+                  <button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    style={paginationButtonStyle(currentPage === 1)}
+                  >
+                    ← Previous
+                  </button>
+                  
+                  <div style={pageNumbersStyle}>
+                    {getPageNumbers().map((page, index) => (
+                      page === '...' ? (
+                        <span key={`ellipsis-${index}`} style={ellipsisStyle}>...</span>
+                      ) : (
+                        <button
+                          key={page}
+                          onClick={() => handlePageChange(page)}
+                          style={pageNumberButtonStyle(currentPage === page)}
+                        >
+                          {page}
+                        </button>
+                      )
+                    ))}
+                  </div>
+                  
+                  <button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    style={paginationButtonStyle(currentPage === totalPages)}
+                  >
+                    Next →
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
+
+        {/* Mark Revision Log Table */}
+        <MarkRevisionLogTable 
+          revisions={revisions}
+          loading={revisionsLoading}
+          onRefresh={fetchRevisionLog}
+        />
       </main>
 
       {/* Modals and Popups */}
@@ -583,42 +1096,42 @@ const mainCardStyle = {
   backgroundColor: "#fff",
   border: "1px solid #d8dee8",
   borderRadius: "14px",
-  overflow: "hidden"
+  overflow: "hidden",
+  marginBottom: "32px"
 };
 
-// Updated Card Header Styles
 const cardHeaderStyle = {
-  height: "70px", // Increased from 50px
-  padding: "0 28px", // Increased padding
+  height: "70px",
+  padding: "0 28px",
   display: "flex",
   alignItems: "center",
-  gap: "14px", // Increased gap
+  gap: "14px",
   borderBottom: "1px solid #edf1f5"
 };
 
 const iconBoxStyle = {
-  width: "40px", // Increased from 30px
-  height: "40px", // Increased from 30px
+  width: "40px",
+  height: "40px",
   backgroundColor: "#3c74ff",
-  borderRadius: "10px", // Increased from 8px
+  borderRadius: "10px",
   color: "#fff",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  fontSize: "18px" 
+  fontSize: "18px"
 };
 
 const cardTitleStyle = {
-  fontSize: "18px", 
-  fontWeight: "700", 
+  fontSize: "18px",
+  fontWeight: "700",
   color: "#18243d",
   margin: 0
 };
 
 const cardSubtitleStyle = {
-  fontSize: "13px", 
-  color: "#64748b", 
-  margin: "4px 0 0 0" 
+  fontSize: "13px",
+  color: "#64748b",
+  margin: "4px 0 0 0"
 };
 
 const cardContentStyle = {
@@ -688,7 +1201,16 @@ const clearSearchBtnStyle = {
 
 const filterWrapperStyle = {
   flex: "1",
-  minWidth: "220px"
+  minWidth: "200px"
+};
+
+const itemsPerPageWrapperStyle = {
+  flex: "0.5",
+  minWidth: "140px"
+};
+
+const itemsPerPageSelectStyle = {
+  width: "100%"
 };
 
 const filterLabelStyle = {
@@ -771,17 +1293,16 @@ const clearFilterBtnStyle = {
   transition: "all 0.2s"
 };
 
-// Table Styles
+// Table Styles - Properly Aligned
 const tableContainerStyle = {
   border: "1px solid #edf1f5",
   borderRadius: "12px",
-  overflow: "auto",
-  maxHeight: "calc(100vh - 450px)"
+  overflow: "auto"
 };
 
 const tableHeaderStyle = {
   display: "grid",
-  gridTemplateColumns: "0.8fr 1.5fr 1.2fr 0.8fr 1fr 0.9fr",
+  gridTemplateColumns: "0.7fr 1.5fr 1.1fr 0.6fr 0.9fr 1fr 0.9fr 1fr 0.7fr",
   backgroundColor: "#f9fafb",
   borderBottom: "1px solid #edf1f5",
   position: "sticky",
@@ -790,7 +1311,7 @@ const tableHeaderStyle = {
 };
 
 const headerCellStyle = {
-  padding: "14px 16px",
+  padding: "14px 12px",
   fontSize: "11px",
   fontWeight: "700",
   color: "#5c6b80",
@@ -801,20 +1322,88 @@ const headerCellStyle = {
 
 const tableRowStyle = (isLast) => ({
   display: "grid",
-  gridTemplateColumns: "0.8fr 1.5fr 1.2fr 0.8fr 1fr 0.9fr",
+  gridTemplateColumns: "0.7fr 1.5fr 1.1fr 0.6fr 0.9fr 1fr 0.9fr 1fr 0.7fr",
   borderBottom: isLast ? "none" : "1px solid #edf1f5",
   transition: "background 0.2s",
   alignItems: "center"
 });
 
 const cellStyle = {
-  padding: "14px 16px",
+  padding: "14px 12px",
   display: "flex",
   flexDirection: "column",
   gap: "4px",
   alignItems: "flex-start"
 };
 
+const successTextStyle = {
+  color: "#10b981",
+  fontSize: "11px",
+  marginTop: "4px",
+  display: "block"
+};
+
+const charCountStyle = (length) => ({
+  color: length > 1900 ? (length > 2000 ? "#ef4444" : "#f59e0b") : "#94a3b8",
+  fontSize: "11px",
+  marginTop: "4px",
+  display: "block"
+});
+
+const pdfLinkStyle = {
+  fontSize: "11px",
+  fontWeight: "bold",
+  color: "#3c74ff",
+  textDecoration: "none",
+  marginTop: "4px",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "4px"
+};
+
+// Stacked Buttons Styles
+const stackedButtonsStyle = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "8px",
+  alignItems: "flex-start"
+};
+
+const stackedEditBtnStyle = {
+  padding: "6px 16px",
+  borderRadius: "6px",
+  border: "1px solid #dde3eb",
+  backgroundColor: "#fff",
+  color: "#3c74ff",
+  fontSize: "12px",
+  fontWeight: "500",
+  cursor: "pointer",
+  transition: "all 0.2s",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "6px",
+  whiteSpace: "nowrap",
+  width: "fit-content"
+};
+
+const stackedDeleteBtnStyle = {
+  padding: "6px 16px",
+  borderRadius: "6px",
+  border: "1px solid #dde3eb",
+  backgroundColor: "#fff",
+  color: "#dc2626",
+  fontSize: "12px",
+  fontWeight: "500",
+  cursor: "pointer",
+  transition: "all 0.2s",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "6px",
+  whiteSpace: "nowrap",
+  width: "fit-content"
+};
+
+// Cell Content Styles
 const submissionIdStyle = {
   fontSize: "12px",
   fontWeight: "600",
@@ -855,42 +1444,223 @@ const dateStyle = {
   color: "#64748b"
 };
 
-const actionButtonsStyle = {
+const publishedByNameStyle = {
+  fontSize: "12px",
+  fontWeight: "500",
+  color: "#64748b"
+};
+
+const modifiedByNameStyle = {
+  fontSize: "12px",
+  fontWeight: "500",
+  color: "#64748b"
+};
+
+// Revision Log Table Styles
+const revisionTableCardStyle = {
+  backgroundColor: "#fff",
+  border: "1px solid #d8dee8",
+  borderRadius: "14px",
+  overflow: "hidden",
+  marginTop: "32px"
+};
+
+const revisionCardHeaderStyle = {
+  height: "70px",
+  padding: "0 28px",
   display: "flex",
-  gap: "8px",
+  alignItems: "center",
+  gap: "14px",
+  borderBottom: "1px solid #edf1f5"
+};
+
+const filterContainerStyle = {
+  display: "flex",
+  gap: "24px",
+  marginBottom: "24px",
+  flexWrap: "wrap",
+  alignItems: "flex-end"
+};
+
+const filterInputWrapperStyle = {
+  flex: "2",
+  minWidth: "300px"
+};
+
+const filterInputContainerStyle = {
+  position: "relative",
+  width: "100%"
+};
+
+const filterIconStyle = {
+  position: "absolute",
+  left: "14px",
+  top: "50%",
+  transform: "translateY(-50%)",
+  fontSize: "16px",
+  color: "#9aa8bb",
+  pointerEvents: "none",
+  zIndex: 1
+};
+
+const filterInputStyle = {
+  width: "100%",
+  padding: "12px 40px 12px 42px",
+  borderRadius: "10px",
+  border: "1px solid #dde3eb",
+  fontSize: "14px",
+  color: "#2e3b52",
+  outline: "none",
+  transition: "all 0.2s",
+  backgroundColor: "#fff",
+  boxSizing: "border-box"
+};
+
+const clearFilterInputBtnStyle = {
+  position: "absolute",
+  right: "12px",
+  top: "50%",
+  transform: "translateY(-50%)",
+  background: "none",
+  border: "none",
+  cursor: "pointer",
+  color: "#9aa8bb",
+  fontSize: "14px",
+  padding: "4px",
+  borderRadius: "4px",
+  transition: "all 0.2s",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center"
+};
+
+const revisionTableContainerStyle = {
+  border: "1px solid #edf1f5",
+  borderRadius: "12px",
+  overflow: "auto"
+};
+
+const revisionTableHeaderStyle = {
+  display: "grid",
+  gridTemplateColumns: "0.9fr 0.7fr 0.7fr 0.6fr 2.2fr 1fr 1.2fr",
+  backgroundColor: "#f9fafb",
+  borderBottom: "1px solid #edf1f5",
+  position: "sticky",
+  top: 0,
+  zIndex: 10
+};
+
+const revisionHeaderCellStyle = {
+  padding: "12px 12px",
+  fontSize: "11px",
+  fontWeight: "700",
+  color: "#5c6b80",
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  textAlign: "left"
+};
+
+const revisionTableRowStyle = (isLast) => ({
+  display: "grid",
+  gridTemplateColumns: "0.9fr 0.7fr 0.7fr 0.6fr 2.2fr 1fr 1.2fr",
+  borderBottom: isLast ? "none" : "1px solid #edf1f5",
+  transition: "background 0.2s",
   alignItems: "center"
+});
+
+const revisionCellStyle = {
+  padding: "12px 12px",
+  display: "flex",
+  flexDirection: "column",
+  gap: "4px",
+  alignItems: "flex-start"
 };
 
-const editBtnStyle = {
-  padding: "6px 14px",
-  borderRadius: "6px",
-  border: "1px solid #dde3eb",
-  backgroundColor: "#fff",
-  color: "#3c74ff",
-  fontSize: "12px",
+const oldMarkStyle = {
+  fontSize: "13px",
   fontWeight: "500",
-  cursor: "pointer",
-  transition: "all 0.2s",
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "4px",
-  whiteSpace: "nowrap"
+  color: "#ef4444"
 };
 
-const deleteBtnStyle = {
-  padding: "6px 14px",
-  borderRadius: "6px",
-  border: "1px solid #dde3eb",
-  backgroundColor: "#fff",
-  color: "#dc2626",
-  fontSize: "12px",
+const newMarkStyle = {
+  fontSize: "13px",
   fontWeight: "500",
-  cursor: "pointer",
-  transition: "all 0.2s",
-  display: "inline-flex",
+  color: "#10b981"
+};
+
+const changeStyle = {
+  fontSize: "12px",
+  fontWeight: "600"
+};
+
+const reasonStyle = {
+  fontSize: "12px",
+  color: "#4b5563",
+  lineHeight: "1.4",
+  maxWidth: "280px"
+};
+
+// Pagination Styles
+const paginationContainerStyle = {
+  display: "flex",
+  justifyContent: "space-between",
   alignItems: "center",
-  gap: "4px",
-  whiteSpace: "nowrap"
+  padding: "20px 24px",
+  borderTop: "1px solid #edf1f5",
+  backgroundColor: "#fafbfc",
+  marginTop: "20px",
+  flexWrap: "wrap",
+  gap: "16px"
+};
+
+const paginationInfoStyle = {
+  fontSize: "13px",
+  color: "#5c6b80"
+};
+
+const paginationControlsStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "12px",
+  flexWrap: "wrap"
+};
+
+const pageNumbersStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "6px"
+};
+
+const paginationButtonStyle = (disabled) => ({
+  padding: "8px 16px",
+  borderRadius: "8px",
+  border: "1px solid #dde3eb",
+  backgroundColor: disabled ? "#f5f5f5" : "#fff",
+  color: disabled ? "#b0b0b0" : "#3c74ff",
+  fontSize: "13px",
+  fontWeight: "500",
+  cursor: disabled ? "not-allowed" : "pointer",
+  transition: "all 0.2s"
+});
+
+const pageNumberButtonStyle = (active) => ({
+  minWidth: "36px",
+  height: "36px",
+  padding: "0 8px",
+  borderRadius: "8px",
+  border: active ? "none" : "1px solid #dde3eb",
+  backgroundColor: active ? "#3c74ff" : "#fff",
+  color: active ? "#fff" : "#5c6b80",
+  fontSize: "13px",
+  fontWeight: active ? "600" : "500",
+  cursor: "pointer",
+  transition: "all 0.2s"
+});
+
+const ellipsisStyle = {
+  padding: "0 4px",
+  color: "#9aa8bb",
+  fontSize: "13px"
 };
 
 // Loading and Empty States
@@ -1318,46 +2088,6 @@ if (typeof document !== 'undefined') {
     
     button:hover {
       transform: translateY(-1px);
-    }
-    
-    ${editBtnStyle.selector}hover {
-      background-color: #3c74ff;
-      color: #fff;
-      border-color: #3c74ff;
-    }
-    
-    ${deleteBtnStyle.selector}hover {
-      background-color: #dc2626;
-      color: #fff;
-      border-color: #dc2626;
-    }
-    
-    ${modalCancelBtnStyle.selector}hover {
-      background-color: #f8f9fc;
-      border-color: #cbd5e1;
-    }
-    
-    ${modalSaveBtnStyle.selector}hover {
-      background-color: #2563eb;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(60, 116, 255, 0.3);
-    }
-    
-    ${clearFilterBtnStyle.selector}hover {
-      background-color: rgba(60, 116, 255, 0.1);
-    }
-    
-    ${clearSearchBtnStyle.selector}hover {
-      background-color: #f1f5f9;
-    }
-    
-    ${filterSelectStyle.selector}hover {
-      border-color: #3c74ff;
-    }
-    
-    ${searchInputStyle.selector}:hover,
-    ${searchInputStyle.selector}:focus {
-      border-color: #3c74ff;
     }
   `;
   document.head.appendChild(style);
