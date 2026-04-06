@@ -4,10 +4,95 @@ const { pool, poolConnect, sql } = require('../../config/db');
 /* UPLOAD */
 exports.uploadSubmission = async (req, res) => {
     try {
-        const result = await service.upload(req);
-        res.json(result);
+        if (!req.file) {
+            return res.status(400).json({ error: "No file uploaded" });
+        }
+
+        const file = req.file;
+
+        const storagePath = require("path").resolve(file.path);
+
+        const fs = require("fs");
+        const crypto = require("crypto");
+
+        // ===== READ FILE =====
+        const buffer = fs.readFileSync(file.path);
+
+        // ===== HASH (keep for integrity + ML) =====
+        const hash = crypto.createHash("sha256").update(buffer).digest("hex");
+
+        // ===== INSERT FILE (FULL DETAILS) =====
+        const fileResult = await pool.request()
+            .input("original_file_name", sql.VarChar, file.originalname)
+            .input("stored_file_name", sql.VarChar, file.filename)
+            .input("storage_category", sql.VarChar, "STUDENT_SUBMISSION")
+            .input("storage_path", sql.VarChar, storagePath)
+            .input("mime_type", sql.VarChar, file.mimetype)
+            .input("file_size_bytes", sql.BigInt, file.size)
+            .input("sha256_hash", sql.VarChar, hash)
+            .input("upload_user_id", sql.Int, req.body.student_id)
+            .query(`
+                INSERT INTO file_storage (
+                    original_file_name,
+                    stored_file_name,
+                    storage_category,
+                    storage_path,
+                    mime_type,
+                    file_size_bytes,
+                    sha256_hash,
+                    upload_user_id
+                )
+                OUTPUT INSERTED.file_id
+                VALUES (
+                    @original_file_name,
+                    @stored_file_name,
+                    @storage_category,
+                    @storage_path,
+                    @mime_type,
+                    @file_size_bytes,
+                    @sha256_hash,
+                    @upload_user_id
+                )
+            `);
+
+        const file_id = fileResult.recordset[0].file_id;
+
+        // ===== INSERT SUBMISSION =====
+        const submissionResult = await pool.request()
+            .input("assessment_id", sql.Int, req.body.assessment_id)
+            .input("student_id", sql.Int, req.body.student_id)
+            .input("file_id", sql.Int, file_id)
+            .input("hash", sql.VarChar, hash)
+            .query(`
+                INSERT INTO submission (
+                    assessment_id,
+                    student_id,
+                    file_id,
+                    integrity_hash,
+                    submitted_at,
+                    submission_status
+                )
+                OUTPUT INSERTED.submission_id
+                VALUES (
+                    @assessment_id,
+                    @student_id,
+                    @file_id,
+                    @hash,
+                    GETDATE(),
+                    'SUBMITTED'
+                )
+            `);
+
+        res.json({
+            success: true,
+            submission_id: submissionResult.recordset[0].submission_id,
+            file_id,
+            file_path: storagePath
+        });
+
     } catch (err) {
-        res.status(400).json({ error: err.message });
+        console.error("UPLOAD ERROR:", err);
+        res.status(500).json({ error: err.message });
     }
 };
 

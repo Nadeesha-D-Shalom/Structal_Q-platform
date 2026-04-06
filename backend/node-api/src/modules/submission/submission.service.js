@@ -3,11 +3,14 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require("path");
 
-/* =====================================================
-   UPLOAD SUBMISSION
-===================================================== */
+
+// =====================================================
+// UPLOAD SUBMISSION
+// =====================================================
 exports.upload = async (req) => {
     try {
+        await poolConnect;
+
         if (!req.file) throw new Error("File required");
 
         const { assessment_id, student_id } = req.body;
@@ -16,54 +19,46 @@ exports.upload = async (req) => {
             throw new Error("assessment_id and student_id are required");
         }
 
-        await poolConnect;
-
-        /* ================= FILE VALIDATION ================= */
-
-        if (req.file.mimetype !== 'application/pdf') {
-            throw new Error("Only PDF files are allowed");
+        // ================= IGNORE TEMP FILES =================
+        if (req.file.originalname.startsWith("~$")) {
+            throw new Error("Temporary files are not allowed");
         }
 
-        /* ================= HASH GENERATION ================= */
+        // ================= FILE VALIDATION =================
+        const allowedTypes = [
+            "application/pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ];
 
+        if (!allowedTypes.includes(req.file.mimetype)) {
+            throw new Error("Only PDF and DOCX files are allowed");
+        }
+
+        // ================= HASH =================
         const fileBuffer = fs.readFileSync(req.file.path);
-        const hash = crypto
-            .createHash('sha256')
-            .update(fileBuffer)
-            .digest('hex');
+        const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
-        /* ================= DUPLICATE CHECK ================= */
-
-        const duplicateCheck = await pool.request()
+        // ================= DUPLICATE CHECK =================
+        const duplicate = await pool.request()
             .input('hash', sql.VarChar, hash)
-            .query(`
-                SELECT file_id 
-                FROM file_storage 
-                WHERE sha256_hash = @hash
-            `);
+            .query(`SELECT file_id FROM file_storage WHERE sha256_hash = @hash`);
 
-        if (duplicateCheck.recordset.length > 0) {
+        if (duplicate.recordset.length > 0) {
             throw new Error("Duplicate file detected");
         }
 
-        /* ================= ASSESSMENT CHECK ================= */
-
-        const assessment = await pool.request()
+        // ================= ASSESSMENT =================
+        const assessmentRes = await pool.request()
             .input('assessment_id', sql.Int, assessment_id)
-            .query(`
-                SELECT * 
-                FROM assessment 
-                WHERE assessment_id = @assessment_id
-            `);
+            .query(`SELECT * FROM assessment WHERE assessment_id = @assessment_id`);
 
-        if (assessment.recordset.length === 0) {
+        if (!assessmentRes.recordset.length) {
             throw new Error("Assessment not found");
         }
 
-        const assess = assessment.recordset[0];
+        const assess = assessmentRes.recordset[0];
 
-        /* ================= LATE CHECK ================= */
-
+        // ================= LATE CHECK =================
         const now = new Date();
         const dueDate = new Date(assess.due_date);
 
@@ -80,9 +75,8 @@ exports.upload = async (req) => {
             }
         }
 
-        /* ================= ATTEMPT NUMBER ================= */
-
-        const attemptQuery = await pool.request()
+        // ================= ATTEMPT =================
+        const attemptRes = await pool.request()
             .input('assessment_id', sql.Int, assessment_id)
             .input('student_id', sql.Int, student_id)
             .query(`
@@ -92,20 +86,18 @@ exports.upload = async (req) => {
                 AND student_id = @student_id
             `);
 
-        const attemptNo = attemptQuery.recordset[0].maxAttempt
-            ? attemptQuery.recordset[0].maxAttempt + 1
+        const attemptNo = attemptRes.recordset[0].maxAttempt
+            ? attemptRes.recordset[0].maxAttempt + 1
             : 1;
 
-        /* ================= FILE PATH ================= */
-
+        // ================= PATH =================
         const fullPath = path.resolve(req.file.path);
 
-        /* ================= INSERT FILE ================= */
-
+        // ================= INSERT FILE =================
         const fileInsert = await pool.request()
             .input('original_file_name', sql.VarChar, req.file.originalname)
             .input('stored_file_name', sql.VarChar, req.file.filename)
-            .input('storage_category', sql.VarChar, assess.assessment_type)
+            .input('storage_category', sql.VarChar, "STUDENT_SUBMISSION") // ✅ FIXED
             .input('storage_path', sql.VarChar, fullPath)
             .input('mime_type', sql.VarChar, req.file.mimetype)
             .input('file_size_bytes', sql.BigInt, req.file.size)
@@ -137,8 +129,7 @@ exports.upload = async (req) => {
 
         const file_id = fileInsert.recordset[0].file_id;
 
-        /* ================= INSERT SUBMISSION ================= */
-
+        // ================= INSERT SUBMISSION =================
         await pool.request()
             .input('assessment_id', sql.Int, assessment_id)
             .input('student_id', sql.Int, student_id)
@@ -171,12 +162,7 @@ exports.upload = async (req) => {
         return {
             success: true,
             message: "Submission successful",
-            data: {
-                attemptNo,
-                isLate,
-                lateMinutes,
-                file_id
-            }
+            data: { attemptNo, isLate, lateMinutes, file_id }
         };
 
     } catch (error) {
@@ -186,52 +172,81 @@ exports.upload = async (req) => {
 };
 
 
-/* =====================================================
-   GET ALL SUBMISSIONS (LECTURER DASHBOARD)
-===================================================== */
+// =====================================================
+// GET ALL SUBMISSIONS (LECTURER)
+// =====================================================
 exports.getAllSubmissionsForLecturer = async () => {
     await poolConnect;
 
     const result = await pool.request().query(`
-        SELECT DISTINCT
-            s.submission_id,
-            s.assessment_id,
-            s.student_id,
-            s.attempt_no,
-            s.is_late,
-            s.late_minutes,
-            s.file_id,
-            s.submitted_at,
+        SELECT 
+    s.submission_id,
+    s.assessment_id,
+    s.student_id,
+    s.attempt_no,
+    s.is_late,
+    s.late_minutes,
+    s.file_id,
+    s.submitted_at,
 
-            f.original_file_name,
-            f.storage_path,
+    f.original_file_name,
+    f.storage_path,
 
-            -- ONLY ONE RECORD PER SUBMISSION
-            MAX(ar.similarity_avg) AS similarity_avg,
-            MAX(ar.risk_score) AS risk_score
+    ISNULL(ar.similarity_avg, 0) AS similarity_avg,
+    ISNULL(ar.risk_score, 0) AS risk_score
 
-        FROM submission s
+FROM submission s
 
-        INNER JOIN file_storage f 
-            ON s.file_id = f.file_id
+INNER JOIN file_storage f 
+    ON s.file_id = f.file_id
 
-        LEFT JOIN analysis_result ar 
-            ON ar.submission_id = s.submission_id
+OUTER APPLY (
+    SELECT TOP 1 *
+    FROM analysis_result ar
+    WHERE ar.submission_id = s.submission_id
+    ORDER BY ar.analysis_result_id DESC
+) ar
 
-        GROUP BY 
-            s.submission_id,
-            s.assessment_id,
-            s.student_id,
-            s.attempt_no,
-            s.is_late,
-            s.late_minutes,
-            s.file_id,
-            s.submitted_at,
-            f.original_file_name,
-            f.storage_path
+WHERE f.storage_category = 'STUDENT_SUBMISSION'
 
-        ORDER BY s.submitted_at DESC
+ORDER BY s.submitted_at DESC;
     `);
+
+    return result.recordset;
+};
+
+
+exports.getSubmissionsByAssessment = async (assessmentId) => {
+    await poolConnect;
+
+    const result = await pool.request()
+        .input("assessmentId", sql.Int, assessmentId)
+        .query(`
+            SELECT 
+                s.submission_id,
+                s.assessment_id,
+                s.student_id,
+                s.file_id,
+
+                fs.storage_path,
+
+                mg.marking_guide_id,
+                fs2.storage_path AS guide_path
+
+            FROM submission s
+
+            INNER JOIN file_storage fs 
+                ON s.file_id = fs.file_id
+
+            INNER JOIN marking_guide mg 
+                ON s.assessment_id = mg.assessment_id
+
+            INNER JOIN file_storage fs2
+                ON mg.file_id = fs2.file_id
+
+            WHERE s.assessment_id = @assessmentId
+              AND fs.storage_category = 'STUDENT_SUBMISSION'
+        `);
 
     return result.recordset;
 };

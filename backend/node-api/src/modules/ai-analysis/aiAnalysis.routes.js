@@ -9,11 +9,16 @@ const controller = require("./aiAnalysis.controller");
 // Main analysis endpoint
 router.post("/analyze", controller.analyzeSubmission);
 
-// Get analysis results
-router.get("/results/:submissionId", controller.getAnalysisResults);
+
 
 // Evaluate all submissions
 router.post("/evaluate-all/:assessmentId", controller.evaluateAllSubmissions);
+router.get("/results/all", controller.getAllEvaluatedResults);
+
+
+// Get analysis results
+router.get("/results/:submissionId", controller.getAnalysisResults);
+
 
 // Compare documents
 router.post("/compare", async (req, res) => {
