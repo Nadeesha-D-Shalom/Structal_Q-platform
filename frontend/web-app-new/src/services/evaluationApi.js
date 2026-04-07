@@ -32,6 +32,8 @@ export const getAssessments    = ()           => API.get("/assessments");
 // ── EMAIL LOGS ────────────────────────────────────────────────────────
 export const getEmailLogs      = (scheduleId) => API.get(`/schedules/${scheduleId}/email-logs`);
 export const retryFailedEmails = (scheduleId) => API.post(`/schedules/${scheduleId}/retry-emails`);
+export const sendReminderBlast = (scheduleId) => API.post(`/schedules/${scheduleId}/send-reminders`);
+export const resendGroupEmail  = (logId)      => API.post(`/email-logs/${logId}/resend`);
 
 // ── STUDENT VIEW ──────────────────────────────────────────────────────
 export const getStudentSchedules = () => API.get("/student/schedules");

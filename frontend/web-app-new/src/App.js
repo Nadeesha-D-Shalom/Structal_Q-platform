@@ -18,6 +18,9 @@ import ConcernReviewResolution from "./pages/lecturer/ReviewConcern";
 import LecturerSubmissions from "./pages/lecturer/LecturerSubmissions";
 import ViewSubmission from "./pages/lecturer/ViewSubmission";
 
+/* EVALUATION SCHEDULING */
+import EvaluationScheduling from "./pages/lecturer/EvaluationScheduling";
+
 /* AI MODULE */
 import MLAnalysisConfig from "./pages/lecturer/MLAnalysisConfig";
 import MLAnalysisResult from "./pages/lecturer/MLAnalysisResult";
@@ -47,6 +50,9 @@ function App() {
         <Route path="/lecturer/submissions" element={<LecturerSubmissions />} />
         <Route path="/lecturer/submissions/:id" element={<ViewSubmission />} />
         <Route path="/lecturer/view-submission" element={<ViewSubmission />} />
+
+        {/* ================= EVALUATION SCHEDULING ================= */}
+        <Route path="/lecturer/evaluation" element={<EvaluationScheduling />} />
 
         {/* ================= AI ANALYSIS ================= */}
         <Route path="/lecturer/ml-analysis" element={<MLAnalysisConfig />} />

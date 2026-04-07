@@ -351,7 +351,9 @@ CREATE TABLE [evaluation_schedule] (
   [created_by] bigint NOT NULL,
   [created_at] datetime,
   [updated_at] datetime,
-  [status] nvarchar(255)
+  [status] nvarchar(255),
+  [fallback_recipient_email] nvarchar(255),
+  [fallback_recipient_name] nvarchar(100)
 )
 GO
 
@@ -382,11 +384,14 @@ GO
 CREATE TABLE [evaluation_email_log] (
   [email_log_id] bigint PRIMARY KEY IDENTITY(1, 1),
   [evaluation_schedule_id] bigint NOT NULL,
-  [recipient_user_id] bigint NOT NULL,
+  [recipient_user_id] bigint,
   [email_type] nvarchar(255),
   [sent_at] datetime,
   [delivery_status] nvarchar(255),
-  [retry_count] int
+  [retry_count] int,
+  [recipient_count] int,
+  [recipient_emails] nvarchar(2000),
+  [group_label] nvarchar(100)
 )
 GO
 

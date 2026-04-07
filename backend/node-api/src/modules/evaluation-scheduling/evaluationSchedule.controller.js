@@ -1,7 +1,6 @@
 'use strict';
 
-const sql    = require('mssql');
-const config = require('../../config/db');
+const { pool, sql } = require('../../config/db');
 
 // Load typed email helpers; fall back to no-ops if service is missing
 // AFTER
@@ -236,7 +235,7 @@ async function resolveScheduleConflicts(pool, scheduleId) {
 
 exports.getAllAssessments = async (req, res) => {
     try {
-        const pool   = await sql.connect(config);
+
         const result = await pool.request()
             .query(`SELECT assessment_id, assessment_title FROM Assessments ORDER BY assessment_title`);
         res.json(result.recordset);
@@ -263,7 +262,7 @@ exports.createLocation = async (req, res) => {
             return res.status(400).json({ message: 'Invalid available_from or available_to time.' });
         }
 
-        const pool = await sql.connect(config);
+
         await pool.request()
             .input('location_name',  sql.VarChar(255), location_name.trim())
             .input('building_name',  sql.VarChar(255), building_name.trim())
@@ -288,7 +287,7 @@ exports.createLocation = async (req, res) => {
 
 exports.getAllLocations = async (req, res) => {
     try {
-        const pool = await sql.connect(config);
+
         const result = await pool.request()
             .query(`
                 SELECT
@@ -328,7 +327,7 @@ exports.updateLocation = async (req, res) => {
             return res.status(400).json({ message: 'Invalid available_from or available_to time.' });
         }
 
-        const pool  = await sql.connect(config);
+
         const check = await pool.request()
             .input('id', sql.Int, id)
             .query(`SELECT location_id FROM evaluation_location WHERE location_id = @id`);
@@ -366,7 +365,7 @@ exports.deleteLocation = async (req, res) => {
         const id = Number(req.params.id);
         if (!id) return res.status(400).json({ message: 'Invalid location ID.' });
 
-        const pool = await sql.connect(config);
+
 
         const check = await pool.request()
             .input('id', sql.Int, id)
@@ -402,7 +401,7 @@ exports.hardDeleteLocation = async (req, res) => {
         const id = Number(req.params.id);
         if (!id) return res.status(400).json({ message: 'Invalid location ID.' });
 
-        const pool = await sql.connect(config);
+
 
         // 1. Check exists and is INACTIVE
         const check = await pool.request()
@@ -515,7 +514,7 @@ exports.createSchedule = async (req, res) => {
             });
         }
 
-        const pool = await sql.connect(config);
+
 
         const locationCheck = await pool.request()
             .input('location_id', sql.Int, Number(location_id))
@@ -626,7 +625,7 @@ exports.updateSchedule = async (req, res) => {
         const scheduleId = Number(req.params.id);
         if (!scheduleId) return res.status(400).json({ message: 'Invalid schedule ID.' });
 
-        const pool = await sql.connect(config);
+
         const currentRes = await pool.request()
             .input('id', sql.Int, scheduleId)
             .query(`
@@ -885,7 +884,7 @@ exports.updateSchedule = async (req, res) => {
 
 exports.getSchedules = async (req, res) => {
     try {
-        const pool   = await sql.connect(config);
+
         const result = await pool.request().query(`
             SELECT
                 es.evaluation_schedule_id,
@@ -934,7 +933,7 @@ exports.publishSchedule = async (req, res) => {
 
         if (!scheduleId) return res.status(400).json({ message: 'Invalid schedule ID.' });
 
-        const pool = await sql.connect(config);
+
 
         const check = await pool.request()
             .input('id', sql.Int, scheduleId)
@@ -1059,7 +1058,7 @@ exports.cancelSchedule = async (req, res) => {
         const scheduleId = Number(req.params.id);
         if (!scheduleId) return res.status(400).json({ message: 'Invalid schedule ID.' });
 
-        const pool = await sql.connect(config);
+
 
         const check = await pool.request()
             .input('id', sql.Int, scheduleId)
@@ -1090,7 +1089,7 @@ exports.deleteSchedule = async (req, res) => {
         const id = Number(req.params.id);
         if (!id) return res.status(400).json({ message: 'Invalid schedule ID.' });
 
-        const pool = await sql.connect(config);
+
 
         const check = await pool.request()
             .input('id', sql.Int, id)
@@ -1143,7 +1142,7 @@ exports.getSlotsBySchedule = async (req, res) => {
         const scheduleId = Number(req.params.id);
         if (!scheduleId) return res.status(400).json({ message: 'Missing schedule id.' });
 
-        const pool   = await sql.connect(config);
+
         const result = await pool.request()
             .input('schedule_id', sql.Int, scheduleId)
             .query(`
@@ -1196,7 +1195,7 @@ exports.assignGroupToSlot = async (req, res) => {
             return res.status(400).json({ message: 'slotId and group_id are required.' });
         }
 
-        const pool = await sql.connect(config);
+
         const transaction = new sql.Transaction(pool);
 
         // Fetch slot + schedule + location info in one query for email enrichment
@@ -1385,7 +1384,7 @@ exports.retryFailedEmails = async (req, res) => {
         const scheduleId = Number(req.params.id);
         if (!scheduleId) return res.status(400).json({ message: 'Invalid schedule ID.' });
 
-        const pool = await sql.connect(config);
+
 
         const hasUserTable = await userTableExists(pool);
         if (!hasUserTable) {
@@ -1507,7 +1506,7 @@ exports.getConflicts = async (req, res) => {
         const id = Number(req.params.id);
         if (!id) return res.status(400).json({ message: 'Invalid schedule ID.' });
 
-        const pool   = await sql.connect(config);
+
         const result = await pool.request()
             .input('id', sql.Int, id)
             .query(`
@@ -1531,7 +1530,7 @@ exports.getEmailLogs = async (req, res) => {
         const id = Number(req.params.id);
         if (!id) return res.status(400).json({ message: 'Invalid schedule ID.' });
 
-        const pool           = await sql.connect(config);
+
         const hasUserTable   = await userTableExists(pool);
 
         let result;
@@ -1601,7 +1600,7 @@ exports.getEmailLogs = async (req, res) => {
 
 exports.getStudentScheduleView = async (req, res) => {
     try {
-        const pool = await sql.connect(config);
+
 
         // ── 1. Fetch all PUBLISHED schedules with location + assessment info ──
         const scheduleRes = await pool.request().query(`
@@ -1733,7 +1732,7 @@ exports.sendReminderBlast = async (req, res) => {
         const scheduleId = Number(req.params.id);
         if (!scheduleId) return res.status(400).json({ message: 'Invalid schedule ID.' });
 
-        const pool = await sql.connect(config);
+
 
         // Get schedule + location info
         const schedRes = await pool.request()
@@ -1862,7 +1861,7 @@ exports.resendGroupEmail = async (req, res) => {
         const logId = Number(req.params.logId);
         if (!logId) return res.status(400).json({ message: 'Invalid log ID.' });
 
-        const pool = await sql.connect(config);
+
 
         const logRes = await pool.request()
             .input('id', sql.Int, logId)
