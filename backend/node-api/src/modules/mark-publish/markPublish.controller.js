@@ -2,7 +2,7 @@ const { pool, sql } = require("../../config/db");
 const path = require("path");
 const mime = require('mime-types');
 const fs = require("fs");
-const { DateTime } = require("mssql");
+const { Parser } = require('json2csv');
 
 exports.getAllAssessments = async (req, res, next) => {
     try {
@@ -20,25 +20,57 @@ exports.getAllAssessments = async (req, res, next) => {
 exports.getPendingSubmissions = async (req, res, next) => {
     try {
         const { assessment_id } = req.query;
+        
         const result = await pool.request()
             .input("aid", sql.BigInt, assessment_id)
             .query(`
                 SELECT 
-                s.student_id,
-                s.submission_id,
-                ar.analysis_result_id
+                    s.submission_id,
+                    s.student_id,
+                    er.ai_marks,
+                    er.diagram_marks,
+                    er.final_mark as evaluated_final_mark,
+                    a.assessment_title,
+                    a.total_marks as max_mark
                 FROM submission s
-                -- JOIN ensures the AI has actually processed the file
-                JOIN analysis_result ar ON ar.submission_id = s.submission_id
-                -- LEFT JOIN + NULL check identifies "Unpublished" marks
-                LEFT JOIN final_mark fm ON fm.submission_id = s.submission_id
+                JOIN assessment a ON s.assessment_id = a.assessment_id
+                JOIN evaluated_results er ON s.submission_id = er.submission_id
+                LEFT JOIN final_mark fm ON s.submission_id = fm.submission_id
                 WHERE s.assessment_id = @aid
-                AND fm.submission_id IS NULL
+                    AND fm.submission_id IS NULL
+                    AND er.final_mark IS NOT NULL
                 ORDER BY s.submitted_at ASC
             `);
         
-        res.json(result.recordset || []);
+        // Get summary statistics
+        const stats = await pool.request()
+            .input("aid", sql.BigInt, assessment_id)
+            .query(`
+                SELECT 
+                    COUNT(*) as total_pending,
+                    AVG(er.final_mark) as avg_mark,
+                    MAX(er.final_mark) as max_mark,
+                    MIN(er.final_mark) as min_mark
+                FROM submission s
+                JOIN evaluated_results er ON s.submission_id = er.submission_id
+                LEFT JOIN final_mark fm ON s.submission_id = fm.submission_id
+                WHERE s.assessment_id = @aid
+                    AND fm.submission_id IS NULL
+                    AND er.final_mark IS NOT NULL
+            `);
+        
+        res.json({
+            success: true,
+            data: result.recordset || [],
+            stats: stats.recordset[0] || {
+                total_pending: 0,
+                avg_mark: 0,
+                max_mark: 0,
+                min_mark: 0
+            }
+        });
     } catch (err) { 
+        console.error("Error fetching pending submissions:", err);
         next(err); 
     }
 };
@@ -80,158 +112,241 @@ exports.getPdf = async (req, res, next) => {
 };
 
 
-exports.getAiScores = async (req, res, next) => {
+// Save evaluated results
+exports.saveEvaluatedResults = async (req, res) => {
     try {
-        const { submission_id } = req.params;
-        const result = await pool.request()
-            .input("sid", sql.BigInt, submission_id)
-            .query(`
-                SELECT 
-                    ar.submission_id,
-                    ar.risk_level,
-                    ar.status,
-                    -- Calculate Question Total
-                    ISNULL((SELECT SUM(suggested_marks) FROM ai_question_score WHERE analysis_result_id = ar.analysis_result_id), 0) AS q_marks,
-                    -- Calculate Rubric Total
-                    ISNULL((SELECT SUM(suggested_marks) FROM ai_rubric_score WHERE analysis_result_id = ar.analysis_result_id), 0) AS r_marks,
-                    -- Calculate Final Combined Mark (Capped at 100)
-                    CASE 
-                        WHEN (
-                            ISNULL((SELECT SUM(suggested_marks) FROM ai_question_score WHERE analysis_result_id = ar.analysis_result_id), 0) + 
-                            ISNULL((SELECT SUM(suggested_marks) FROM ai_rubric_score WHERE analysis_result_id = ar.analysis_result_id), 0)
-                        ) > 100 THEN 100
-                        WHEN (
-                            ISNULL((SELECT SUM(suggested_marks) FROM ai_question_score WHERE analysis_result_id = ar.analysis_result_id), 0) + 
-                            ISNULL((SELECT SUM(suggested_marks) FROM ai_rubric_score WHERE analysis_result_id = ar.analysis_result_id), 0)
-                        ) < 0 THEN 0
-                        ELSE (
-                            ISNULL((SELECT SUM(suggested_marks) FROM ai_question_score WHERE analysis_result_id = ar.analysis_result_id), 0) + 
-                            ISNULL((SELECT SUM(suggested_marks) FROM ai_rubric_score WHERE analysis_result_id = ar.analysis_result_id), 0)
-                        )
-                    END AS final_mark
-                FROM analysis_result ar
-                WHERE ar.submission_id = @sid;
-            `);
+        const { results } = req.body;
+        const savedResults = [];
 
-        //validation
-        if (!result.recordset || result.recordset.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: `No AI analysis found for submission: ${submission_id}`
-            });
+        for (const result of results) {
+            // Check if already exists
+            const checkQuery = await pool.request()
+                .input('submission_id', sql.BigInt, result.submission_id)
+                .query(`SELECT * FROM evaluated_results WHERE submission_id = @submission_id`);
+
+            if (checkQuery.recordset.length === 0) {
+                await pool.request()
+                    .input('submission_id', sql.BigInt, result.submission_id)
+                    .input('ai_marks', sql.Decimal(5, 2), result.ai_marks)
+                    .input('diagram_marks', sql.Decimal(5, 2), result.diagram_marks)
+                    .input('final_mark', sql.Decimal(5, 2), result.final_mark)
+                    .query(`
+                        INSERT INTO evaluated_results (submission_id, ai_marks, diagram_marks, final_mark)
+                        VALUES (@submission_id, @ai_marks, @diagram_marks, @final_mark)
+                    `);
+                savedResults.push(result);
+            } else {
+                // Update existing record
+                await pool.request()
+                    .input('submission_id', sql.BigInt, result.submission_id)
+                    .input('diagram_marks', sql.Decimal(5, 2), result.diagram_marks)
+                    .input('final_mark', sql.Decimal(5, 2), result.final_mark)
+                    .query(`
+                        UPDATE evaluated_results 
+                        SET diagram_marks = @diagram_marks, final_mark = @final_mark
+                        WHERE submission_id = @submission_id
+                    `);
+                savedResults.push(result);
+            }
         }
 
-        res.status(200).json({
+        res.json({
             success: true,
-            dataset: result.recordset[0]
+            message: `${savedResults.length} results saved successfully`,
+            saved: savedResults
         });
-
     } catch (err) {
-        next(err);
+        console.error("Error saving evaluated results:", err);
+        res.status(500).json({
+            success: false,
+            message: "Failed to save evaluated results"
+        });
     }
-}
-
-exports.getDiagramPages = async (req, res, next) => {
-  try {
-    const { submission_id } = req.params;
-    const result = await pool.request()
-            .input("sid", sql.BigInt, submission_id)
-            .query(`
-                SELECT 
-                    ocr_id, 
-                    page_no 
-                FROM ocr_page_result 
-                WHERE analysis_result_id = (SELECT analysis_result_id FROM analysis_result WHERE submission_id = @sid)
-                AND has_diagram = 1
-                ORDER BY page_no ASC;
-            `);
-
-        res.status(200).json(result.recordset);
-  } catch (err) { next(err); }
 };
 
-exports.publishingMark = async (req, res, next) => {
+// Export pending marks to CSV
+exports.exportPendingMarksCSV = async (req, res, next) => {
     try {
-        const { submission_id, final_mark, enable_concern_window } = req.body;
-
-        // Once developed: const lecturer_name = req.session?.user?.user_name;
-        const published_by = "Dr Robert Fox"; 
-
-        if (!published_by) {
-            return res.status(401).json({ message: "Unauthorized: No lecturer session found." });
-        }
-
-        // Input Validation
-        if (!submission_id || final_mark === undefined) {
-            return res.status(400).json({ message: "Missing submission_id or final_mark." });
-        }
-
-        if (isNaN(final_mark) || final_mark < 0) {
-            return res.status(400).json({ message: "Invalid mark. Score must be a positive number." });
-        }
-
-        const validationData = await pool.request()
-            .input("sid", sql.BigInt, submission_id)
+        const { assessment_id } = req.params;
+        
+        const result = await pool.request()
+            .input("aid", sql.BigInt, assessment_id)
             .query(`
-                SELECT s.student_id, a.total_marks 
+                SELECT 
+                    s.submission_id,
+                    s.student_id,
+                    er.ai_marks,
+                    er.diagram_marks,
+                    er.final_mark,
+                    a.assessment_title,
+                    a.total_marks as max_mark
                 FROM submission s
                 JOIN assessment a ON s.assessment_id = a.assessment_id
-                WHERE s.submission_id = @sid
+                JOIN evaluated_results er ON s.submission_id = er.submission_id
+                LEFT JOIN final_mark fm ON s.submission_id = fm.submission_id
+                WHERE s.assessment_id = @aid
+                    AND fm.submission_id IS NULL
+                    AND er.final_mark IS NOT NULL
+                ORDER BY s.submitted_at ASC
             `);
-
-        if (validationData.recordset.length === 0) {
-            return res.status(404).json({ message: "Submission or Assessment not found." });
+        
+        if (result.recordset.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "No pending marks found for this assessment"
+            });
         }
-
-        const { student_id, total_marks } = validationData.recordset[0];
-
-        // Score Range Validation
-        if (final_mark > total_marks) {
-            return res.status(400).json({ message: `Mark (${final_mark}) exceeds max allowed (${total_marks}).` });
-        }
-
-        //Duplicate Check
-        const duplicateCheck = await pool.request()
-            .input("sid", sql.BigInt, submission_id)
-            .query("SELECT id FROM final_mark WHERE submission_id = @sid");
-
-        if (duplicateCheck.recordset.length > 0) {
-            return res.status(409).json({ message: "This submission has already been published." });
-        }
-
-        const result = await pool.request()
-            .input("sub_id",  sql.BigInt,  submission_id)
-            .input("stu_id",  sql.BigInt,  student_id)
-            .input("mark",    sql.Decimal(5, 2), final_mark)
-            .input("status",  sql.VarChar,  "PUBLISHED")
-            .input("published_by",  sql.VarChar,  published_by)
-            .input("published_at", sql.DateTimeOffset, new Date())
-            .input("window",  sql.Bit, enable_concern_window ? 1 : 0)
-            .query(`
-                INSERT INTO final_mark (
-                    submission_id, student_id, 
-                    total_marks_awarded, marking_status, published_by, published_at,
-                    concern_window_open
-                )
-                OUTPUT INSERTED.id
-                VALUES (@sub_id, @stu_id, @mark, @status, @published_by, @published_at, @window)
-            `);
-
-        // Generate specific ids for final marks
-        const numericId = result.recordset[0].id;
-        const formattedId = `FM-${String(numericId).padStart(4, '0')}`;
-        await pool.request()
-            .input('final_mark_id', sql.VarChar, formattedId)
-            .input('id', sql.Int, numericId)
-            .query(`
-                UPDATE final_mark
-                SET final_mark_id = @final_mark_id
-                WHERE id = @id
-            `);
-    
-        res.json({ success: true, message: "Mark published successfully." });
-
+        
+        const csvData = result.recordset.map(row => ({
+            'Submission_ID': row.submission_id,
+            'Student_ID': row.student_id,
+            'Assessment_Title': row.assessment_title,
+            'AI_Marks': row.ai_marks,
+            'Diagram_Marks': row.diagram_marks,
+            'Calculated_Final_Mark': row.final_mark,
+            'Max_Mark': row.max_mark,
+            'Mark_to_Publish': row.final_mark
+        }));
+        
+        const fields = [
+            'Submission_ID', 'Student_ID', 'Assessment_Title', 
+            'AI_Marks', 'Diagram_Marks', 'Calculated_Final_Mark', 
+            'Max_Mark', 'Mark_to_Publish'
+        ];
+        
+        const json2csvParser = new Parser({ fields });
+        const csv = json2csvParser.parse(csvData);
+        
+        const assessmentTitle = result.recordset[0].assessment_title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        const filename = `marks_to_publish_${assessmentTitle}_${new Date().toISOString().split('T')[0]}.csv`;
+        
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(csv);
+        
     } catch (err) {
-        next(err); 
+        console.error("Error exporting CSV:", err);
+        next(err);
+    }
+};
+
+// Add this new endpoint to your markPublish.controller.js
+exports.bulkPublishMarks = async (req, res, next) => {
+    try {
+        const { submissions } = req.body; // Expecting array of submissions
+        const published_by = "Dr Robert Fox";
+        
+        if (!submissions || !Array.isArray(submissions) || submissions.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "No submissions provided for bulk publish"
+            });
+        }
+        
+        const results = [];
+        const errors = [];
+        
+        for (const sub of submissions) {
+            try {
+                const { submission_id, final_mark, ai_score, manual_mark } = sub;
+                
+                if (!submission_id || final_mark === undefined) {
+                    errors.push({ submission_id, reason: "Missing submission_id or final_mark" });
+                    continue;
+                }
+                
+                // Get student_id and validate
+                const validationData = await pool.request()
+                    .input("sid", sql.BigInt, submission_id)
+                    .query(`
+                        SELECT s.student_id, a.total_marks 
+                        FROM submission s
+                        JOIN assessment a ON s.assessment_id = a.assessment_id
+                        WHERE s.submission_id = @sid
+                    `);
+                
+                if (validationData.recordset.length === 0) {
+                    errors.push({ submission_id, reason: "Submission not found" });
+                    continue;
+                }
+                
+                const { student_id, total_marks } = validationData.recordset[0];
+                
+                if (final_mark < 0 || final_mark > total_marks) {
+                    errors.push({ submission_id, reason: `Mark ${final_mark} exceeds max ${total_marks}` });
+                    continue;
+                }
+                
+                // Check for duplicate
+                const duplicateCheck = await pool.request()
+                    .input("sid", sql.BigInt, submission_id)
+                    .query("SELECT id FROM final_mark WHERE submission_id = @sid");
+                
+                if (duplicateCheck.recordset.length > 0) {
+                    errors.push({ submission_id, reason: "Already published" });
+                    continue;
+                }
+                
+                // Insert into final_mark table
+                const result = await pool.request()
+                    .input("sub_id", sql.BigInt, submission_id)
+                    .input("stu_id", sql.BigInt, student_id)
+                    .input("ai_marks", sql.Decimal(5, 2), ai_score || 0)
+                    .input("diagram_marks", sql.Decimal(5, 2), manual_mark || 0)
+                    .input("total_mark", sql.Decimal(5, 2), final_mark)
+                    .input("status", sql.VarChar, "PUBLISHED")
+                    .input("published_by", sql.VarChar, published_by)
+                    .input("published_at", sql.DateTimeOffset, new Date())
+                    .input("updated_by", sql.VarChar, published_by)
+                    .input("updated_at", sql.DateTimeOffset, new Date())
+                    .input("window", sql.Bit, 1)
+                    .query(`
+                        INSERT INTO final_mark (
+                            submission_id, student_id, 
+                            ai_marks, diagram_marks, total_marks_awarded,
+                            marking_status, published_by, published_at,
+                            updated_by, updated_at, concern_window_open
+                        )
+                        OUTPUT INSERTED.id
+                        VALUES (
+                            @sub_id, @stu_id, 
+                            @ai_marks, @diagram_marks, @total_mark,
+                            @status, @published_by, @published_at,
+                            @updated_by, @updated_at, @window
+                        )
+                    `);
+                
+                const numericId = result.recordset[0].id;
+                const formattedId = `FM-${String(numericId).padStart(4, '0')}`;
+                await pool.request()
+                    .input('final_mark_id', sql.VarChar, formattedId)
+                    .input('id', sql.Int, numericId)
+                    .query(`
+                        UPDATE final_mark
+                        SET final_mark_id = @final_mark_id
+                        WHERE id = @id
+                    `);
+                
+                results.push({ submission_id, final_mark, status: "published" });
+                
+            } catch (err) {
+                errors.push({ submission_id: sub.submission_id, reason: err.message });
+            }
+        }
+        
+        res.json({
+            success: true,
+            message: `Published: ${results.length}, Failed: ${errors.length}`,
+            published: results,
+            errors: errors
+        });
+        
+    } catch (err) {
+        console.error("Error in bulk publish:", err);
+        res.status(500).json({
+            success: false,
+            message: "Failed to bulk publish marks",
+            error: err.message
+        });
     }
 };
