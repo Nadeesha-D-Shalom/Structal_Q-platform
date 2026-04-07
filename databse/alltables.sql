@@ -234,17 +234,30 @@ CREATE TABLE [diagram_check_result] (
 GO
 
 CREATE TABLE [final_mark] (
-    [id] int PRIMARY KEY IDENTITY(1, 1),
-    [final_mark_id] nvarchar(50) UNIQUE,
-    [submission_id] bigint NOT NULL,
-    [student_id] bigint NOT NULL,
-    [total_marks_awarded] decimal(5, 2) DEFAULT 0.00,
-    [marking_status] nvarchar(20) DEFAULT 'DRAFT' CHECK ([marking_status] IN ('DRAFT', 'VALIDATED', 'PUBLISHED')),
-    [published_at] datetime DEFAULT GETDATE(),
-    [published_by] nvarchar(255) NOT NULL,
-    [updated_at] datetime DEFAULT GETDATE(),
-    [updated_by] nvarchar(255),
-    [concern_window_open] bit NOT NULL DEFAULT 1
+  [id] bigint PRIMARY KEY IDENTITY(1, 1),
+  [final_mark_id] varchar(50) UNIQUE,
+  [submission_id] bigint NOT NULL,
+  [student_id] bigint NOT NULL,
+  [ai_marks] decimal(5, 2) DEFAULT 0.00,
+  [diagram_marks] decimal(5, 2) DEFAULT 0.00,
+  [total_marks_awarded] decimal(5, 2) DEFAULT 0.00,
+  [marking_status] varchar(20) DEFAULT 'DRAFT',
+  [published_at] datetime,
+  [published_by] varchar(255) NOT NULL,
+  [updated_at] datetime,
+  [updated_by] varchar(255),
+  [concern_window_open] bit NOT NULL DEFAULT 1
+)
+GO
+
+CREATE TABLE [evaluated_results] (
+  [evaluation_id] bigint PRIMARY KEY IDENTITY(1, 1),
+  [submission_id] bigint NOT NULL,
+  [ai_marks] decimal(10, 2) DEFAULT 0.00,
+  [diagram_marks] decimal(10, 2) DEFAULT 0.00,
+  [final_mark] decimal(10, 2) DEFAULT 0.00,
+  [created_at] datetime,
+  [updated_at] datetime
 )
 GO
 

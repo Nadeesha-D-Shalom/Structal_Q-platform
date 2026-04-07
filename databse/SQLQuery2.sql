@@ -329,7 +329,9 @@ BEGIN TRY
     -- Foreign Keys
     submission_id BIGINT NOT NULL,
     student_id BIGINT NOT NULL,
-    
+
+    ai_marks DECIMAL(5,2) DEFAULT 0.00,
+    diagram_marks DECIMAL(5,2) DEFAULT 0.00,
     total_marks_awarded DECIMAL(5,2) DEFAULT 0.00,
     
     marking_status VARCHAR(20) DEFAULT 'DRAFT' 
@@ -343,15 +345,14 @@ BEGIN TRY
     concern_window_open BIT NOT NULL DEFAULT 1
   );
 
-  IF OBJECT_ID('dbo.final_question_mark','U') IS NULL
-  CREATE TABLE dbo.final_question_mark (
-    final_q_mark_id bigint IDENTITY(1,1) PRIMARY KEY,
-    final_mark_id bigint NOT NULL,
-    question_id bigint NOT NULL,
-    marks_awarded decimal(10,2) NULL,
-    ai_suggested_snapshot nvarchar(max) NULL, -- JSON stored as text
-    deviation_value decimal(10,4) NULL,
-    deviation_flag bit NULL,
+  --New Table
+  IF OBJECT_ID('dbo.evaluated_results', 'U') IS NULL
+  CREATE TABLE dbo.evaluated_results (
+    evaluation_id bigint IDENTITY(1,1) PRIMARY KEY,
+    submission_id bigint NOT NULL,
+    ai_marks decimal(10,2) NULL DEFAULT 0.00,
+    diagram_marks decimal(10,2) NULL DEFAULT 0.00,
+    final_mark decimal(10,2) NULL DEFAULT 0.00,
     created_at datetime NULL
   );
 
