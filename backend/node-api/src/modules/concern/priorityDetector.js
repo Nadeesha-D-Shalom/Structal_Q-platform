@@ -47,13 +47,13 @@ async function priorityDetector(student_id, academic_year, concern_message, subm
         const lowerMsg = concern_message.toLowerCase();
 
         const markResult = await pool.request()
-            .input('student_id', sql.VarChar, student_id)
-            .input('submission_id', sql.VarChar, submission_id)
+            .input('student_id', sql.BigInt, student_id)
+            .input('submission_id', sql.BigInt, submission_id)
             .query(`SELECT total_marks_awarded FROM final_mark
                     WHERE student_id = @student_id AND submission_id = @submission_id`);
 
         const historyResult = await pool.request()
-            .input('student_id', sql.VarChar, student_id)
+            .input('student_id', sql.BigInt, student_id)
             .query(`SELECT COUNT(*) as concern_count FROM mark_concern
                     WHERE student_id = @student_id`);
 

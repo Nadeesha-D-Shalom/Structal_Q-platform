@@ -14,6 +14,56 @@ const EVAL_STEPS = [
   "Saving results",
 ];
 
+// Success Popup Component
+const SuccessPopup = ({ isVisible, onClose, message, title, details }) => {
+  useEffect(() => {
+    if (isVisible) {
+      const timer = setTimeout(() => {
+        onClose();
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [isVisible, onClose]);
+
+  if (!isVisible) return null;
+
+  return (
+    <div style={popupOverlayStyle} onClick={onClose}>
+      <div style={popupContainerStyle} onClick={(e) => e.stopPropagation()}>
+        <div style={popupAnimationStyle}>
+          <div style={successIconContainerStyle}>
+            <div style={successIconStyle}>
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M20 6L9 17L4 12" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+          </div>
+          
+          <h2 style={popupTitleStyle}>{title || "✓ Success!"}</h2>
+          <p style={popupMessageStyle}>{message}</p>
+          
+          {details && Object.keys(details).length > 0 && (
+            <div style={popupDetailsStyle}>
+              {Object.entries(details).map(([key, value]) => (
+                <div key={key} style={detailRowStyle}>
+                  <span style={detailLabelStyle}>{key}:</span>
+                  <span style={detailValueStyle}>{value}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          <div style={popupFooterStyle}>
+            <button onClick={onClose} style={popupButtonStyle}>
+              Continue
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const LecturerSubmissions = () => {
   const navigate = useNavigate();
 
@@ -26,8 +76,19 @@ const LecturerSubmissions = () => {
   //  Step tracker: -1 = idle, 0..N = active step, N+1 = all done
   const [currentStep, setCurrentStep] = useState(-1);
 
+  // State for manual marks and final marks
+  const [manualMarks, setManualMarks] = useState({});
+  const [finalMarks, setFinalMarks] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [popupMessage, setPopupMessage] = useState("");
+  const [popupTitle, setPopupTitle] = useState("");
+  const [popupDetails, setPopupDetails] = useState({});
+  const [savedResults, setSavedResults] = useState([]);
+
   useEffect(() => {
     fetchSubmissions();
+    fetchEvaluatedResults(); // Load results automatically when component mounts
   }, []);
 
   const fetchSubmissions = async () => {
@@ -53,20 +114,121 @@ const LecturerSubmissions = () => {
   const fetchEvaluatedResults = async () => {
     try {
       setResultsLoading(true);
-
+      
       const res = await axios.get(`${API_BASE}/api/ai-analysis/results/all`);
-
-      if (res.data.success) {
+      
+      console.log("API Response:", res.data); // Debug: Check what's coming from API
+      
+      if (res.data.success && Array.isArray(res.data.data)) {
+        console.log("Results data:", res.data.data); // Debug: Check the data array
         setEvaluatedResults(res.data.data);
+        // Initialize manual marks and final marks state
+        const initialManualMarks = {};
+        const initialFinalMarks = {};
+        res.data.data.forEach(result => {
+          initialManualMarks[result.analysis_result_id] = "";
+          // Use final_score from API, not a non-existent field
+          initialFinalMarks[result.analysis_result_id] = result.final_score || 0;
+        });
+        setManualMarks(initialManualMarks);
+        setFinalMarks(initialFinalMarks);
       } else {
+        console.error("Invalid response structure:", res.data);
         setEvaluatedResults([]);
       }
-
+      
     } catch (err) {
-      console.error(err);
+      console.error("Error fetching evaluated results:", err);
       setEvaluatedResults([]);
     } finally {
       setResultsLoading(false);
+    }
+  };
+
+  // Handle manual mark change with validation
+  const handleManualMarkChange = (analysisResultId, aiScore, maxMark = 100) => {
+    return (e) => {
+      let value = e.target.value;
+      
+      // Allow empty string
+      if (value === "") {
+        setManualMarks(prev => ({ ...prev, [analysisResultId]: "" }));
+        setFinalMarks(prev => ({ ...prev, [analysisResultId]: aiScore || 0 }));
+        return;
+      }
+      
+      let numValue = parseFloat(value);
+      
+      // Validate if it's a valid number
+      if (isNaN(numValue)) {
+        return;
+      }
+      
+      // Clamp between 0 and maxMark (100)
+      if (numValue < 0) numValue = 0;
+      if (numValue > maxMark) numValue = maxMark;
+      
+      // Round to 2 decimal places
+      numValue = Math.round(numValue * 100) / 100;
+      
+      setManualMarks(prev => ({ ...prev, [analysisResultId]: numValue }));
+      
+      // Calculate final mark: (AI score + manual mark) / 2 (capped at 100)
+      let finalMark = ((aiScore || 0) + numValue) / 2;
+      if (finalMark > 100) finalMark = 100;
+      if (finalMark < 0) finalMark = 0;
+      finalMark = Math.round(finalMark * 100) / 100;
+      
+      setFinalMarks(prev => ({ ...prev, [analysisResultId]: finalMark }));
+    };
+  };
+
+  // Save all evaluated results (only those with manual marks entered)
+  const handleSaveAllResults = async () => {
+    // Filter only results that have manual marks entered
+    const resultsToSave = evaluatedResults
+      .map(result => ({
+        analysis_result_id: result.analysis_result_id,
+        submission_id: result.submission_id,
+        ai_marks: result.final_score || 0,
+        diagram_marks: manualMarks[result.analysis_result_id] || 0,
+        final_mark: finalMarks[result.analysis_result_id] || result.final_score || 0
+      }))
+      .filter(r => r.diagram_marks > 0 && r.diagram_marks !== "" && r.diagram_marks !== null);
+    
+    if (resultsToSave.length === 0) {
+      alert("No manual marks entered to save. Please enter manual marks for diagrams first.");
+      return;
+    }
+    
+    setSaving(true);
+    try {
+      const response = await axios.post(`${API_BASE}/api/marks/evaluated-results/save`, {
+        results: resultsToSave
+      });
+      
+      if (response.data.success) {
+        setSavedResults(prev => [...prev, ...resultsToSave.map(r => r.submission_id)]);
+        setPopupTitle("✓ Results Saved Successfully");
+        setPopupMessage(`${response.data.saved.length} evaluated results have been saved.`);
+        setPopupDetails({
+          "Total Saved": response.data.saved.length,
+          "AI Processed": evaluatedResults.length,
+          "Manual Entries": resultsToSave.length,
+          "Status": "Completed"
+        });
+        setShowSuccessPopup(true);
+        
+        // Refresh the evaluated results to show saved state
+        await fetchEvaluatedResults();
+      } else {
+        alert(response.data.message || "Failed to save results");
+      }
+    } catch (err) {
+      console.error("Error saving results:", err);
+      alert("Failed to save evaluated results");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -110,6 +272,7 @@ const LecturerSubmissions = () => {
 
       setTimeout(() => {
         fetchSubmissions();
+        fetchEvaluatedResults(); // Refresh evaluated results after evaluation
         setTimeout(() => setCurrentStep(-1), 2000);
       }, 1000);
 
@@ -224,6 +387,15 @@ const LecturerSubmissions = () => {
   return (
     <div className="bg-[#f6f8fb] min-h-screen">
       <LecturerNavbar activePage="Submissions" />
+
+      {/* Success Popup */}
+      <SuccessPopup
+        isVisible={showSuccessPopup}
+        onClose={() => setShowSuccessPopup(false)}
+        title={popupTitle}
+        message={popupMessage}
+        details={popupDetails}
+      />
 
       <div className="p-8">
 
@@ -413,18 +585,46 @@ const LecturerSubmissions = () => {
         {/* ── STEP 3.2 ── EVALUATED RESULTS TABLE */}
         <div className="mt-8 bg-white rounded-2xl shadow border overflow-hidden">
 
-          {/* HEADER */}
-          <div className="px-6 py-4 border-b">
-            <h2 className="text-lg font-semibold text-gray-700">
-              Evaluated Results
-            </h2>
-            <p className="text-sm text-gray-400">
-              AI scores + manual evaluation (diagrams)
-            </p>
+          {/* HEADER with Save Button */}
+          <div className="px-6 py-4 border-b flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-700">
+                Evaluated Results
+              </h2>
+              <p className="text-sm text-gray-400">
+                AI scores + manual evaluation (diagrams)
+              </p>
+            </div>
+            
+            {/* Save All Button - Top Right Corner */}
+            {evaluatedResults.length > 0 && !resultsLoading && (
+              <button
+                onClick={handleSaveAllResults}
+                disabled={saving}
+                className="flex items-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-lg
+                           hover:bg-green-700 disabled:opacity-50 transition font-medium text-sm
+                           shadow-sm whitespace-nowrap"
+              >
+                {saving ? (
+                  <>
+                    <svg className="animate-spin" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <circle cx="7" cy="7" r="5.5" stroke="white" strokeWidth="1.5"
+                        strokeDasharray="20 10" strokeLinecap="round" />
+                    </svg>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-save text-xs" />
+                    Save All Results
+                  </>
+                )}
+              </button>
+            )}
           </div>
 
           {/* TABLE HEADER */}
-          <div className="grid grid-cols-8 px-6 py-4 text-xs text-gray-400 border-b font-semibold">
+          <div className="grid grid-cols-9 px-6 py-4 text-xs text-gray-400 border-b font-semibold">
             <div>GROUP</div>
             <div>STUDENT FILE</div>
             <div>GUIDE</div>
@@ -433,70 +633,243 @@ const LecturerSubmissions = () => {
             <div>MANUAL</div>
             <div>FINAL</div>
             <div>RISK</div>
+            <div className="text-center">STATUS</div>
           </div>
 
           {/* TABLE BODY */}
           {resultsLoading ? (
             <div className="p-6 text-gray-400">Loading results...</div>
           ) : evaluatedResults.length === 0 ? (
-            <div className="p-6 text-gray-400">
-              No evaluated results — click &ldquo;Load Evaluated Results&rdquo; to fetch
+            <div className="p-6">
+              <div className="text-gray-400 mb-2">
+                No evaluated results — click "Load Evaluated Results" to fetch
+              </div>
+              <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded">
+                <div>Debug Info:</div>
+                <div>API Endpoint: {API_BASE}/api/ai-analysis/results/all</div>
+                <div>Check browser console for API response</div>
+                <button 
+                  onClick={async () => {
+                    const res = await fetch(`${API_BASE}/api/ai-analysis/results/all`);
+                    const data = await res.json();
+                    console.log("Manual fetch:", data);
+                  }}
+                  className="mt-2 text-blue-500 underline"
+                >
+                  Test API in Console
+                </button>
+              </div>
             </div>
           ) : (
-            evaluatedResults.map((row, index) => (
-              <div
-                key={row.analysis_result_id}
-                className="grid grid-cols-8 px-6 py-4 items-center text-sm border-b hover:bg-gray-50 transition"
-              >
-                <div className="font-medium text-gray-700">G{index + 1}</div>
+            evaluatedResults.map((row, index) => {
+              console.log("Rendering row:", row); // Debug each row
+              const isSaved = savedResults.some(s => s === row.submission_id);
+              const hasManualMark = manualMarks[row.analysis_result_id] && manualMarks[row.analysis_result_id] !== "";
+              return (
+                <div
+                  key={row.analysis_result_id}
+                  className="grid grid-cols-9 px-6 py-4 items-center text-sm border-b hover:bg-gray-50 transition"
+                >
+                  <div className="font-medium text-gray-700">G{index + 1}</div>
 
-                <div className="flex items-center gap-2 text-gray-700 truncate">
-                  <i className="fa-regular fa-file text-gray-400 shrink-0"></i>
-                  <span className="truncate">{row.student_file}</span>
+                  {/* STUDENT FILE */}
+                  <a 
+                    href={`${API_BASE}/api/marks/pdf/${row.student_file_id}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-xs font-bold text-blue-600 hover:text-blue-800 no-underline"
+                  >
+                    <i className="fas fa-file-pdf"></i>
+                    <span>Submission File</span>
+                  </a>
+                
+                  {/* MARKING GUIDE */}
+                  <a 
+                    href={`${API_BASE}/api/marks/pdf/${row.guide_file_id}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-xs font-bold text-blue-600 hover:text-blue-800 no-underline"
+                  >
+                    <i className="fas fa-file-pdf"></i>
+                    <span>Marking Guide</span>
+                  </a>
+                  
+                  <div className="text-gray-600 truncate">{row.assessment_name || "N/A"}</div>
+
+                  {/* AI SCORE */}
+                  <div className="font-semibold text-blue-600">
+                    {row.final_score ?? 0}
+                  </div>
+
+                  {/* MANUAL INPUT */}
+                  <div>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={manualMarks[row.analysis_result_id] !== undefined ? manualMarks[row.analysis_result_id] : ""}
+                      onChange={handleManualMarkChange(row.analysis_result_id, row.final_score, 100)}
+                      disabled={isSaved}
+                      className={`w-20 px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-300
+                        ${isSaved ? "bg-gray-100 text-gray-500" : ""}`}
+                      step="0.01"
+                      min="0"
+                      max="100"
+                    />
+                  </div>
+
+                  {/* FINAL SCORE */}
+                  <div className="font-semibold text-green-600">
+                    {finalMarks[row.analysis_result_id]?.toFixed(2) ?? row.final_score ?? 0}
+                  </div>
+
+                  {/* RISK */}
+                  <div>
+                    <span className={`px-2 py-1 text-xs rounded-full ${row.risk_level === "HIGH"
+                      ? "bg-red-100 text-red-600"
+                      : row.risk_level === "MEDIUM"
+                        ? "bg-yellow-100 text-yellow-600"
+                        : "bg-green-100 text-green-600"
+                      }`}>
+                      {row.risk_level ?? "LOW"}
+                    </span>
+                  </div>
+
+                  {/* STATUS */}
+                  <div className="text-center">
+                    {isSaved ? (
+                      <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-600">
+                        ✓ Saved
+                      </span>
+                    ) : hasManualMark ? (
+                      <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-600">
+                        Ready
+                      </span>
+                    ) : (
+                      <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-600">
+                        Pending
+                      </span>
+                    )}
+                  </div>
                 </div>
-
-                <div className="text-gray-600 truncate">{row.guide_file}</div>
-
-                <div className="text-gray-600 truncate">{row.assessment_name}</div>
-
-                {/* AI SCORE */}
-                <div className="font-semibold text-blue-600">
-                  {row.final_score ?? 0}
-                </div>
-
-                {/* MANUAL INPUT */}
-                <div>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    className="w-16 px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  />
-                </div>
-
-                {/* FINAL SCORE (AI score for now — calculated in next step) */}
-                <div className="font-semibold text-green-600">
-                  {row.final_score ?? 0}
-                </div>
-
-                {/* RISK */}
-                <div>
-                  <span className={`px-2 py-1 text-xs rounded-full ${row.risk_level === "HIGH"
-                    ? "bg-red-100 text-red-600"
-                    : row.risk_level === "MEDIUM"
-                      ? "bg-yellow-100 text-yellow-600"
-                      : "bg-green-100 text-green-600"
-                    }`}>
-                    {row.risk_level ?? "LOW"}
-                  </span>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
       </div>
     </div>
   );
+};
+
+// Popup Styles
+const popupOverlayStyle = {
+  position: "fixed",
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: "rgba(0, 0, 0, 0.5)",
+  backdropFilter: "blur(4px)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  zIndex: 1000,
+  animation: "fadeIn 0.3s ease-out"
+};
+
+const popupContainerStyle = {
+  position: "relative",
+  maxWidth: "450px",
+  width: "90%",
+  margin: "20px"
+};
+
+const popupAnimationStyle = {
+  backgroundColor: "#fff",
+  borderRadius: "20px",
+  boxShadow: "0 20px 40px rgba(0, 0, 0, 0.15)",
+  overflow: "hidden",
+  animation: "slideUp 0.4s cubic-bezier(0.34, 1.2, 0.64, 1)"
+};
+
+const successIconContainerStyle = {
+  display: "flex",
+  justifyContent: "center",
+  marginTop: "30px",
+  marginBottom: "20px"
+};
+
+const successIconStyle = {
+  width: "80px",
+  height: "80px",
+  backgroundColor: "#52c41a",
+  borderRadius: "50%",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  boxShadow: "0 4px 12px rgba(82, 196, 26, 0.3)",
+  animation: "scaleIn 0.5s ease-out"
+};
+
+const popupTitleStyle = {
+  fontSize: "24px",
+  fontWeight: "bold",
+  textAlign: "center",
+  color: "#2e3b52",
+  margin: "0 0 12px 0"
+};
+
+const popupMessageStyle = {
+  fontSize: "14px",
+  textAlign: "center",
+  color: "#64748b",
+  margin: "0 24px 16px 24px",
+  lineHeight: "1.5"
+};
+
+const popupDetailsStyle = {
+  backgroundColor: "#f8f9fa",
+  margin: "0 24px 24px 24px",
+  padding: "16px",
+  borderRadius: "12px",
+  border: "1px solid #e9ecef"
+};
+
+const detailRowStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  padding: "6px 0",
+  borderBottom: "1px solid #e9ecef"
+};
+
+const detailLabelStyle = {
+  fontSize: "12px",
+  color: "#74839a",
+  fontWeight: "500"
+};
+
+const detailValueStyle = {
+  fontSize: "12px",
+  color: "#2e3b52",
+  fontWeight: "600"
+};
+
+const popupFooterStyle = {
+  padding: "0 24px 24px 24px",
+  display: "flex",
+  justifyContent: "center"
+};
+
+const popupButtonStyle = {
+  backgroundColor: "#3d6df2",
+  color: "#fff",
+  border: "none",
+  padding: "10px 32px",
+  borderRadius: "10px",
+  fontWeight: "bold",
+  fontSize: "14px",
+  cursor: "pointer",
+  transition: "all 0.2s"
 };
 
 export default LecturerSubmissions;

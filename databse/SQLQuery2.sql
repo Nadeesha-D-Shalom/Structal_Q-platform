@@ -321,29 +321,38 @@ BEGIN TRY
      5) FINAL MARKING & CONCERNS
   ========================= */
 
-  IF OBJECT_ID('dbo.final_mark','U') IS NULL
+  IF OBJECT_ID('dbo.final_mark','U') IS NOT NULL DROP TABLE dbo.final_mark;
   CREATE TABLE dbo.final_mark (
-    final_mark_id bigint IDENTITY(1,1) PRIMARY KEY,
-    submission_id bigint NOT NULL,
-    lecturer_id bigint NOT NULL,
-    total_marks_awarded decimal(10,2) NULL,
-    marking_status nvarchar(50) NULL, -- DRAFT / VALIDATED / PUBLISHED
-    validated_at datetime NULL,
-    published_at datetime NULL,
-    feedback_summary nvarchar(max) NULL,
-    created_at datetime NULL,
-    updated_at datetime NULL
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    final_mark_id VARCHAR(50) UNIQUE,
+    
+    -- Foreign Keys
+    submission_id BIGINT NOT NULL,
+    student_id BIGINT NOT NULL,
+
+    ai_marks DECIMAL(5,2) DEFAULT 0.00,
+    diagram_marks DECIMAL(5,2) DEFAULT 0.00,
+    total_marks_awarded DECIMAL(5,2) DEFAULT 0.00,
+    
+    marking_status VARCHAR(20) DEFAULT 'DRAFT' 
+        CHECK (marking_status IN ('DRAFT', 'VALIDATED', 'PUBLISHED')),
+    
+    -- Audit Timestamps
+    published_at DATETIME DEFAULT GETDATE(),
+    published_by VARCHAR(255) NOT NULL,
+    updated_at DATETIME DEFAULT GETDATE(),
+    updated_by VARCHAR(255) NULL,
+    concern_window_open BIT NOT NULL DEFAULT 1
   );
 
-  IF OBJECT_ID('dbo.final_question_mark','U') IS NULL
-  CREATE TABLE dbo.final_question_mark (
-    final_q_mark_id bigint IDENTITY(1,1) PRIMARY KEY,
-    final_mark_id bigint NOT NULL,
-    question_id bigint NOT NULL,
-    marks_awarded decimal(10,2) NULL,
-    ai_suggested_snapshot nvarchar(max) NULL, -- JSON stored as text
-    deviation_value decimal(10,4) NULL,
-    deviation_flag bit NULL,
+  --New Table
+  IF OBJECT_ID('dbo.evaluated_results', 'U') IS NULL
+  CREATE TABLE dbo.evaluated_results (
+    evaluation_id bigint IDENTITY(1,1) PRIMARY KEY,
+    submission_id bigint NOT NULL,
+    ai_marks decimal(10,2) NULL DEFAULT 0.00,
+    diagram_marks decimal(10,2) NULL DEFAULT 0.00,
+    final_mark decimal(10,2) NULL DEFAULT 0.00,
     created_at datetime NULL
   );
 
@@ -359,41 +368,43 @@ BEGIN TRY
     created_at datetime NULL
   );
 
-  IF OBJECT_ID('dbo.mark_concern','U') IS NULL
+  IF OBJECT_ID('dbo.mark_concern','U') IS NOT NULL DROP TABLE dbo.mark_concern;
   CREATE TABLE dbo.mark_concern (
-    concern_id bigint IDENTITY(1,1) PRIMARY KEY,
-    final_mark_id bigint NOT NULL,
-    student_id bigint NOT NULL,
-    concern_text nvarchar(max) NULL,
-    priority nvarchar(50) NULL, -- LOW / MEDIUM / HIGH
-    status nvarchar(50) NULL, -- OPEN / UNDER_REVIEW / RESOLVED / REJECTED
-    submitted_at datetime NULL,
-    resolved_at datetime NULL
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    concern_id VARCHAR(20) UNIQUE,
+    
+    student_id BIGINT NOT NULL,
+    student_name VARCHAR(255) NOT NULL,
+    student_email VARCHAR(255) NOT NULL,
+    academic_year VARCHAR(100) NOT NULL,
+    submission_id BIGINT NOT NULL,
+    concern_message NVARCHAR(MAX) NOT NULL,
+  
+    priority_level VARCHAR(10) DEFAULT 'Low'
+        CHECK (priority_level IN ('Low', 'Medium', 'High')),
+        
+    concern_status VARCHAR(20) DEFAULT 'Pending'
+        CHECK (concern_status IN ('Pending', 'Accepted', 'Rejected', 'Revised')),
+    
+    created_at DATETIME DEFAULT GETDATE(),
+    last_modified DATETIME DEFAULT GETDATE(),
+    
+    revised_by VARCHAR(255) NULL,
+    revised_on DATETIME NULL,
+    lecturer_comment NVARCHAR(MAX) NULL
   );
 
-  IF OBJECT_ID('dbo.concern_window','U') IS NULL
-  CREATE TABLE dbo.concern_window (
-    concern_window_id bigint IDENTITY(1,1) PRIMARY KEY,
-    assessment_id bigint NOT NULL,
-    opens_at datetime NULL,
-    closes_at datetime NULL,
-    duration_hours int NULL,
-    auto_close_enabled bit NULL,
-    created_by bigint NOT NULL,
-    created_at datetime NULL,
-    status nvarchar(50) NULL
-  );
 
-  IF OBJECT_ID('dbo.mark_revision_log','U') IS NULL
-  CREATE TABLE dbo.mark_revision_log (
+IF OBJECT_ID('dbo.mark_revision_log','U') IS NOT NULL DROP TABLE dbo.mark_revision_log;
+CREATE TABLE dbo.mark_revision_log (
     revision_id bigint IDENTITY(1,1) PRIMARY KEY,
-    final_mark_id bigint NOT NULL,
-    lecturer_id bigint NOT NULL,
+    submission_id bigint NOT NULL,
+    lecturer_name VARCHAR(255) NOT NULL,
     old_mark decimal(10,2) NULL,
     new_mark decimal(10,2) NULL,
     revision_reason nvarchar(max) NULL,
-    revised_at datetime NULL
-  );
+    revised_at datetime NULL DEFAULT GETDATE()
+);
 
   IF OBJECT_ID('dbo.audit_log','U') IS NULL
   CREATE TABLE dbo.audit_log (

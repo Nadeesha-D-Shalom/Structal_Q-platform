@@ -326,8 +326,8 @@ const getAllEvaluatedResults = async () => {
 
     ISNULL(ar.risk_level, 'LOW') AS risk_level,
 
-    fs.original_file_name AS student_file,
-    fg.original_file_name AS guide_file,
+    fs.file_id AS student_file_id,
+    fg.file_id AS guide_file_id,
 
     a.assessment_title AS assessment_name
 

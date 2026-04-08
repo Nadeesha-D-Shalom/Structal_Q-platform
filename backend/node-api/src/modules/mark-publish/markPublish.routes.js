@@ -8,16 +8,17 @@ router.get("/assessments", marksController.getAllAssessments);
 // Get submissions that haven't been published yet for a specific assessment
 router.get("/pending-submissions", marksController.getPendingSubmissions);
 
-// Get the PDF file stream for the viewer
+// Get the PDF file of student submission or marking guide
 router.get("/pdf/:submission_id", marksController.getPdf);
 
-// Get the AI calculated marks 
-router.get("/ai-scores/:submission_id", marksController.getAiScores);
+//Save the calculated final mark in the evaluated marks table before publishing
+router.post("/evaluated-results/save", marksController.saveEvaluatedResults);
 
-//Get the pages containing diagrams for manual review
-router.get("/diagram-pages/:submission_id", marksController.getDiagramPages);
+//Get the CSV file with pending marks for publication for mark publish ui
+router.get("/export-csv/:assessment_id", marksController.exportPendingMarksCSV);
 
 // Final POST request to publish the marks to the database
-router.post("/publish", marksController.publishingleMark);
+router.post("/publish", marksController.bulkPublishMarks);
+
 
 module.exports = router;

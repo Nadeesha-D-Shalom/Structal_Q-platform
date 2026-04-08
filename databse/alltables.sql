@@ -234,14 +234,28 @@ CREATE TABLE [diagram_check_result] (
 GO
 
 CREATE TABLE [final_mark] (
-  [final_mark_id] bigint PRIMARY KEY IDENTITY(1, 1),
+  [id] bigint PRIMARY KEY IDENTITY(1, 1),
+  [final_mark_id] varchar(50) UNIQUE,
   [submission_id] bigint NOT NULL,
-  [lecturer_id] bigint NOT NULL,
-  [total_marks_awarded] decimal,
-  [marking_status] nvarchar(255),
-  [validated_at] datetime,
+  [student_id] bigint NOT NULL,
+  [ai_marks] decimal(5, 2) DEFAULT 0.00,
+  [diagram_marks] decimal(5, 2) DEFAULT 0.00,
+  [total_marks_awarded] decimal(5, 2) DEFAULT 0.00,
+  [marking_status] varchar(20) DEFAULT 'DRAFT',
   [published_at] datetime,
-  [feedback_summary] text,
+  [published_by] varchar(255) NOT NULL,
+  [updated_at] datetime,
+  [updated_by] varchar(255),
+  [concern_window_open] bit NOT NULL DEFAULT 1
+)
+GO
+
+CREATE TABLE [evaluated_results] (
+  [evaluation_id] bigint PRIMARY KEY IDENTITY(1, 1),
+  [submission_id] bigint NOT NULL,
+  [ai_marks] decimal(10, 2) DEFAULT 0.00,
+  [diagram_marks] decimal(10, 2) DEFAULT 0.00,
+  [final_mark] decimal(10, 2) DEFAULT 0.00,
   [created_at] datetime,
   [updated_at] datetime
 )
@@ -272,53 +286,35 @@ CREATE TABLE [mark_alert] (
 GO
 
 CREATE TABLE [mark_concern] (
-  [concern_id] bigint PRIMARY KEY IDENTITY(1, 1),
-  [final_mark_id] bigint NOT NULL,
-  [student_id] bigint NOT NULL,
-  [concern_text] text,
-  [priority] nvarchar(255),
-  [status] nvarchar(255),
-  [submitted_at] datetime,
-  [resolved_at] datetime
-)
-GO
-
-CREATE TABLE [concern_window] (
-  [concern_window_id] bigint PRIMARY KEY IDENTITY(1, 1),
-  [assessment_id] bigint NOT NULL,
-  [opens_at] datetime,
-  [closes_at] datetime,
-  [duration_hours] int,
-  [auto_close_enabled] boolean,
-  [created_by] bigint NOT NULL,
-  [created_at] datetime,
-  [status] nvarchar(255)
+    [id] int PRIMARY KEY IDENTITY(1, 1),
+    [concern_id] nvarchar(20) UNIQUE,
+    [student_id] bigint NOT NULL,
+    [student_name] nvarchar(255) NOT NULL,
+    [student_email] nvarchar(255) NOT NULL,
+    [academic_year] nvarchar(100) NOT NULL,
+    [submission_id] bigint NOT NULL,
+    [concern_message] nvarchar(MAX) NOT NULL,
+    [priority_level] nvarchar(10) DEFAULT 'Low' CHECK ([priority_level] IN ('Low', 'Medium', 'High')),
+    [concern_status] nvarchar(20) DEFAULT 'Pending' CHECK ([concern_status] IN ('Pending', 'Accepted', 'Rejected', 'Revised')),
+    [created_at] datetime DEFAULT GETDATE(),
+    [last_modified] datetime DEFAULT GETDATE(),
+    [revised_by] nvarchar(255) DEFAULT NULL,
+    [revised_on] datetime DEFAULT NULL,
+    [lecturer_comment] text NULL
 )
 GO
 
 CREATE TABLE [mark_revision_log] (
-  [revision_id] bigint PRIMARY KEY IDENTITY(1, 1),
-  [final_mark_id] bigint NOT NULL,
-  [lecturer_id] bigint NOT NULL,
-  [old_mark] decimal,
-  [new_mark] decimal,
-  [revision_reason] text,
-  [revised_at] datetime
+    [revision_id] bigint PRIMARY KEY IDENTITY(1, 1),
+    [submission_id] bigint NOT NULL,
+    [lecturer_name] nvarchar(255) NOT NULL,
+    [old_mark] decimal(10, 2) NULL,
+    [new_mark] decimal(10, 2) NULL,
+    [revision_reason] nvarchar(max) NULL,
+    [revised_at] datetime DEFAULT GETDATE()
 )
 GO
 
-CREATE TABLE [audit_log] (
-  [audit_id] bigint PRIMARY KEY IDENTITY(1, 1),
-  [actor_user_id] bigint NOT NULL,
-  [action_type] nvarchar(255),
-  [entity_name] nvarchar(255),
-  [entity_id] nvarchar(255),
-  [old_value_json] json,
-  [new_value_json] json,
-  [ip_address] nvarchar(255),
-  [created_at] datetime
-)
-GO
 
 CREATE TABLE [evaluation_location] (
   [location_id] bigint PRIMARY KEY IDENTITY(1, 1),
