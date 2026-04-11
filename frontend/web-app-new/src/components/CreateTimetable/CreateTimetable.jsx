@@ -58,7 +58,7 @@ export default function CreateTimetable() {
         title: `${subject.trim()} — ${examDate}`,
       });
       notifyTimetablePublished();
-      navigate('/');
+      navigate('/view');
     } catch (err) {
       const conflictMessage = getTimetableConflictMessage(err);
       setError(conflictMessage || getErrorMessage(err));

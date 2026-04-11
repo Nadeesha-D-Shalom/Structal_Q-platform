@@ -7,7 +7,10 @@
     "doc": "docs"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "frontend:start": "npm --prefix frontend/web-app-new start",
+    "frontend:build": "npm --prefix frontend/web-app-new run build",
+    "frontend:test": "npm --prefix frontend/web-app-new test"
   },
   "repository": {
     "type": "git",

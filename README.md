@@ -76,7 +76,7 @@ structaiq-platform/
 │   └── python-ml/
 │
 ├── frontend/
-│   ├── web-app/
+│   ├── web-app-new/   # React web app
 │   └── mobile-app/
 │
 ├── database/

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getTimetable, getTimetableConflictMessage, updateTimetable } from '../services/timetableService';
-import EditExamTimetable from '../components/EditExamTimetable/EditExamTimetable';
-import RolePageLayout from '../components/layout/RolePageLayout';
+import { getTimetable, getTimetableConflictMessage, updateTimetable } from '../../services/timetableService';
+import EditExamTimetable from '../../components/EditExamTimetable/EditExamTimetable';
+import LecturerNavbar from '../../components/navbars/LecturerNavbar';
 
 function getErrorMessage(err) {
   return err?.response?.data?.message || err?.response?.data || err?.message || 'Request failed.';
@@ -86,18 +86,20 @@ export default function EditTimetable() {
   }
 
   return (
-    <RolePageLayout role="lecturer" activePage="Timetable">
-      {loading ? <p>Loading...</p> : null}
-      {error ? <p style={{ color: '#b00020' }}>{String(error)}</p> : null}
-      {!loading && selectedEntry ? (
-        <EditExamTimetable
-          initialData={selectedEntry}
-          loading={submitting}
-          onCancel={() => navigate('/view')}
-          onSave={handleSave}
-        />
-      ) : null}
-    </RolePageLayout>
+    <div className="min-h-screen bg-[#f5f6fa]">
+      <LecturerNavbar activePage="Timetable" />
+      <main className="px-[44px] pt-[34px] pb-[28px]">
+        {loading ? <p>Loading...</p> : null}
+        {error ? <p style={{ color: '#b00020' }}>{String(error)}</p> : null}
+        {!loading && selectedEntry ? (
+          <EditExamTimetable
+            initialData={selectedEntry}
+            loading={submitting}
+            onCancel={() => navigate('/view')}
+            onSave={handleSave}
+          />
+        ) : null}
+      </main>
+    </div>
   );
 }
-
