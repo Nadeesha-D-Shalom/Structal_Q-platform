@@ -1,5 +1,5 @@
 import ViewTimetableStudent from '../../components/ViewTimetableStudent/ViewTimetableStudent';
-import StudentNavbar from '../../components/navbars/StudentNavbar';
+import StudentNavbar from './StudentNavbar';
 
 export default function StudentViewTimetable() {
   return (

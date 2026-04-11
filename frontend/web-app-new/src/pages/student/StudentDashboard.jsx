@@ -1,4 +1,4 @@
-import StudentNavbar from "../../components/navbars/StudentNavbar";
+import StudentNavbar from "./StudentNavbar";
 
 const StudentDashboard = () => {
   return (

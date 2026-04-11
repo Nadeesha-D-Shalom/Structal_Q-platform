@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getTimetable, getTimetableConflictMessage, updateTimetable } from '../../services/timetableService';
 import EditExamTimetable from '../../components/EditExamTimetable/EditExamTimetable';
-import LecturerNavbar from '../../components/navbars/LecturerNavbar';
+import LecturerNavbar from './LecturerNavbar';
 
 function getErrorMessage(err) {
   return err?.response?.data?.message || err?.response?.data || err?.message || 'Request failed.';
@@ -87,7 +87,7 @@ export default function EditTimetable() {
 
   return (
     <div className="min-h-screen bg-[#f5f6fa]">
-      <LecturerNavbar activePage="Timetable" />
+      <LecturerNavbar />
       <main className="px-[44px] pt-[34px] pb-[28px]">
         {loading ? <p>Loading...</p> : null}
         {error ? <p style={{ color: '#b00020' }}>{String(error)}</p> : null}
