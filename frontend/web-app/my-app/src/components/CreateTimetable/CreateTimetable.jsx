@@ -11,14 +11,6 @@ function getErrorMessage(err) {
   return err?.response?.data?.message || err?.response?.data || err?.message || 'Request failed.';
 }
 
-/** YYYY-MM-DD in local timezone (for `<input type="date" min>` and comparisons). */
-function getLocalDateString(d = new Date()) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
 export default function CreateTimetable() {
   const navigate = useNavigate();
   const [academicYear, setAcademicYear] = useState('1st Year');
@@ -34,16 +26,6 @@ export default function CreateTimetable() {
   async function handlePublish(e) {
     e.preventDefault();
     setError('');
-    const hallTrimmed = hall.trim();
-    if (hallTrimmed.length < 3 || hallTrimmed.length > 80) {
-      setError('Location / venue must be between 3 and 80 characters.');
-      return;
-    }
-    const todayStr = getLocalDateString();
-    if (examDate && examDate < todayStr) {
-      setError('Exam date cannot be in the past.');
-      return;
-    }
     setSubmitting(true);
     try {
       await createTimetable({
@@ -114,13 +96,7 @@ export default function CreateTimetable() {
           <div className="formGrid__row">
             <label className="field">
               <span>Exam Date</span>
-              <input
-                type="date"
-                min={getLocalDateString()}
-                value={examDate}
-                onChange={(e) => setExamDate(e.target.value)}
-                required
-              />
+              <input type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} required />
             </label>
 
             <label className="field">
@@ -140,13 +116,7 @@ export default function CreateTimetable() {
                 value={hall}
                 onChange={(e) => setHall(e.target.value)}
                 required
-                minLength={3}
-                maxLength={80}
-                aria-describedby="create-hall-hint"
               />
-              <span id="create-hall-hint" className="field__hint">
-                3–80 characters
-              </span>
             </label>
           </div>
 

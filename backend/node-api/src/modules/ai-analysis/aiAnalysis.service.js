@@ -27,6 +27,90 @@ async function runAIAnalysis(payload) {
 }
 
 
+// ================= SAVE QUESTION SCORES =================
+async function saveAiQuestionScores(analysis_result_id, questionScores = []) {
+    if (!questionScores || questionScores.length === 0) {
+        console.log("No question-level data from AI");
+        return;
+    }
+
+    const transaction = new sql.Transaction(pool);
+
+    try {
+        await transaction.begin();
+
+        for (const item of questionScores) {
+            const request = new sql.Request(transaction);
+
+            await request
+                .input("analysis_result_id", sql.BigInt, analysis_result_id)
+                .input("question_id", sql.BigInt, item.question_id)
+                .input(
+                    "keyword_matches",
+                    sql.NVarChar(sql.MAX),
+                    item.keyword_matches ? JSON.stringify(item.keyword_matches) : null
+                )
+                .input(
+                    "keyword_score",
+                    sql.Decimal(10, 4),
+                    item.keyword_score ?? null
+                )
+                .input(
+                    "semantic_score",
+                    sql.Decimal(10, 4),
+                    item.semantic_score ?? null
+                )
+                .input(
+                    "suggested_marks",
+                    sql.Decimal(10, 2),
+                    item.suggested_marks ?? null
+                )
+                .input(
+                    "confidence",
+                    sql.Decimal(10, 4),
+                    item.confidence ?? null
+                )
+                .input(
+                    "missing_keywords",
+                    sql.NVarChar(sql.MAX),
+                    item.missing_keywords ? JSON.stringify(item.missing_keywords) : null
+                )
+                .query(`
+                    INSERT INTO dbo.ai_question_score (
+                        analysis_result_id,
+                        question_id,
+                        keyword_matches,
+                        keyword_score,
+                        semantic_score,
+                        suggested_marks,
+                        confidence,
+                        missing_keywords,
+                        created_at
+                    )
+                    VALUES (
+                        @analysis_result_id,
+                        @question_id,
+                        @keyword_matches,
+                        @keyword_score,
+                        @semantic_score,
+                        @suggested_marks,
+                        @confidence,
+                        @missing_keywords,
+                        GETDATE()
+                    )
+                `);
+        }
+
+        await transaction.commit();
+
+    } catch (error) {
+        await transaction.rollback();
+        console.error("AI QUESTION SCORE INSERT ERROR:", error);
+        throw error;
+    }
+}
+
+
 // ================= DB SAVE =================
 async function saveAnalysisToDB({
     submission_id,
@@ -73,8 +157,8 @@ async function saveAnalysisToDB({
         const cvUsed =
             aiResult?.diagram_analysis?.image_count > 0 ? 1 : 0;
 
-        // ===== INSERT =====
-        await request
+        // ===== INSERT WITH RETURN ID =====
+        const result = await request
             .input("submission_id", sql.BigInt, submission_id)
             .input("marking_guide_id", sql.BigInt, marking_guide_id)
             .input("analysis_type", sql.NVarChar, "FULL_AI_ANALYSIS")
@@ -106,6 +190,7 @@ async function saveAnalysisToDB({
                     completed_at,
                     status
                 )
+                OUTPUT INSERTED.analysis_result_id
                 VALUES (
                     @submission_id,
                     @marking_guide_id,
@@ -124,7 +209,23 @@ async function saveAnalysisToDB({
                 )
             `);
 
-        return { success: true };
+        const analysis_result_id = result.recordset[0].analysis_result_id;
+
+        // ===== STEP 2: INSERT QUESTION SCORES =====
+        // Expected AI format:
+        // aiResult.question_scores = [ {...}, {...} ]
+
+        if (aiResult.question_scores) {
+            await saveAiQuestionScores(
+                analysis_result_id,
+                aiResult.question_scores
+            );
+        }
+
+        return {
+            success: true,
+            analysis_result_id
+        };
 
     } catch (error) {
         console.error("DB INSERT ERROR:", error);

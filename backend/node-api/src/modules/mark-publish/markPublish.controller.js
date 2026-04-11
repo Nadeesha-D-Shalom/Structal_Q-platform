@@ -23,6 +23,7 @@ exports.getPendingSubmissions = async (req, res, next) => {
             .input("aid", sql.BigInt, assessment_id)
             .query(`
                 SELECT 
+                s.student_id,
                 s.submission_id,
                 ar.analysis_result_id
                 FROM submission s
@@ -153,7 +154,7 @@ exports.publishingleMark = async (req, res, next) => {
         const { submission_id, final_mark, enable_concern_window } = req.body;
 
         // Once developed: const lecturer_id = req.session?.user?.user_id;
-        const lecturer_id = "LECT_001"; 
+        const lecturer_id = "1"; 
 
         if (!lecturer_id) {
             return res.status(401).json({ message: "Unauthorized: No lecturer session found." });

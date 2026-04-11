@@ -1,0 +1,55 @@
+[33md7d6a2f[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Resolved merge conflicts from jazeel
+[33mfc65a89[m[33m ([m[1;32mjazeel[m[33m)[m Save work before merging to main
+[33m7f6c394[m[33m ([m[1;31morigin/jazeel[m[33m)[m resolved merge conflict
+[33mbb3e7bb[m this is backend part
+[33m14e61e0[m Merge pull request #18 from Nadeesha-D-Shalom/feature/mark-publish_&_concern-management
+[33m745a8d4[m[33m ([m[1;31morigin/feature/mark-publish_&_concern-management[m[33m)[m Merge branch 'main' into feature/mark-publish_&_concern-management
+[33m25728d8[m created all uis and add new nav items to lecturer nav bar related to my module
+[33md1ab054[m[33m ([m[1;32mJazeel-MJM[m[33m)[m Your changes for Jazeel-MJM
+[33m8bccf3f[m exam time table management
+[33m9c6564e[m[33m ([m[1;31morigin/Jazeel-MJM[m[33m)[m chore: local updates before pulling main
+[33m77c1d12[m chore: local updates before pulling main
+[33m48fe248[m Merge pull request #17 from Nadeesha-D-Shalom/feature/mark-publish_&_concern-management
+[33m6044f91[m fixed some issues and finished mark publication
+[33mb8e72d6[m chore: local updates before pulling main
+[33m83517f0[m Merge pull request #16 from Nadeesha-D-Shalom/feature/mark-publish_&_concern-management
+[33m61ac128[m Merge branch 'main' into feature/mark-publish_&_concern-management
+[33m9980318[m created raise concern form ui with backend integration, improved concern priority ditection mechanism, created mark publish ui with backend integration
+[33ma0df2a0[m Merge pull request #14 from RashidAhd/member2
+[33m2e2389c[m Merge pull request #15 from Nadeesha-D-Shalom/feature/nadeesha/backend-node/ml-module
+[33m4a6637e[m[33m ([m[1;31morigin/feature/nadeesha/backend-node/ml-module[m[33m)[m refactor(ui): separate navbar from dashboard for lecturer and student modules
+[33m519909c[m member2
+[33mced0703[m Initial commit to my branch
+[33mfbfb0e1[m Merge pull request #13 from Nadeesha-D-Shalom/feature/nadeesha/backend-node/ml-module
+[33m3d6f291[m ml module added and connect to the MSSql DB
+[33m73bd599[m fix bus in evaluation_pipeline.py
+[33mfd71067[m Merge pull request #12 from Nadeesha-D-Shalom/feature/nadeesha/dashboards-logins
+[33mbc25902[m[33m ([m[1;31morigin/feature/nadeesha/dashboards-logins[m[33m)[m feat: implement hybrid semantic retrieval with TOC filtering and rubric-driven scoring
+[33ma5dc803[m Merge pull request #11 from Nadeesha-D-Shalom/feature/nadeesha/dashboards-logins
+[33m943ec0d[m DashBoard Created
+[33m1da4d6b[m Code evaluations done with C,Java,Python,JS
+[33ma06feee[m Code evaluations done with C,Java,Python,JS
+[33m08258fb[m Code evaluations done with C,Java,Python,JS
+[33mf6b66e9[m Merge branch 'main' of https://github.com/Nadeesha-D-Shalom/Structal_Q-platform
+[33m63bf035[m feat: implement hybrid semantic retrieval with TOC filtering and rubric-driven scoring
+[33mc1c2f68[m Merge pull request #8 from Nadeesha-D-Shalom/member05
+[33m04dc879[m Merge pull request #9 from Nadeesha-D-Shalom/feature/mark-publish_&_concern-management
+[33mf0841a6[m Merge pull request #10 from Nadeesha-D-Shalom/feature/nadeesha-OCR-scanDiagrams
+[33md73d710[m[33m ([m[1;31morigin/feature/nadeesha-OCR-scanDiagrams[m[33m)[m Code evaluations done with C,Java,Python,JS
+[33me9498c1[m configured all the crud operations related to the concern management and configured the priority detection mechanism.
+[33m25bcae4[m Add evaluation scheduling module
+[33m1288fa7[m Merge pull request #7 from Nadeesha-D-Shalom/feature/nadeesha-OCR-scanDiagrams
+[33mf6fb9f9[m Merge branch 'feature/nadeesha-OCR-scanDiagrams'
+[33mdf088bd[m Add similarity check feature
+[33mc4bca1d[m Merge pull request #6 from Nadeesha-D-Shalom/feature/nadeesha-OCR-scanDiagrams
+[33madb96cf[m Add OCR scan feture and can scan the student pdfs
+[33me299107[m Merge pull request #5 from Nadeesha-D-Shalom/feature/hybrid-structured-grading
+[33madd0409[m[33m ([m[1;31morigin/feature/hybrid-structured-grading[m[33m)[m feat: hybrid structured grading engine implementation
+[33m28889ff[m Merge pull request #4 from IT24103900/jeyam-feature
+[33m049bbe2[m Assessment controller checking done
+[33m2bf9f59[m Merge pull request #1 from Nadeesha-D-Shalom/feature/hybrid-structured-grading
+[33mc1e9ca2[m feat: implement hybrid semantic retrieval with TOC filtering and rubric-driven scoring
+[33m1d1c851[m feat: implement hybrid semantic retrieval with TOC filtering and rubric-driven scoring
+[33m210c749[m Add README documentation for StructaIQ platform
+[33m23e0d76[m Add sample.txt file to all sub directories
+[33m51ad822[m Make the folder structure and upload it to the git;
