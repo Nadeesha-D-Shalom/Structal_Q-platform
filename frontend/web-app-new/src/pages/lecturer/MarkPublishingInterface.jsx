@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 // 1. Import your Navbar component (adjust path if necessary)
-import LecturerNavbar from "./LecturerNavbar"; 
+import LecturerNavbar from "../../components/navbars/LecturerNavbar"; 
 const API_BASE_URL = "http://localhost:5000";
 
 const Toggle = ({ value, onChange }) => (

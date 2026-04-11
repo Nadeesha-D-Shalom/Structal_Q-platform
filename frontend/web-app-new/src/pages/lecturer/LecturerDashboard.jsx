@@ -1,5 +1,5 @@
 
-import LecturerNavbar from "./LecturerNavbar";
+import LecturerNavbar from "../../components/navbars/LecturerNavbar";
 
 const LecturerDashboard = () => {
   const activities = [

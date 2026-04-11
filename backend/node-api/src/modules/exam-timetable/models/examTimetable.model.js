@@ -1,4 +1,4 @@
-const { sql, pool, poolConnect } = require('../config/db');
+const { sql, pool, poolConnect } = require('../../../config/db');
 
 const TABLE = 'exam_timetable';
 

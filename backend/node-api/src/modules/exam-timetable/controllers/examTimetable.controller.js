@@ -1,4 +1,4 @@
-const timetableModel = require('../models/timetableModel');
+const examTimetableModel = require('../models/examTimetable.model');
 
 function formatConflictPayload(conflict) {
   const dateRaw = conflict?.exam_date;
@@ -122,7 +122,7 @@ async function create(req, res) {
   };
 
   try {
-    const conflict = await timetableModel.getFirstConflict({
+    const conflict = await examTimetableModel.getFirstConflict({
       examDate: row.exam_date,
       hall: row.hall,
       startTime: row.start_time,
@@ -133,8 +133,8 @@ async function create(req, res) {
       return res.status(409).json(formatConflictPayload(conflict));
     }
 
-    const id = await timetableModel.createTimetable(row);
-    const created = await timetableModel.findById(id);
+    const id = await examTimetableModel.createTimetable(row);
+    const created = await examTimetableModel.findById(id);
     return res.status(201).json(created);
   } catch (err) {
     console.error(err);
@@ -182,7 +182,7 @@ async function getAll(req, res) {
   }
 
   try {
-    const rows = await timetableModel.findAll({
+    const rows = await examTimetableModel.findAll({
       publishedOnly,
       subject,
     });
@@ -228,7 +228,7 @@ async function getById(req, res) {
   }
 
   try {
-    const row = await timetableModel.findById(id);
+    const row = await examTimetableModel.findById(id);
     if (!row) {
       return res.status(404).json({ message: 'Timetable not found.' });
     }
@@ -259,7 +259,7 @@ async function update(req, res) {
   }
 
   const { subject, exam_date, start_time, end_time, hall, status } = req.body;
-  const existing = await timetableModel.findById(id);
+  const existing = await examTimetableModel.findById(id);
   if (!existing) {
     return res.status(404).json({ message: 'Timetable not found.' });
   }
@@ -274,7 +274,7 @@ async function update(req, res) {
   };
 
   try {
-    const conflict = await timetableModel.getFirstConflict({
+    const conflict = await examTimetableModel.getFirstConflict({
       examDate: row.exam_date,
       hall: row.hall,
       startTime: row.start_time,
@@ -285,8 +285,8 @@ async function update(req, res) {
       return res.status(409).json(formatConflictPayload(conflict));
     }
 
-    await timetableModel.updateTimetable(id, row);
-    const updated = await timetableModel.findById(id);
+    await examTimetableModel.updateTimetable(id, row);
+    const updated = await examTimetableModel.findById(id);
     return res.status(200).json(updated);
   } catch (err) {
     console.error(err);
@@ -304,7 +304,7 @@ async function remove(req, res) {
   }
 
   try {
-    const ok = await timetableModel.deleteTimetable(id);
+    const ok = await examTimetableModel.deleteTimetable(id);
     if (!ok) {
       return res.status(404).json({ message: 'Timetable not found.' });
     }
@@ -325,7 +325,7 @@ async function publish(req, res) {
   }
 
   try {
-    const existing = await timetableModel.findById(id);
+    const existing = await examTimetableModel.findById(id);
     if (!existing) {
       return res.status(404).json({ message: 'Timetable not found.' });
     }
@@ -341,7 +341,7 @@ async function publish(req, res) {
         ? existing.exam_date.toISOString().slice(0, 10)
         : String(existing.exam_date ?? '').trim().slice(0, 10);
 
-    const publishConflict = await timetableModel.getFirstConflict({
+    const publishConflict = await examTimetableModel.getFirstConflict({
       examDate,
       hall: String(existing.hall ?? '').trim(),
       startTime: String(existing.start_time ?? '').trim(),
@@ -352,11 +352,11 @@ async function publish(req, res) {
       return res.status(409).json(formatConflictPayload(publishConflict));
     }
 
-    const changed = await timetableModel.publishTimetable(id);
+    const changed = await examTimetableModel.publishTimetable(id);
     if (!changed) {
       return res.status(400).json({ message: 'Could not publish timetable.' });
     }
-    const updated = await timetableModel.findById(id);
+    const updated = await examTimetableModel.findById(id);
     return res.status(200).json({
       message: 'Timetable published successfully.',
       data: updated,
