@@ -9,7 +9,8 @@ exports.getMarks = async (req, res) => {
         .query(`
             SELECT 
             fm.submission_id,
-            fm.total_marks_awarded as mark,
+            fm.total_marks_awarded AS mark,
+            fm.total_marks_awarded AS total_marks_awarded,
             fm.published_at,
             fm.concern_window_open,
             
@@ -94,8 +95,15 @@ exports.getStats = async (req, res) => {
 
 exports.getAllSubjects = async (req, res) => {
     try {
+        const student_id = req.query.student_id;
+        if (!student_id) {
+            return res.status(400).json({
+                success: false,
+                message: "Query parameter student_id is required",
+            });
+        }
         const result = await pool.request()
-            .input('student_id', sql.BigInt, student_id)
+            .input("student_id", sql.BigInt, student_id)
             .query(`
                 SELECT DISTINCT 
                 sub.subject_name
@@ -134,7 +142,8 @@ exports.getDetailsForConcernForm = async (req, res) => {
             .query(`
                 SELECT 
                 fm.submission_id,
-                fm.total_marks_awarded as mark,
+                fm.total_marks_awarded AS mark,
+                fm.total_marks_awarded AS total_marks_awarded,
                 fm.published_at,
                 fm.concern_window_open,
                 

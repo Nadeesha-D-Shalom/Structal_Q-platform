@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import StudentNavbar from "./StudentNavbar";
+import { apiFetch } from "../../api/client";
 
 /**
  * RaiseConcernForm — Standalone Create Concern Page
@@ -43,7 +44,7 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted, show
   useEffect(() => {
     const fetchSession = async () => {
       try {
-        const res = await fetch("/api/auth/session", { credentials: "include" });
+        const res = await apiFetch("/api/auth/session");
         if (!res.ok) throw new Error("Not authenticated");
         const data = await res.json();
         setSession(data);
@@ -66,9 +67,7 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted, show
       setSubmissionLoading(true);
       setSubmissionError(null);
       try {
-        const res = await fetch(`/api/marks/details/${submissionId}`, {
-          credentials: "include"
-        });
+        const res = await apiFetch(`/api/marks/details/${submissionId}`);
         const data = await res.json();
         if (data.success) {
           setSubmissionDetails(data.data);
@@ -123,13 +122,9 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted, show
     };
 
     try {
-      const res = await fetch("/api/concern", {
+      const res = await apiFetch("/api/concern", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify(formData),
-        credentials: "include",
       });
       
       const responseData = await res.json();

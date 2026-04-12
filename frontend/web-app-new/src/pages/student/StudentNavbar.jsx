@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import logo from "../../assets/logo.png";
+import { clearAuth } from "../../api/client";
 
 const NAV_ITEMS = [
   { name: "Dashboard", path: "/student", icon: "fas fa-border-all" },
@@ -13,6 +14,34 @@ const NAV_ITEMS = [
 const StudentNavbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
+
+  const profile = useMemo(() => {
+    try {
+      const raw = localStorage.getItem("user");
+      if (!raw) return { name: "Student", idLabel: "" };
+      const u = JSON.parse(raw);
+      const name =
+        u.student_name ||
+        u.name ||
+        [u.first_name, u.last_name].filter(Boolean).join(" ") ||
+        u.email ||
+        "Student";
+      const id =
+        u.student_id != null
+          ? `Student ID: ${u.student_id}`
+          : u.registration_no
+            ? `Reg: ${u.registration_no}`
+            : "";
+      return { name, idLabel: id };
+    } catch {
+      return { name: "Student", idLabel: "" };
+    }
+  }, []);
+
+  const handleLogout = () => {
+    clearAuth();
+    navigate("/", { replace: true });
+  };
 
   const getActivePage = () => {
     const path = location.pathname;
@@ -80,9 +109,14 @@ const StudentNavbar = () => {
       <div className="flex items-center gap-4">
 
         {/* LOGOUT */}
-        <div className="w-[34px] h-[34px] rounded-full border border-[#e4e8ee] flex items-center justify-center bg-white cursor-pointer hover:bg-gray-50">
+        <button
+          type="button"
+          aria-label="Log out"
+          onClick={handleLogout}
+          className="w-[34px] h-[34px] rounded-full border border-[#e4e8ee] flex items-center justify-center bg-white cursor-pointer hover:bg-gray-50"
+        >
           <i className="fas fa-sign-out-alt text-[13px] text-[#ff6b63]"></i>
-        </div>
+        </button>
 
         {/* NOTIFICATION */}
         <div className="w-[34px] h-[34px] border rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-50">
@@ -92,8 +126,10 @@ const StudentNavbar = () => {
         {/* USER */}
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <p className="text-[12px] font-semibold">Nadeesha S.</p>
-            <p className="text-[10px] text-gray-400">Student ID: 202401</p>
+            <p className="text-[12px] font-semibold">{profile.name}</p>
+            {profile.idLabel && (
+              <p className="text-[10px] text-gray-400">{profile.idLabel}</p>
+            )}
           </div>
           <div className="w-[32px] h-[32px] bg-[#f4b37a] rounded-full cursor-pointer"></div>
         </div>

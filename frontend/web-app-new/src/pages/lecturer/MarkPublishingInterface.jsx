@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import LecturerNavbar from "./LecturerNavbar";
-const API_BASE_URL = "http://localhost:5000";
+import { apiFetch, apiUrl } from "../../api/client";
 
 const Toggle = ({ value, onChange }) => (
   <button
@@ -104,14 +104,14 @@ export default function PublishMarksConfig() {
 
   // Fetch Assessments
   useEffect(() => {
-    fetch("/api/marks/assessments")
-      .then(res => res.json())
-      .then(data => {
+    apiFetch("/api/marks/assessments")
+      .then((res) => res.json())
+      .then((data) => {
         if (Array.isArray(data)) {
           setAssessments(data);
         }
       })
-      .catch(err => console.error("Error fetching assessments:", err));
+      .catch((err) => console.error("Error fetching assessments:", err));
   }, []);
 
   // Real-time validation function - simplified
@@ -227,7 +227,7 @@ export default function PublishMarksConfig() {
 
     setIsLoadingSubmissions(true);
     try {
-      const res = await fetch(`/api/marks/pending-submissions?assessment_id=${aid}`);
+      const res = await apiFetch(`/api/marks/pending-submissions?assessment_id=${aid}`);
       const data = await res.json();
       
       if (Array.isArray(data) && data.length > 0) {
@@ -254,8 +254,8 @@ export default function PublishMarksConfig() {
     
     try {
       const [sRes, dRes] = await Promise.all([
-        fetch(`/api/marks/ai-scores/${sub.submission_id}`),
-        fetch(`/api/marks/diagram-pages/${sub.submission_id}`)
+        apiFetch(`/api/marks/ai-scores/${sub.submission_id}`),
+        apiFetch(`/api/marks/diagram-pages/${sub.submission_id}`),
       ]);
       
       const aiData = await sRes.json();
@@ -283,9 +283,8 @@ export default function PublishMarksConfig() {
     
     setIsPublishing(true);
     try {
-      const res = await fetch("/api/marks/publish", {
+      const res = await apiFetch("/api/marks/publish", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           submission_id: selectedSub.submission_id,
           final_mark: finalMark,
@@ -397,7 +396,7 @@ export default function PublishMarksConfig() {
                   <label style={imageLabelStyle}>Pending Submissions *</label>
                   {selectedSub && (
                     <a 
-                      href={`${API_BASE_URL}/api/marks/pdf/${selectedSub.submission_id}`} 
+                      href={apiUrl(`/api/marks/pdf/${selectedSub.submission_id}`)} 
                       target="_blank" 
                       rel="noreferrer"
                       style={{ fontSize: 11, fontWeight: "bold", color: "#3c74ff", textDecoration: "none", marginBottom: 8, display: "flex", alignItems: "center" }}

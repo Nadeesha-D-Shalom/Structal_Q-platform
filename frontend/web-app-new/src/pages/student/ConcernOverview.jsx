@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import StudentNavbar from "./StudentNavbar";
 import { useNavigate } from "react-router-dom";
-
-const API_BASE_URL = "http://localhost:5000";
+import { apiFetch } from "../../api/client";
 
 // View Details Modal
 const ViewDetailsModal = ({ isOpen, onClose, concern }) => {
@@ -117,7 +116,7 @@ export default function StudentConcernsOverview() {
   useEffect(() => {
     const fetchSession = async () => {
       try {
-        const res = await fetch("/api/auth/session", { credentials: "include" });
+        const res = await apiFetch("/api/auth/session");
         if (!res.ok) throw new Error("Not authenticated");
         const data = await res.json();
         setSession(data);
@@ -138,17 +137,14 @@ export default function StudentConcernsOverview() {
     const fetchConcerns = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/concerns/student/${session.student_id}`, {
-          credentials: "include"
-        });
+        const res = await apiFetch(`/api/concern/student/${session.student_id}`);
         const data = await res.json();
         
-        if (data.success) {
+        if (data.success && Array.isArray(data.data)) {
           setConcerns(data.data);
           setFilteredConcerns(data.data);
           
-          // Extract unique subjects for filter
-          const uniqueSubjects = ["All", ...new Set(data.data.map(c => c.subject))];
+          const uniqueSubjects = ["All", ...new Set(data.data.map(c => c.subject).filter(Boolean))];
           setSubjects(uniqueSubjects);
         }
       } catch (err) {

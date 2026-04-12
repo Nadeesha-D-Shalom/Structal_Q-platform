@@ -44,12 +44,11 @@ async function priorityDetector (student_id, academic_year, concern_message, sub
             return 'High';
         } else if (score > 50) {
             return 'Medium';
-        } else {
-            return 'Low';
         }
-
+        return 'Low';
     } catch(err) {
         console.error(err);
+        return 'Low';
     }
 }
 
@@ -94,31 +93,97 @@ exports.createConcern = async (req, res, next) => {
     }
 }
 
+function mapConcernRow(r) {
+    const mark = r.total_marks_awarded != null ? Number(r.total_marks_awarded) : null;
+    return {
+        id: r.concern_id || String(r.id),
+        dbId: r.id,
+        numericId: r.id,
+        student: r.student_name,
+        student_email: r.student_email,
+        student_id: r.student_id,
+        assignment: r.assignment_name || "—",
+        subject: r.subject_name || "—",
+        subject_code: r.subject_code || "",
+        originalMark: mark != null ? mark : 0,
+        status: r.concern_status || "Pending",
+        priority: r.priority_level || "Low",
+        date: r.created_at ? new Date(r.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "",
+        message: r.concern_message || "",
+        submission_id: r.submission_id,
+        response: r.lecturer_comment || null,
+        responseDate: r.revised_on ? new Date(r.revised_on).toLocaleDateString() : null,
+        revisedMark: r.revised_mark != null ? Number(r.revised_mark) : null,
+    };
+}
+
 exports.getAllConcerns = async (req, res, next) => {
     try {
-        const result = await pool.request().query(
-            'SELECT * FROM mark_concern'
-        );
+        const result = await pool.request().query(`
+            SELECT 
+                mc.*,
+                a.assessment_title AS assignment_name,
+                sub.subject_name,
+                sub.subject_code,
+                (SELECT TOP 1 fm.total_marks_awarded FROM final_mark fm WHERE fm.submission_id = s.submission_id) AS total_marks_awarded
+            FROM mark_concern mc
+            LEFT JOIN submission s ON CAST(mc.submission_id AS NVARCHAR(64)) = CAST(s.submission_id AS NVARCHAR(64))
+            LEFT JOIN assessment a ON s.assessment_id = a.assessment_id
+            LEFT JOIN subject_offering so ON a.offering_id = so.offering_id
+            LEFT JOIN subject sub ON so.subject_id = sub.subject_id
+            ORDER BY mc.id DESC
+        `);
 
-        res.json(result.recordset);
-
+        const data = (result.recordset || []).map(mapConcernRow);
+        res.json({ success: true, data });
     } catch (err) {
         console.error(err);
         next(err);
     }
-}
+};
+
+exports.getConcernsByStudent = async (req, res, next) => {
+    try {
+        const { studentId } = req.params;
+        const result = await pool
+            .request()
+            .input("student_id", sql.VarChar, String(studentId))
+            .query(`
+                SELECT 
+                    mc.*,
+                    a.assessment_title AS assignment_name,
+                    sub.subject_name,
+                    sub.subject_code,
+                    (SELECT TOP 1 fm.total_marks_awarded FROM final_mark fm WHERE fm.submission_id = s.submission_id) AS total_marks_awarded
+                FROM mark_concern mc
+                LEFT JOIN submission s ON CAST(mc.submission_id AS NVARCHAR(64)) = CAST(s.submission_id AS NVARCHAR(64))
+                LEFT JOIN assessment a ON s.assessment_id = a.assessment_id
+                LEFT JOIN subject_offering so ON a.offering_id = so.offering_id
+                LEFT JOIN subject sub ON so.subject_id = sub.subject_id
+                WHERE CAST(mc.student_id AS NVARCHAR(64)) = @student_id
+                ORDER BY mc.id DESC
+            `);
+
+        const data = (result.recordset || []).map(mapConcernRow);
+        res.json({ success: true, data });
+    } catch (err) {
+        console.error(err);
+        next(err);
+    }
+};
 
 exports.updateConcern = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const {concern_status, revised_by, revised_on, lecturer_comment} = req.body;
+        const { concern_status, revised_by, revised_on, lecturer_comment } = req.body;
 
-        await pool.request()
-            .input('concern_status', sql.VarChar, concern_status)
-            .input('revised_by', sql.VarChar, revised_by)
-            .input('revised_on', sql.DateTime, revised_on)
-            .input('lecturer_comment', sql.VarChar, lecturer_comment)
-            .input('concern_id', sql.Int, id)
+        await pool
+            .request()
+            .input("concern_status", sql.VarChar, concern_status)
+            .input("revised_by", sql.VarChar, revised_by)
+            .input("revised_on", sql.DateTime, revised_on || new Date())
+            .input("lecturer_comment", sql.NVarChar(sql.MAX), lecturer_comment)
+            .input("id", sql.Int, id)
             .query(`
                 UPDATE mark_concern 
                 SET 
@@ -126,31 +191,24 @@ exports.updateConcern = async (req, res, next) => {
                     revised_by = @revised_by, 
                     revised_on = @revised_on, 
                     lecturer_comment = @lecturer_comment
-                WHERE concern_id = @concern_id`
-            );
-        
-            res.json({ message: "Concern Updated Successfully" });
+                WHERE id = @id
+            `);
 
+        res.json({ success: true, message: "Concern Updated Successfully" });
     } catch (err) {
         console.error(err);
         next(err);
     }
-}
+};
 
 exports.deleteConcern = async (req, res, next) => {
     const { id } = req.params;
     try {
-        await pool.request()
-            .input('concern_id', sql.Int, id)
-            .query(
-                'DELETE FROM mark_concern WHERE concern_id = @concern_id'  
-            );
+        await pool.request().input("id", sql.Int, id).query("DELETE FROM mark_concern WHERE id = @id");
 
-        res.json({ message: 'Concern Deleted Successfully'});
-
+        res.json({ success: true, message: "Concern Deleted Successfully" });
     } catch (err) {
         console.error(err);
         next(err);
     }
-    
-}
+};

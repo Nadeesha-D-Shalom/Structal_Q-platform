@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import LecturerNavbar from "./LecturerNavbar";
+import { apiFetch } from "../../api/client";
 
 const API_BASE_URL = "http://localhost:5000";
 
@@ -229,9 +230,7 @@ export default function MarkRevisionAuditLog() {
   const fetchPublishedMarks = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/marks/published-marks", {
-        credentials: "include"
-      });
+      const res = await apiFetch("/api/marks/published-marks");
       const data = await res.json();
       if (data.success) {
         setSubmissions(data.data);
@@ -273,10 +272,8 @@ export default function MarkRevisionAuditLog() {
   // Handle Edit Mark
   const handleEditMark = async (data) => {
     try {
-      const res = await fetch("/api/marks/update-mark", {
+      const res = await apiFetch("/api/marks/update-mark", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({
           submission_id: data.submission_id,
           new_mark: data.new_mark,
@@ -314,10 +311,8 @@ export default function MarkRevisionAuditLog() {
     if (!selectedSubmission) return;
     
     try {
-      const res = await fetch(`/api/marks/delete-mark/${selectedSubmission.submission_id}`, {
+      const res = await apiFetch(`/api/marks/delete-mark/${selectedSubmission.submission_id}`, {
         method: "DELETE",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           reason: "Deleted via audit log"
         })

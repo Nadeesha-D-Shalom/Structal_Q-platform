@@ -234,3 +234,70 @@ exports.publishingleMark = async (req, res, next) => {
         next(err); 
     }
 };
+
+exports.getPublishedMarks = async (req, res, next) => {
+    try {
+        const result = await pool.request().query(`
+            SELECT 
+                fm.submission_id,
+                s.student_id,
+                fm.total_marks_awarded AS mark,
+                fm.total_marks_awarded AS total_marks_awarded,
+                a.assessment_title AS assignment_name,
+                a.total_marks AS total,
+                sub.subject_name,
+                sub.subject_code,
+                so.academic_year,
+                fm.published_at,
+                fm.concern_window_open
+            FROM final_mark fm
+            INNER JOIN submission s ON fm.submission_id = s.submission_id
+            INNER JOIN assessment a ON s.assessment_id = a.assessment_id
+            INNER JOIN subject_offering so ON a.offering_id = so.offering_id
+            INNER JOIN subject sub ON so.subject_id = sub.subject_id
+            WHERE fm.marking_status = 'PUBLISHED'
+            ORDER BY fm.published_at DESC
+        `);
+        res.json({ success: true, data: result.recordset || [] });
+    } catch (err) {
+        next(err);
+    }
+};
+
+exports.updatePublishedMark = async (req, res, next) => {
+    try {
+        const { submission_id, new_mark } = req.body;
+        if (submission_id == null || new_mark === undefined) {
+            return res.status(400).json({ success: false, message: "submission_id and new_mark are required" });
+        }
+        const markNum = Number(new_mark);
+        if (Number.isNaN(markNum) || markNum < 0) {
+            return res.status(400).json({ success: false, message: "Invalid mark" });
+        }
+        await pool
+            .request()
+            .input("sid", sql.BigInt, submission_id)
+            .input("mark", sql.Decimal(10, 2), markNum)
+            .query(`
+                UPDATE final_mark
+                SET total_marks_awarded = @mark, updated_at = GETDATE()
+                WHERE submission_id = @sid AND marking_status = 'PUBLISHED'
+            `);
+        res.json({ success: true, message: "Mark updated successfully." });
+    } catch (err) {
+        next(err);
+    }
+};
+
+exports.deletePublishedMark = async (req, res, next) => {
+    try {
+        const { submission_id } = req.params;
+        await pool
+            .request()
+            .input("sid", sql.BigInt, submission_id)
+            .query(`DELETE FROM final_mark WHERE submission_id = @sid`);
+        res.json({ success: true, message: "Mark deleted successfully." });
+    } catch (err) {
+        next(err);
+    }
+};

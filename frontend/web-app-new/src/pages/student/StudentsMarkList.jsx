@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import StudentNavbar from "./StudentNavbar";
 import { useNavigate } from "react-router-dom";
+import { apiFetch } from "../../api/client";
 
 const PER_PAGE = 5;
 
@@ -29,30 +30,46 @@ export default function StudentMarksList() {
 
   // ── Fetch session ────────────────────────────────────────────────────────
   useEffect(() => {
-    fetch("/api/auth/session", { credentials: "include" })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { setSession(data); setSessionLoading(false); })
-      .catch(() => setSessionLoading(false));
+    (async () => {
+      try {
+        const r = await apiFetch("/api/auth/session");
+        const data = await r.json().catch(() => null);
+        if (r.ok && data?.success !== false) {
+          setSession(data);
+        } else {
+          setSession(null);
+        }
+      } catch {
+        setSession(null);
+      } finally {
+        setSessionLoading(false);
+      }
+    })();
   }, []);
 
-  // ── Fetch submissions from backend ───────────────────────────────────────
+  // ── Published marks (same data the raise-concern flow needs) ─────────────
   useEffect(() => {
     if (!session?.student_id) return;
     setSubmissionsLoading(true);
     setFetchError(false);
-    fetch(`/api/submissions/student/${session.student_id}`, { credentials: "include" })
-      .then(r => { if (!r.ok) throw new Error("Failed"); return r.json(); })
-      .then(data => {
-        // Transform data to match expected format
-        const formattedData = data.map(item => ({
+    (async () => {
+      try {
+        const r = await apiFetch(`/api/student/marks/${session.student_id}`);
+        const j = await r.json();
+        if (!r.ok || !j.success) throw new Error(j.message || "Failed");
+        const rows = Array.isArray(j.data) ? j.data : [];
+        const formattedData = rows.map((item) => ({
           ...item,
-          total_marks_awarded: item.total_marks_awarded || item.mark,
-          concern_window_open: item.concern_window_open === 1 || item.concern_window_open === true
+          total_marks_awarded: item.total_marks_awarded ?? item.mark,
+          concern_window_open: item.concern_window_open === 1 || item.concern_window_open === true,
         }));
         setSubmissions(formattedData);
-      })
-      .catch(() => setFetchError(true))
-      .finally(() => setSubmissionsLoading(false));
+      } catch {
+        setFetchError(true);
+      } finally {
+        setSubmissionsLoading(false);
+      }
+    })();
   }, [session?.student_id]);
 
   // ── Derived filter options ────────────────────────────────────────────────

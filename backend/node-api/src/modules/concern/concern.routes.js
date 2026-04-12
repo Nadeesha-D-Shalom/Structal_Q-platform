@@ -8,6 +8,8 @@ const upload = multer();
 // Create conern
 router.post('/', upload.single('assessment_pdf'), concernController.createConcern);
 
+router.get('/student/:studentId', concernController.getConcernsByStudent);
+
 // Get all concerns
 router.get('/', concernController.getAllConcerns);
 

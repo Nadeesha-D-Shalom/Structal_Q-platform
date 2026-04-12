@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import LecturerNavbar from "./LecturerNavbar";
-
-const API_BASE_URL = "http://localhost:5000";
+import { apiFetch, apiUrl } from "../../api/client";
 
 // Success Popup Component
 const SuccessPopup = ({ isVisible, onClose, message, title, details }) => {
@@ -429,129 +428,33 @@ export default function ConcernReviewResolution() {
   const [popupDetails, setPopupDetails] = useState({});
   const [submissionUrl, setSubmissionUrl] = useState("");
 
-  // Sample concerns data with expanded details
-  const [concerns, setConcerns] = useState([
-    {
-      id: "CN-001",
-      student: "John Perera",
-      student_email: "john.perera@example.com",
-      student_id: "STU-2024001",
-      assignment: "Software Architecture Project",
-      subject: "Software Engineering",
-      subject_code: "SE-301",
-      originalMark: 72,
-      status: "Pending",
-      priority: "High",
-      date: "Mar 12, 2026",
-      message: "I believe my project was undervalued in the documentation section. I have provided additional evidence regarding the architectural diagrams which were not fully captured in the initial review.",
-      submission_pdf: `${API_BASE_URL}/api/marks/pdf/SUB-001`
-    },
-    {
-      id: "CN-002",
-      student: "Sarah Johnson",
-      student_email: "sarah.johnson@example.com",
-      student_id: "STU-2024002",
-      assignment: "Database Design Assignment",
-      subject: "Database Systems",
-      subject_code: "DB-201",
-      originalMark: 68,
-      status: "Pending",
-      priority: "Medium",
-      date: "Mar 13, 2026",
-      message: "I believe my ER diagram was incorrectly marked. The relationships I modeled were correct according to the requirements.",
-      submission_pdf: `${API_BASE_URL}/api/marks/pdf/SUB-002`
-    },
-    {
-      id: "CN-003",
-      student: "Michael Chen",
-      student_email: "michael.chen@example.com",
-      student_id: "STU-2024003",
-      assignment: "Network Security Report",
-      subject: "Computer Networks",
-      subject_code: "CN-401",
-      originalMark: 85,
-      status: "Accepted",
-      priority: "Low",
-      date: "Mar 14, 2026",
-      message: "Requesting clarification on the security analysis section. I think my analysis was comprehensive.",
-      submission_pdf: `${API_BASE_URL}/api/marks/pdf/SUB-003`
-    },
-    {
-      id: "CN-004",
-      student: "Emily Watson",
-      student_email: "emily.watson@example.com",
-      student_id: "STU-2024004",
-      assignment: "AI Final Project",
-      subject: "Artificial Intelligence",
-      subject_code: "AI-501",
-      originalMark: 45,
-      status: "Rejected",
-      priority: "High",
-      date: "Oct 18, 2023",
-      message: "The evaluation seems unfair considering the complexity of my implementation. I spent over 50 hours on this project.",
-      submission_pdf: `${API_BASE_URL}/api/marks/pdf/SUB-004`
-    },
-    {
-      id: "CN-005",
-      student: "David Kim",
-      student_email: "david.kim@example.com",
-      student_id: "STU-2024005",
-      assignment: "Cloud Computing Report",
-      subject: "Cloud Computing",
-      subject_code: "CC-601",
-      originalMark: 78,
-      status: "Revised",
-      priority: "Medium",
-      date: "Mar 16, 2026",
-      message: "Requesting review of the architecture diagram section. I believe I properly documented all components.",
-      submission_pdf: `${API_BASE_URL}/api/marks/pdf/SUB-005`
-    },
-    {
-      id: "CN-006",
-      student: "Lisa Wang",
-      student_email: "lisa.wang@example.com",
-      student_id: "STU-2024006",
-      assignment: "Mobile App Development",
-      subject: "Mobile Computing",
-      subject_code: "MC-301",
-      originalMark: 92,
-      status: "Accepted",
-      priority: "Low",
-      date: "Oct 5, 2023",
-      message: "Minor clarification on the UI/UX evaluation criteria.",
-      submission_pdf: `${API_BASE_URL}/api/marks/pdf/SUB-006`
-    },
-    {
-      id: "CN-007",
-      student: "James Wilson",
-      student_email: "james.wilson@example.com",
-      student_id: "STU-2024007",
-      assignment: "Operating Systems Project",
-      subject: "Operating Systems",
-      subject_code: "OS-401",
-      originalMark: 55,
-      status: "Pending",
-      priority: "High",
-      date: "Oct 22, 2023",
-      message: "The process synchronization implementation was marked incorrectly. My solution handles all edge cases.",
-      submission_pdf: `${API_BASE_URL}/api/marks/pdf/SUB-007`
-    },
-    {
-      id: "CN-008",
-      student: "Maria Garcia",
-      student_email: "maria.garcia@example.com",
-      student_id: "STU-2024008",
-      assignment: "Web Development Final",
-      subject: "Web Technologies",
-      subject_code: "WEB-201",
-      originalMark: 88,
-      status: "Revised",
-      priority: "Medium",
-      date: "Oct 19, 2023",
-      message: "Requesting review of the responsive design section. My implementation meets all requirements.",
-      submission_pdf: `${API_BASE_URL}/api/marks/pdf/SUB-008`
-    }
-  ]);
+  const [concerns, setConcerns] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch("/api/concern");
+        const j = await res.json();
+        if (cancelled || !res.ok) return;
+        if (j.success && Array.isArray(j.data)) {
+          setConcerns(
+            j.data.map((c) => ({
+              ...c,
+              submission_pdf: c.submission_id
+                ? apiUrl(`/api/marks/pdf/${c.submission_id}`)
+                : "",
+            }))
+          );
+        }
+      } catch (e) {
+        console.error("Failed to load concerns", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const statuses = ["All", "Pending", "Accepted", "Rejected", "Revised"];
   const priorities = ["All", "High", "Medium", "Low"];
@@ -566,11 +469,12 @@ export default function ConcernReviewResolution() {
   // Filter and sort concerns
   const filteredConcerns = concerns
     .filter(concern => {
+      const sid = String(concern.student_id ?? "");
       const matchesSearch = 
-        concern.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        concern.student.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        concern.assignment.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        concern.student_id.toLowerCase().includes(searchQuery.toLowerCase());
+        String(concern.id ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        String(concern.student ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        String(concern.assignment ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        sid.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus = statusFilter === "All" || concern.status === statusFilter;
       const matchesPriority = priorityFilter === "All" || concern.priority === priorityFilter;
       return matchesSearch && matchesStatus && matchesPriority;
@@ -597,7 +501,17 @@ export default function ConcernReviewResolution() {
     if (!selectedConcern) return;
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const nid = selectedConcern.numericId ?? selectedConcern.dbId;
+      if (nid == null) {
+        alert("Cannot delete: missing concern id");
+        return;
+      }
+      const res = await apiFetch(`/api/concern/${nid}`, { method: "DELETE" });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(body.message || "Failed to delete concern");
+        return;
+      }
       setConcerns(concerns.filter(c => c.id !== selectedConcern.id));
       setPopupTitle("✓ Concern Deleted");
       setPopupMessage(`Concern #${selectedConcern.id} from ${selectedConcern.student} has been deleted.`);
