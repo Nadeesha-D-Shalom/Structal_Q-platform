@@ -19,8 +19,12 @@ const pool = new sql.ConnectionPool(config);
 // CONNECT PROMISE
 const poolConnect = pool.connect();
 
+
+const poolPromise = poolConnect.then(() => pool);
+
 module.exports = {
     pool,
     sql,
-    poolConnect
+    poolConnect,
+    poolPromise   
 };

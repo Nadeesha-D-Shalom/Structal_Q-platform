@@ -23,6 +23,14 @@ import MLAnalysisConfig from "./pages/lecturer/MLAnalysisConfig";
 import MLAnalysisResult from "./pages/lecturer/MLAnalysisResult";
 import SubmissionComparison from "./pages/lecturer/SubmissionComparison";
 import ViewAnalysisResults from "./pages/lecturer/ViewAnalysisResults";
+
+/* Member 3 */
+import SubjectPage from "./modules/subject/SubjectPage";
+import AssessmentPage from "./modules/Assessment/AssessmentPage";
+import GuidePage from "./modules/marking-guide/GuidePage";
+import GuideBuilderPage from "./modules/marking-guide/GuideBuilderPage";
+import GuidePreviewPage from "./modules/marking-guide/GuidePreviewPage";
+
 function App() {
   return (
     <Router>
@@ -43,6 +51,13 @@ function App() {
         <Route path="/lecturer/marks" element={<MarkRevisionAuditLog />} />
         <Route path="/lecturer/review-concerns" element={<ConcernReviewResolution />} />
 
+        {/* ================= Member 3 ================= */}
+        <Route path="/subjects" element={<SubjectPage />} />
+        <Route path="/assessments" element={<AssessmentPage />} />
+        <Route path="/guides" element={<GuidePage />} />
+        <Route path="/guide-builder/:id" element={<GuideBuilderPage />} />
+        <Route path="/guide-preview/:id" element={<GuidePreviewPage />} />
+
         {/* ================= SUBMISSIONS ================= */}
         <Route path="/lecturer/submissions" element={<LecturerSubmissions />} />
         <Route path="/lecturer/submissions/:id" element={<ViewSubmission />} />
@@ -51,14 +66,10 @@ function App() {
         {/* ================= AI ANALYSIS ================= */}
         <Route path="/lecturer/ml-analysis" element={<MLAnalysisConfig />} />
         <Route path="/lecturer/analysis/:id" element={<MLAnalysisResult />} />
-
-        {/* IMPORTANT: MATCHES YOUR BUTTON */}
         <Route path="/lecturer/compareWithStudents" element={<SubmissionComparison />} />
-
-        {/* OPTIONAL CLEAN ROUTE */}
         <Route path="/lecturer/submission-compare" element={<SubmissionComparison />} />
-
         <Route path="/analysis/:submissionId" element={<ViewAnalysisResults />} />
+
       </Routes>
     </Router>
   );
