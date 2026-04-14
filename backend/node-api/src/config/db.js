@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 const sql = require('mssql');
 
 const config = {
@@ -6,12 +7,24 @@ const config = {
     server: 'localhost',
     port: 1433,
     database: 'Structal_Q_platform',
+=======
+const sql = require("mssql");
+require("dotenv").config();
+
+const config = {
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    server: process.env.DB_SERVER,
+    port: Number(process.env.DB_PORT) || 1433,
+    database: process.env.DB_NAME,
+>>>>>>> main
     options: {
-        encrypt: true,
+        encrypt: false,
         trustServerCertificate: true
     }
 };
 
+<<<<<<< HEAD
 const poolPromise = new sql.ConnectionPool(config)
     .connect()
     .then(pool => {
@@ -23,4 +36,16 @@ const poolPromise = new sql.ConnectionPool(config)
 module.exports = {
     sql,
     poolPromise
+=======
+// CREATE CONNECTION POOL
+const pool = new sql.ConnectionPool(config);
+
+// CONNECT PROMISE
+const poolConnect = pool.connect();
+
+module.exports = {
+    pool,
+    sql,
+    poolConnect
+>>>>>>> main
 };

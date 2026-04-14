@@ -1,0 +1,156 @@
+.vts,
+.vts * {
+  box-sizing: border-box;
+}
+
+.vts {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 28px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  color: #0f172a;
+}
+
+.vts__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vts__title {
+  margin: 0;
+  color: #0f172a;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 36px;
+}
+
+.vts__subtitle {
+  margin: 0;
+  color: #64748b;
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.vts__toolbar {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  box-shadow: 0px 1px 2px rgba(15, 23, 42, 0.06);
+  padding: 18px;
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.vts__control {
+  height: 44px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+  color: #0f172a;
+  outline: none;
+  padding: 0 12px;
+  width: 100%;
+}
+
+.vts__filterField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 190px;
+}
+
+.vts__filterField--grow {
+  flex: 1;
+  min-width: 240px;
+}
+
+.vts__filterLabel {
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  padding-left: 4px;
+}
+
+.vts__select {
+  min-width: 160px;
+}
+
+.vts__exportBtn {
+  height: 44px;
+  border: 0;
+  border-radius: 14px;
+  background: #2463eb;
+  color: #ffffff;
+  font-weight: 700;
+  padding: 0 18px;
+  cursor: pointer;
+  box-shadow: 0px 4px 10px rgba(36, 99, 235, 0.3);
+}
+
+.vts__exportBtn:hover {
+  background: #1f56cc;
+}
+
+.vts__card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  box-shadow: 0px 1px 2px rgba(15, 23, 42, 0.06), 0px 10px 24px rgba(15, 23, 42, 0.04);
+  overflow-x: auto;
+}
+
+.vts__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.vts__table thead th {
+  background: #f8fafc;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  text-align: left;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.vts__table tbody td {
+  padding: 14px 16px;
+  border-top: 1px solid #f1f5f9;
+  color: #475569;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.vts__subject {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.vts__state {
+  padding: 18px 16px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.vts__state--error {
+  color: #b00020;
+}
+
+@media (max-width: 768px) {
+  .vts {
+    padding: 22px 14px;
+  }
+
+  .vts__toolbar {
+    padding: 14px;
+  }
+}
+

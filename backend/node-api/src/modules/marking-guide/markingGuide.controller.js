@@ -99,7 +99,8 @@ const createGuide = async (req, res) => {
                     order_sensitive,
                     requires_diagram_check,
                     diagram_types_expected,
-                    created_by
+                    created_by,
+                    file_id
                 )
                 VALUES (
                     @assessment_id,
@@ -109,7 +110,8 @@ const createGuide = async (req, res) => {
                     @order_sensitive,
                     @requires_diagram_check,
                     @diagram_types_expected,
-                    @created_by
+                    @created_by,
+                    @file_id
                 )
             `);
 
@@ -119,7 +121,11 @@ const createGuide = async (req, res) => {
         });
 
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Create Guide Error:", err);
+        res.status(500).json({
+            success: false,
+            error: err.message
+        });
     }
 };
 
@@ -291,7 +297,11 @@ const getGuides = async (req, res) => {
         res.json(result.recordset);
 
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Guide Fetch Error:", err);
+        res.status(500).json({
+            success: false,
+            error: err.message
+        });
     }
 };
 
@@ -315,10 +325,17 @@ const getGuideById = async (req, res) => {
             return res.status(404).json({ message: "Guide not found" });
         }
 
-        res.json(result.recordset[0]);
+        res.json({
+            success: true,
+            data: result.recordset[0]
+        });
 
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Get Guide Error:", err);
+        res.status(500).json({
+            success: false,
+            error: err.message
+        });
     }
 };
 
@@ -353,6 +370,7 @@ const updateGuide = async (req, res) => {
                     order_sensitive = @order_sensitive,
                     requires_diagram_check = @requires_diagram_check,
                     diagram_types_expected = @diagram_types_expected,
+                    file_id = ISNULL(@file_id, file_id),
                     updated_at = GETDATE()
                 WHERE marking_guide_id = @id
             `);
@@ -360,7 +378,11 @@ const updateGuide = async (req, res) => {
         res.json({ message: "Guide updated" });
 
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Update Guide Error:", err);
+        res.status(500).json({
+            success: false,
+            error: err.message
+        });
     }
 };
 
@@ -382,7 +404,11 @@ const deleteGuide = async (req, res) => {
         res.json({ message: "Guide deleted" });
 
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Delete Guide Error:", err);
+        res.status(500).json({
+            success: false,
+            error: err.message
+        });
     }
 };
 

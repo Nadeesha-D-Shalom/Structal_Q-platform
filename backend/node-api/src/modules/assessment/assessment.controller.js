@@ -3,7 +3,7 @@ const { sql, poolPromise } = require('../../config/db');
 // CREATE ASSESSMENT
 const createAssessment = async (req, res) => {
     const {
-        subject_id,
+        offering_id,
         assessment_title,
         assessment_type,
         total_marks,
@@ -19,7 +19,7 @@ const createAssessment = async (req, res) => {
     // Validation
     if (!subject_id || !assessment_title || !assessment_type) {
         return res.status(400).json({
-            message: "subject_id, assessment_title, assessment_type are required"
+            message: "offering_id, assessment_title, assessment_type are required"
         });
     }
 
@@ -47,7 +47,7 @@ const createAssessment = async (req, res) => {
             .input('created_by', sql.Int, created_by || null)
             .query(`
                 INSERT INTO assessment (
-                    subject_id,
+                    offering_id,
                     assessment_title,
                     assessment_type,
                     total_marks,
@@ -60,7 +60,7 @@ const createAssessment = async (req, res) => {
                     created_by
                 )
                 VALUES (
-                    @subject_id,
+                    @offering_id,
                     @assessment_title,
                     @assessment_type,
                     @total_marks,
@@ -125,9 +125,9 @@ const getAssessmentById = async (req, res) => {
         const pool = await poolPromise;
 
         const result = await pool.request()
-            .input('id', sql.Int, req.params.id)
+            .input('id', sql.BigInt, req.params.id)
             .query(`
-                SELECT * 
+                SELECT *
                 FROM assessment
                 WHERE assessment_id = @id
             `);
@@ -159,14 +159,15 @@ const updateAssessment = async (req, res) => {
         const pool = await poolPromise;
 
         await pool.request()
-            .input('id', sql.Int, req.params.id)
-            .input('assessment_title', sql.VarChar(150), assessment_title)
-            .input('total_marks', sql.Int, total_marks)
+            .input('id', sql.BigInt, req.params.id)
+            .input('assessment_title', sql.NVarChar(255), assessment_title)
+            .input('total_marks', sql.Decimal(10,2), total_marks)
             .input('start_date', sql.DateTime, start_date)
             .input('due_date', sql.DateTime, due_date)
             .query(`
                 UPDATE assessment
-                SET assessment_title = @assessment_title,
+                SET 
+                    assessment_title = @assessment_title,
                     total_marks = @total_marks,
                     start_date = @start_date,
                     due_date = @due_date,
@@ -190,10 +191,11 @@ const deleteAssessment = async (req, res) => {
         const pool = await poolPromise;
 
         await pool.request()
-            .input('id', sql.Int, req.params.id)
+            .input('id', sql.BigInt, req.params.id)
             .query(`
                 UPDATE assessment
-                SET status = 'INACTIVE',
+                SET 
+                    status = 'INACTIVE',
                     updated_at = GETDATE()
                 WHERE assessment_id = @id
             `);

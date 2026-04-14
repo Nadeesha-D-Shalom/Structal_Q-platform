@@ -55,7 +55,6 @@ def evaluate(request: EvaluateRequest, req: Request):
 
 
 # SEPARATE COMPARE ENDPOINT (UTILITY)
-
 @router.post("/compare")
 def compare_files(request: CompareRequest, req: Request):
 

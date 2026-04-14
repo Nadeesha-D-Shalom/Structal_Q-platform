@@ -1,0 +1,197 @@
+.appNavbar {
+  box-sizing: border-box;
+  min-height: 78px;
+  width: 100%;
+  border-bottom: 1px solid #e7ebf1;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 32px;
+}
+
+.appNavbar__left,
+.appNavbar__right,
+.appNavbar__brand,
+.appNavbar__nav,
+.appNavbar__profile {
+  display: flex;
+  align-items: center;
+}
+
+.appNavbar__left {
+  gap: 48px;
+  min-width: 0;
+}
+
+.appNavbar__brand {
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.appNavbar__logo {
+  width: 55px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.appNavbar__brandText {
+  margin: 0;
+  color: #0f2f66;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.appNavbar__brandText span {
+  color: #f28b22;
+}
+
+.appNavbar__nav {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.appNavbar__navItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: #4c5b70;
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.appNavbar__navItem:hover {
+  color: #2f3a4d;
+  background: #f5f8fc;
+}
+
+.appNavbar__navItem--active {
+  color: #2f3a4d;
+  font-weight: 700;
+  background: #eef3f8;
+}
+
+.appNavbar__navItem svg,
+.appNavbar__circleBtn svg,
+.appNavbar__avatar svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+
+.appNavbar__right {
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.appNavbar__circleBtn {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #e4e8ee;
+  border-radius: 999px;
+  background: #fff;
+  color: #667085;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.appNavbar__circleBtn:hover {
+  background: #f8fafc;
+  border-color: #d8dee7;
+}
+
+.appNavbar__circleBtn:first-child {
+  color: #ff6b63;
+}
+
+.appNavbar__profile {
+  gap: 10px;
+}
+
+.appNavbar__profileText {
+  text-align: right;
+}
+
+.appNavbar__profileName,
+.appNavbar__profileMeta {
+  margin: 0;
+}
+
+.appNavbar__profileName {
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.appNavbar__profileMeta {
+  color: #98a2b3;
+  font-size: 10px;
+}
+
+.appNavbar__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.appNavbar__avatar--lecturer {
+  width: 30px;
+  height: 30px;
+  color: #8b6b4a;
+  background: #ead7c2;
+}
+
+.appNavbar__avatar--student {
+  color: #8b5e34;
+  background: #f4b37a;
+}
+
+@media (max-width: 1200px) {
+  .appNavbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .appNavbar__left,
+  .appNavbar__right {
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 768px) {
+  .appNavbar {
+    padding: 16px 20px;
+  }
+
+  .appNavbar__left,
+  .appNavbar__right {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .appNavbar__profile {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
