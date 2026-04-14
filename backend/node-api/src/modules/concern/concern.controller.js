@@ -172,6 +172,9 @@ exports.getConcernsByStudent = async (req, res, next) => {
     }
 };
 
+// Backward-compatible alias for older route naming.
+exports.getConcernsForSpecificStudent = exports.getConcernsByStudent;
+
 exports.updateConcern = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -211,4 +214,12 @@ exports.deleteConcern = async (req, res, next) => {
         console.error(err);
         next(err);
     }
+};
+
+// Keep route registration valid until PDF export implementation is added.
+exports.exportConcernsToPDF = async (_req, res) => {
+    res.status(501).json({
+        success: false,
+        message: "Export PDF is not implemented yet."
+    });
 };
