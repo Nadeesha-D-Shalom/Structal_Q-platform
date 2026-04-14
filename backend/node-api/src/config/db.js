@@ -1,25 +1,26 @@
-const sql = require('mssql');
+const sql = require("mssql");
 require("dotenv").config();
 
 const config = {
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     server: process.env.DB_SERVER,
+    port: Number(process.env.DB_PORT) || 1433,
     database: process.env.DB_NAME,
-    port: 1433,
     options: {
         encrypt: false,
         trustServerCertificate: true
     }
 };
 
-console.log("DB CONFIG:", config); // DEBUG
-
+// CREATE CONNECTION POOL
 const pool = new sql.ConnectionPool(config);
+
+// CONNECT PROMISE
 const poolConnect = pool.connect();
 
 module.exports = {
-    sql,
     pool,
+    sql,
     poolConnect
 };

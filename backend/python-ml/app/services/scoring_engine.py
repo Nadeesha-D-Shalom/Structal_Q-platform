@@ -168,9 +168,7 @@ class ScoringEngine:
 
         return int(round(score_ratio * max_marks))
 
-    # ------------------------------------------------------
     # INDIVIDUAL CONTRIBUTION
-    # ------------------------------------------------------
     def _score_individual(self, parsed, max_marks):
 
         if not parsed.has_individual_section:
