@@ -1,5 +1,4 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-<<<<<<< HEAD
 
 import LoginPage from "./pages/auth/LoginPage";
 import StudentDashboard from "./pages/student/StudentDashboard";
@@ -12,7 +11,6 @@ import GuidePage from "./modules/marking-guide/GuidePage";
 import GuideBuilderPage from "./modules/marking-guide/GuideBuilderPage";
 import GuidePreviewPage from "./modules/marking-guide/GuidePreviewPage";
 
-=======
 
 /* AUTH */
 import LoginPage from "./pages/auth/LoginPage";
@@ -37,16 +35,12 @@ import MLAnalysisConfig from "./pages/lecturer/MLAnalysisConfig";
 import MLAnalysisResult from "./pages/lecturer/MLAnalysisResult";
 import SubmissionComparison from "./pages/lecturer/SubmissionComparison";
 import ViewAnalysisResults from "./pages/lecturer/ViewAnalysisResults";
->>>>>>> main
 function App() {
   return (
     <Router>
       <Routes>
 
-<<<<<<< HEAD
-=======
         {/* ================= AUTH ================= */}
->>>>>>> main
         <Route path="/" element={<LoginPage />} />
 
         {/* ================= STUDENT ================= */}
@@ -57,7 +51,6 @@ function App() {
 
         {/* ================= LECTURER ================= */}
         <Route path="/lecturer" element={<LecturerDashboard />} />
-<<<<<<< HEAD
 
         <Route path="/subjects" element={<SubjectPage />} />
         <Route path="/assessments" element={<AssessmentPage />} />
@@ -66,7 +59,6 @@ function App() {
         <Route path="/guide-builder/:id" element={<GuideBuilderPage />} />
         <Route path="/guide-preview/:id" element={<GuidePreviewPage />} />
 
-=======
         <Route path="/lecturer/publish-marks" element={<PublishMarksConfig />} />
         <Route path="/lecturer/marks" element={<MarkRevisionAuditLog />} />
         <Route path="/lecturer/review-concerns" element={<ConcernReviewResolution />} />
@@ -87,7 +79,6 @@ function App() {
         <Route path="/lecturer/submission-compare" element={<SubmissionComparison />} />
 
         <Route path="/analysis/:submissionId" element={<ViewAnalysisResults />} />
->>>>>>> main
       </Routes>
     </Router>
   );
