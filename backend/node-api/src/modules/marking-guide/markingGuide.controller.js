@@ -99,8 +99,7 @@ const createGuide = async (req, res) => {
                     order_sensitive,
                     requires_diagram_check,
                     diagram_types_expected,
-                    created_by,
-                    file_id
+                    created_by                  
                 )
                 VALUES (
                     @assessment_id,
@@ -110,8 +109,7 @@ const createGuide = async (req, res) => {
                     @order_sensitive,
                     @requires_diagram_check,
                     @diagram_types_expected,
-                    @created_by,
-                    @file_id
+                    @created_by    
                 )
             `);
 
@@ -370,7 +368,6 @@ const updateGuide = async (req, res) => {
                     order_sensitive = @order_sensitive,
                     requires_diagram_check = @requires_diagram_check,
                     diagram_types_expected = @diagram_types_expected,
-                    file_id = ISNULL(@file_id, file_id),
                     updated_at = GETDATE()
                 WHERE marking_guide_id = @id
             `);

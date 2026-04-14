@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API = "http://localhost:3000/api/guide-questions";
+const API = "http://localhost:5000/api/guide-questions";
 
 export const getQuestions = () => axios.get(API);
 

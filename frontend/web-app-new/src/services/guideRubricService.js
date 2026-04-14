@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API = "http://localhost:3000/api/guide-rubric";
+const API = "http://localhost:5000/api/guide-rubric";
 
 export const getRubrics = () => axios.get(API);
 

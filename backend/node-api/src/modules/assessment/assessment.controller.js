@@ -3,7 +3,7 @@ const { sql, poolPromise } = require('../../config/db');
 // CREATE ASSESSMENT
 const createAssessment = async (req, res) => {
     const {
-        offering_id,
+        subject_id,
         assessment_title,
         assessment_type,
         total_marks,
@@ -19,7 +19,7 @@ const createAssessment = async (req, res) => {
     // Validation
     if (!subject_id || !assessment_title || !assessment_type) {
         return res.status(400).json({
-            message: "offering_id, assessment_title, assessment_type are required"
+            message: "subject_id, assessment_title, assessment_type are required"
         });
     }
 
@@ -47,7 +47,7 @@ const createAssessment = async (req, res) => {
             .input('created_by', sql.Int, created_by || null)
             .query(`
                 INSERT INTO assessment (
-                    offering_id,
+                    subject_id,
                     assessment_title,
                     assessment_type,
                     total_marks,
@@ -60,7 +60,7 @@ const createAssessment = async (req, res) => {
                     created_by
                 )
                 VALUES (
-                    @offering_id,
+                    @subject_id,
                     @assessment_title,
                     @assessment_type,
                     @total_marks,
