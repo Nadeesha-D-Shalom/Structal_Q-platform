@@ -1,8 +1,9 @@
 import StudentNavbar from "./StudentNavbar";
 
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_BASE = process.env.REACT_APP_API_URL || "";
 
 const StudentDashboard = () => {
   const getAuthHeaders = () => {
@@ -166,17 +167,18 @@ const StudentDashboard = () => {
             <div className="space-y-3">
 
               {[
-                ["fa-upload", "Upload Submission"],
-                ["fa-eye", "View Marks"],
-                ["fa-exclamation", "Raise Concern"],
+                ["fa-upload", "Upload Submission", "/student/submissions"],
+                ["fa-eye", "View Marks", "/student/marks"],
+                ["fa-exclamation", "Raise Concern", "/student/raise-concern"],
               ].map((item, i) => (
-                <div
+                <Link
                   key={i}
-                  className="bg-white border rounded-[12px] py-4 flex flex-col items-center text-[12px] shadow-sm"
+                  to={item[2]}
+                  className="bg-white border rounded-[12px] py-4 flex flex-col items-center text-[12px] shadow-sm hover:border-blue-200 transition-colors"
                 >
                   <i className={`fas ${item[0]} text-blue-500 mb-1 text-[14px]`}></i>
                   {item[1]}
-                </div>
+                </Link>
               ))}
 
             </div>

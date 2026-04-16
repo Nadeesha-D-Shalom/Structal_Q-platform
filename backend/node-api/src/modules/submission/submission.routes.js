@@ -40,6 +40,8 @@ const upload = multer({
 
 router.post('/upload', upload.single('file'), controller.uploadSubmission);
 
+router.get('/me', controller.getMySubmissions);
+
 router.get('/student/:id', controller.getStudentSubmissions);
 
 router.get('/lecturer/student-only', controller.getAllStudentSubmissions);

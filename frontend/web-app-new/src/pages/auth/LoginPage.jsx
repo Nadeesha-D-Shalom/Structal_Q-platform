@@ -48,6 +48,9 @@ const LoginPage = () => {
       if (data.token) {
         localStorage.setItem("auth_token", data.token);
       }
+      if (data.user) {
+        localStorage.setItem("auth_user", JSON.stringify(data.user));
+      }
 
       const role = (data?.user?.role || data?.users?.role || "").toLowerCase().trim();
       if (role === "lecturer" || role === "admin") {

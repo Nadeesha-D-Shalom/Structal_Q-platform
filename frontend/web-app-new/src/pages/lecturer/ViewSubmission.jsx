@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import LecturerNavbar from "./LecturerNavbar";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_BASE = process.env.REACT_APP_API_URL || "";
 
 /* ─── Style injection ─── */
 const injectStyles = () => {

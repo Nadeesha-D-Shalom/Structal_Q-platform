@@ -3,7 +3,7 @@ import LecturerNavbar from "./LecturerNavbar";
 import { useNavigate } from "react-router-dom";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import axios from "axios";
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_BASE = process.env.REACT_APP_API_URL || "";
 
 //  Evaluation pipeline steps
 const EVAL_STEPS = [
@@ -81,7 +81,6 @@ const LecturerSubmissions = () => {
   //  Step tracker: -1 = idle, 0..N = active step, N+1 = all done
   const [currentStep, setCurrentStep] = useState(-1);
 
-<<<<<<< HEAD
   // State for manual marks and final marks
   const [manualMarks, setManualMarks] = useState({});
   const [finalMarks, setFinalMarks] = useState({});
@@ -92,15 +91,7 @@ const LecturerSubmissions = () => {
   const [popupDetails, setPopupDetails] = useState({});
   const [savedResults, setSavedResults] = useState([]);
 
-  useEffect(() => {
-    fetchSubmissions();
-    fetchEvaluatedResults(); // Load results automatically when component mounts
-  }, []);
-
-  const fetchSubmissions = async () => {
-=======
   const fetchSubmissions = useCallback(async () => {
->>>>>>> 1fad3f5 ((feat) Integrate the all pages and fixed them)
     try {
       const res = await fetch(`${API_BASE}/api/submissions/lecturer/all`, {
         headers: getAuthHeaders(),
@@ -121,37 +112,21 @@ const LecturerSubmissions = () => {
     }
   }, [getAuthHeaders]);
 
-  useEffect(() => {
-    fetchSubmissions();
-  }, [fetchSubmissions]);
-
   // ── STEP 3.1 ── fetch evaluated results
-  const fetchEvaluatedResults = async () => {
+  const fetchEvaluatedResults = useCallback(async () => {
     try {
       setResultsLoading(true);
-<<<<<<< HEAD
-      
-      const res = await axios.get(`${API_BASE}/api/ai-analysis/results/all`);
-      
-      console.log("API Response:", res.data); // Debug: Check what's coming from API
-      
-      if (res.data.success && Array.isArray(res.data.data)) {
-        console.log("Results data:", res.data.data); // Debug: Check the data array
-=======
 
       const res = await axios.get(`${API_BASE}/api/ai-analysis/results/all`, {
         headers: getAuthHeaders(),
       });
 
-      if (res.data.success) {
->>>>>>> 1fad3f5 ((feat) Integrate the all pages and fixed them)
+      if (res.data.success && Array.isArray(res.data.data)) {
         setEvaluatedResults(res.data.data);
-        // Initialize manual marks and final marks state
         const initialManualMarks = {};
         const initialFinalMarks = {};
-        res.data.data.forEach(result => {
+        res.data.data.forEach((result) => {
           initialManualMarks[result.analysis_result_id] = "";
-          // Use final_score from API, not a non-existent field
           initialFinalMarks[result.analysis_result_id] = result.final_score || 0;
         });
         setManualMarks(initialManualMarks);
@@ -160,14 +135,18 @@ const LecturerSubmissions = () => {
         console.error("Invalid response structure:", res.data);
         setEvaluatedResults([]);
       }
-      
     } catch (err) {
       console.error("Error fetching evaluated results:", err);
       setEvaluatedResults([]);
     } finally {
       setResultsLoading(false);
     }
-  };
+  }, [getAuthHeaders]);
+
+  useEffect(() => {
+    fetchSubmissions();
+    fetchEvaluatedResults();
+  }, [fetchSubmissions, fetchEvaluatedResults]);
 
   // Handle manual mark change with validation
   const handleManualMarkChange = (analysisResultId, aiScore, maxMark = 100) => {
@@ -301,11 +280,7 @@ const LecturerSubmissions = () => {
 
       setTimeout(() => {
         fetchSubmissions();
-<<<<<<< HEAD
         fetchEvaluatedResults(); // Refresh evaluated results after evaluation
-=======
-        fetchEvaluatedResults();
->>>>>>> 1fad3f5 ((feat) Integrate the all pages and fixed them)
         setTimeout(() => setCurrentStep(-1), 2000);
       }, 1000);
 

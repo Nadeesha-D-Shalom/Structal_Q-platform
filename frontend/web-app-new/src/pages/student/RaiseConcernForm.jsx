@@ -121,9 +121,13 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted }) {
     };
 
     try {
+      const token = localStorage.getItem("auth_token");
       const res = await fetch("/api/concerns", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(formData),
         credentials: "include",
       });

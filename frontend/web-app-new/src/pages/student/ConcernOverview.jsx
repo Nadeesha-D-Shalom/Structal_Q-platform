@@ -2,7 +2,12 @@ import { useState, useEffect } from "react";
 import StudentNavbar from "./StudentNavbar";
 import { useNavigate } from "react-router-dom";
 
-const API_BASE_URL = "http://localhost:5000";
+const API_BASE = process.env.REACT_APP_API_URL || "";
+const apiUrl = (p) => `${API_BASE}${p}`;
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("auth_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 // View Details Modal
 const ViewDetailsModal = ({ isOpen, onClose, concern }) => {
@@ -115,7 +120,10 @@ export default function StudentConcernsOverview() {
   useEffect(() => {
     const fetchSession = async () => {
       try {
-        const res = await fetch("/api/auth/session", { credentials: "include" });
+        const token = localStorage.getItem("auth_token");
+        const res = await fetch(apiUrl("/api/auth/session"), {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         if (!res.ok) throw new Error("Not authenticated");
         const data = await res.json();
         setSession(data);
@@ -131,13 +139,18 @@ export default function StudentConcernsOverview() {
 
   // Fetch student's concerns
   useEffect(() => {
-    //if (!session?.student_id) return;
-
     const fetchConcerns = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/concern/2`, {
-          credentials: "include"
+        const sid = session?.student_id ?? session?.user_id;
+        if (!sid) {
+          setConcerns([]);
+          setFilteredConcerns([]);
+          setLoading(false);
+          return;
+        }
+        const res = await fetch(apiUrl(`/api/concerns/${sid}`), {
+          headers: getAuthHeaders(),
         });
         const data = await res.json();
         
@@ -166,7 +179,7 @@ export default function StudentConcernsOverview() {
     };
 
     fetchConcerns();
-  }, [session?.student_id]);
+  }, [session?.student_id, session?.user_id]);
 
   // Filter concerns based on subject and status
   useEffect(() => {
@@ -339,8 +352,8 @@ export default function StudentConcernsOverview() {
                   <div style={assignmentCellStyle}>
                     <div style={assignmentNameStyle}>{concern.assignment || "N/A"}</div>
                     <div style={subjectNameStyle}>{concern.subject_name || "N/A"}</div>
-                    <a 
-                    href={`${API_BASE_URL}/api/marks/pdf/${concern.submission_id}`} 
+                    <a
+                    href={`${API_BASE}/api/marks/pdf/${concern.submission_id}`}
                     target="_blank" 
                     rel="noreferrer"
                     style={{ fontSize: 11, fontWeight: "bold", color: "#3c74ff", textDecoration: "none", marginBottom: 8, display: "flex", alignItems: "center" }}

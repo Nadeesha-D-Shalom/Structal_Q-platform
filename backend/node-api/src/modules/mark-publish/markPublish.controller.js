@@ -162,39 +162,19 @@ exports.saveEvaluatedResults = async (req, res) => {
             message: "Failed to save evaluated results"
         });
     }
-<<<<<<< HEAD
 };
 
-// Export pending marks to CSV
-exports.exportPendingMarksCSV = async (req, res, next) => {
+exports.getAiScores = async (req, res, next) => {
     try {
-        const { assessment_id } = req.params;
-        
+        const { submission_id } = req.params;
         const result = await pool.request()
-            .input("aid", sql.BigInt, assessment_id)
-            .query(`
-                SELECT 
-                    s.submission_id,
-                    s.student_id,
-                    er.ai_marks,
-                    er.diagram_marks,
-                    er.final_mark,
-                    a.assessment_title,
-                    a.total_marks as max_mark
-=======
-}
-
-exports.getDiagramPages = async (req, res, next) => {
-  try {
-    const { submission_id } = req.params;
-    const result = await pool.request()
             .input("sid", sql.BigInt, submission_id)
             .query(`
-                SELECT 
+                SELECT
                     o.page_no,
                     o.has_diagram,
                     CAST(ISNULL(d.match_score, 0) * 10 AS DECIMAL(10,2)) AS clarity_score,
-                    CASE 
+                    CASE
                         WHEN ISNULL(o.has_diagram, 0) = 1
                              AND (d.match_score IS NULL OR d.match_score < 0.5)
                         THEN 1 ELSE 0
@@ -252,220 +232,25 @@ exports.getDiagramPages = async (req, res, next) => {
         });
 
         res.status(200).json({ success: true, data });
-  } catch (err) { next(err); }
+    } catch (err) { next(err); }
 };
 
-exports.getPublishedMarks = async (req, res, next) => {
+// Export pending marks to CSV
+exports.exportPendingMarksCSV = async (req, res, next) => {
     try {
-        const result = await pool.request().query(`
-            SELECT 
-                fm.submission_id,
-                fm.total_marks_awarded AS mark,
-                fm.published_at,
-                a.assessment_title AS assignment_name,
-                a.total_marks AS total,
-                sub.subject_name,
-                sub.subject_code
-            FROM final_mark fm
-            INNER JOIN submission s ON fm.submission_id = s.submission_id
-            INNER JOIN assessment a ON s.assessment_id = a.assessment_id
-            INNER JOIN subject_offering so ON a.offering_id = so.offering_id
-            INNER JOIN subject sub ON so.subject_id = sub.subject_id
-            WHERE fm.marking_status = 'PUBLISHED'
-            ORDER BY fm.published_at DESC
-        `);
+        const { assessment_id } = req.params;
 
-        res.json({ success: true, data: result.recordset });
-    } catch (err) {
-        next(err);
-    }
-};
-
-exports.updatePublishedMark = async (req, res, next) => {
-    let transaction;
-
-    try {
-        const { submission_id, new_mark, reason } = req.body;
-        const lecturer_id = req.user?.user_id || 1;
-
-        if (!submission_id || new_mark === undefined || !reason) {
-            return res.status(400).json({ success: false, message: "submission_id, new_mark and reason are required." });
-        }
-
-        const parsedMark = Number(new_mark);
-        if (Number.isNaN(parsedMark) || parsedMark < 0) {
-            return res.status(400).json({ success: false, message: "Invalid new_mark value." });
-        }
-
-        const existing = await pool.request()
-            .input("sid", sql.BigInt, submission_id)
+        const result = await pool.request()
+            .input("aid", sql.BigInt, assessment_id)
             .query(`
-                SELECT fm.final_mark_id,
-                       fm.total_marks_awarded,
-                       a.total_marks
-                FROM final_mark fm
-                INNER JOIN submission s ON fm.submission_id = s.submission_id
-                INNER JOIN assessment a ON s.assessment_id = a.assessment_id
-                WHERE fm.submission_id = @sid
-                  AND fm.marking_status = 'PUBLISHED'
-            `);
-
-        if (!existing.recordset.length) {
-            return res.status(404).json({ success: false, message: "Published mark not found for the given submission." });
-        }
-
-        const { final_mark_id, total_marks_awarded, total_marks } = existing.recordset[0];
-        if (parsedMark > Number(total_marks || 0)) {
-            return res.status(400).json({ success: false, message: `Mark cannot exceed assessment total of ${total_marks}.` });
-        }
-
-        transaction = new sql.Transaction(pool);
-        await transaction.begin();
-
-        const request = new sql.Request(transaction);
-        await request
-            .input("final_mark_id", sql.BigInt, final_mark_id)
-            .input("new_mark", sql.Decimal(10, 2), parsedMark)
-            .input("updated_at", sql.DateTime, new Date())
-            .query(`
-                UPDATE final_mark
-                SET total_marks_awarded = @new_mark,
-                    updated_at = @updated_at
-                WHERE final_mark_id = @final_mark_id
-            `);
-
-        await request
-            .input("lecturer_id", sql.BigInt, lecturer_id)
-            .input("old_mark", sql.Decimal(10, 2), total_marks_awarded)
-            .input("revision_reason", sql.NVarChar(sql.MAX), reason)
-            .input("revised_at", sql.DateTime, new Date())
-            .query(`
-                INSERT INTO mark_revision_log (
-                    final_mark_id,
-                    lecturer_id,
-                    old_mark,
-                    new_mark,
-                    revision_reason,
-                    revised_at
-                ) VALUES (
-                    @final_mark_id,
-                    @lecturer_id,
-                    @old_mark,
-                    @new_mark,
-                    @revision_reason,
-                    @revised_at
-                )
-            `);
-
-        await transaction.commit();
-
-        res.json({ success: true, message: "Mark updated successfully." });
-    } catch (err) {
-        if (transaction) {
-            await transaction.rollback();
-        }
-        next(err);
-    }
-};
-
-exports.deletePublishedMark = async (req, res, next) => {
-    let transaction;
-
-    try {
-        const { submission_id } = req.params;
-        const reason = req.body.reason || "Mark deleted via audit log";
-        const lecturer_id = req.user?.user_id || 1;
-
-        if (!submission_id) {
-            return res.status(400).json({ success: false, message: "submission_id is required." });
-        }
-
-        const existing = await pool.request()
-            .input("sid", sql.BigInt, submission_id)
-            .query(`
-                SELECT fm.final_mark_id,
-                       fm.total_marks_awarded
-                FROM final_mark fm
-                INNER JOIN submission s ON fm.submission_id = s.submission_id
-                WHERE fm.submission_id = @sid
-                  AND fm.marking_status = 'PUBLISHED'
-            `);
-
-        if (!existing.recordset.length) {
-            return res.status(404).json({ success: false, message: "Published mark not found for the given submission." });
-        }
-
-        const { final_mark_id, total_marks_awarded } = existing.recordset[0];
-        transaction = new sql.Transaction(pool);
-        await transaction.begin();
-
-        const request = new sql.Request(transaction);
-        await request
-            .input("final_mark_id", sql.BigInt, final_mark_id)
-            .input("updated_at", sql.DateTime, new Date())
-            .input("reason", sql.NVarChar(sql.MAX), reason)
-            .query(`
-                UPDATE final_mark
-                SET marking_status = 'DELETED',
-                    updated_at = @updated_at,
-                    feedback_summary = @reason
-                WHERE final_mark_id = @final_mark_id
-            `);
-
-        await request
-            .input("lecturer_id", sql.BigInt, lecturer_id)
-            .input("old_mark", sql.Decimal(10, 2), total_marks_awarded)
-            .input("new_mark", sql.Decimal(10, 2), total_marks_awarded)
-            .input("revision_reason", sql.NVarChar(sql.MAX), `Deleted mark: ${reason}`)
-            .input("revised_at", sql.DateTime, new Date())
-            .query(`
-                INSERT INTO mark_revision_log (
-                    final_mark_id,
-                    lecturer_id,
-                    old_mark,
-                    new_mark,
-                    revision_reason,
-                    revised_at
-                ) VALUES (
-                    @final_mark_id,
-                    @lecturer_id,
-                    @old_mark,
-                    @new_mark,
-                    @revision_reason,
-                    @revised_at
-                )
-            `);
-
-        await transaction.commit();
-
-        res.json({ success: true, message: "Mark deleted successfully." });
-    } catch (err) {
-        if (transaction) {
-            await transaction.rollback();
-        }
-        next(err);
-    }
-};
-
-exports.publishingleMark = async (req, res, next) => {
-    try {
-        const { submission_id, final_mark, enable_concern_window } = req.body;
-        const lecturer_id = req.user?.user_id || 1;
-
-        if (!submission_id || final_mark === undefined) {
-            return res.status(400).json({ message: "Missing submission_id or final_mark." });
-        }
-
-        const parsedMark = Number(final_mark);
-        if (Number.isNaN(parsedMark) || parsedMark < 0) {
-            return res.status(400).json({ message: "Invalid mark. Score must be a non-negative number." });
-        }
-
-        const validationData = await pool.request()
-            .input("sid", sql.BigInt, submission_id)
-            .query(`
-                SELECT s.student_id, a.total_marks
->>>>>>> 1fad3f5 ((feat) Integrate the all pages and fixed them)
+                SELECT
+                    s.submission_id,
+                    s.student_id,
+                    er.ai_marks,
+                    er.diagram_marks,
+                    er.final_mark,
+                    a.assessment_title,
+                    a.total_marks as max_mark
                 FROM submission s
                 JOIN assessment a ON s.assessment_id = a.assessment_id
                 JOIN evaluated_results er ON s.submission_id = er.submission_id
@@ -475,15 +260,14 @@ exports.publishingleMark = async (req, res, next) => {
                     AND er.final_mark IS NOT NULL
                 ORDER BY s.submitted_at ASC
             `);
-        
+
         if (result.recordset.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: "No pending marks found for this assessment"
             });
         }
-<<<<<<< HEAD
-        
+
         const csvData = result.recordset.map(row => ({
             'Submission_ID': row.submission_id,
             'Student_ID': row.student_id,
@@ -494,102 +278,154 @@ exports.publishingleMark = async (req, res, next) => {
             'Max_Mark': row.max_mark,
             'Mark_to_Publish': row.final_mark
         }));
-        
+
         const fields = [
-            'Submission_ID', 'Student_ID', 'Assessment_Title', 
-            'AI_Marks', 'Diagram_Marks', 'Calculated_Final_Mark', 
+            'Submission_ID', 'Student_ID', 'Assessment_Title',
+            'AI_Marks', 'Diagram_Marks', 'Calculated_Final_Mark',
             'Max_Mark', 'Mark_to_Publish'
         ];
-        
+
         const json2csvParser = new Parser({ fields });
         const csv = json2csvParser.parse(csvData);
-        
+
         const assessmentTitle = result.recordset[0].assessment_title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
         const filename = `marks_to_publish_${assessmentTitle}_${new Date().toISOString().split('T')[0]}.csv`;
-        
+
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.send(csv);
-        
+
     } catch (err) {
         console.error("Error exporting CSV:", err);
-=======
-
-        const { student_id, total_marks } = validationData.recordset[0];
-        if (parsedMark > Number(total_marks || 0)) {
-            return res.status(400).json({ message: `Mark (${parsedMark}) exceeds max allowed (${total_marks}).` });
-        }
-
-        const duplicateCheck = await pool.request()
-            .input("sid", sql.BigInt, submission_id)
-            .query("SELECT final_mark_id FROM final_mark WHERE submission_id = @sid");
-
-        if (duplicateCheck.recordset.length > 0) {
-            return res.status(409).json({ message: "This submission has already been published." });
-        }
-
-        await pool.request()
-            .input("sub_id", sql.BigInt, submission_id)
-            .input("stu_id", sql.BigInt, student_id)
-            .input("lec_id", sql.BigInt, lecturer_id)
-            .input("mark", sql.Decimal(10, 2), parsedMark)
-            .input("status", sql.NVarChar(50), "PUBLISHED")
-            .input("now", sql.DateTime, new Date())
-            .query(`
-                INSERT INTO final_mark (
-                    submission_id,
-                    lecturer_id,
-                    total_marks_awarded,
-                    marking_status,
-                    published_at,
-                    updated_at
-                )
-                VALUES (
-                    @sub_id,
-                    @lec_id,
-                    @mark,
-                    @status,
-                    @now,
-                    @now
-                )
-            `);
-
-        res.json({ success: true, message: "Mark published successfully." });
-    } catch (err) {
         next(err);
     }
 };
+
 // CONCERN WINDOW MANAGEMENT
 exports.createConcernWindow = async (req, res, next) => {
     try {
-        const { assessment_id, start_date, end_date, description } = req.body;
-        const created_by = req.user.user_id;
-
+        const { assessment_id, open_from, open_until, description } = req.body;
         const result = await pool.request()
-            .input("assessment_id", sql.Int, assessment_id)
-            .input("start_date", sql.DateTime, start_date)
-            .input("end_date", sql.DateTime, end_date)
-            .input("description", sql.NVarChar, description)
-            .input("created_by", sql.Int, created_by)
+            .input('assessment_id', sql.BigInt, assessment_id)
+            .input('open_from', sql.DateTime, open_from ? new Date(open_from) : new Date())
+            .input('open_until', sql.DateTime, open_until ? new Date(open_until) : null)
+            .input('description', sql.NVarChar(500), description || null)
             .query(`
-                INSERT INTO concern_window (assessment_id, start_date, end_date, description, created_by, created_at)
+                INSERT INTO concern_window (assessment_id, open_from, open_until, description, created_at)
                 OUTPUT INSERTED.window_id
-                VALUES (@assessment_id, @start_date, @end_date, @description, @created_by, GETDATE())
+                VALUES (@assessment_id, @open_from, @open_until, @description, GETDATE())
             `);
-
-        res.json({
-            success: true,
-            message: "Concern window created successfully",
-            window_id: result.recordset[0].window_id
-        });
-    } catch (err) {
->>>>>>> 1fad3f5 ((feat) Integrate the all pages and fixed them)
-        next(err);
-    }
+        res.status(201).json({ success: true, window_id: result.recordset[0]?.window_id });
+    } catch (err) { next(err); }
 };
 
-<<<<<<< HEAD
-// Add this new endpoint to your markPublish.controller.js
+exports.getConcernWindows = async (req, res, next) => {
+    try {
+        const result = await pool.request().query(`
+            SELECT cw.*, a.assessment_title
+            FROM concern_window cw
+            LEFT JOIN assessment a ON a.assessment_id = cw.assessment_id
+            ORDER BY cw.created_at DESC
+        `);
+        res.json({ success: true, data: result.recordset });
+    } catch (err) { next(err); }
+};
+
+exports.getConcernWindowById = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.request()
+            .input('id', sql.BigInt, id)
+            .query(`SELECT * FROM concern_window WHERE window_id = @id`);
+        if (!result.recordset.length) return res.status(404).json({ success: false, message: 'Concern window not found' });
+        res.json({ success: true, data: result.recordset[0] });
+    } catch (err) { next(err); }
+};
+
+exports.updateConcernWindow = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { open_from, open_until, description } = req.body;
+        await pool.request()
+            .input('id', sql.BigInt, id)
+            .input('open_from', sql.DateTime, open_from ? new Date(open_from) : null)
+            .input('open_until', sql.DateTime, open_until ? new Date(open_until) : null)
+            .input('description', sql.NVarChar(500), description || null)
+            .query(`
+                UPDATE concern_window
+                SET open_from = COALESCE(@open_from, open_from),
+                    open_until = COALESCE(@open_until, open_until),
+                    description = COALESCE(@description, description)
+                WHERE window_id = @id
+            `);
+        res.json({ success: true, message: 'Concern window updated' });
+    } catch (err) { next(err); }
+};
+
+exports.deleteConcernWindow = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        await pool.request()
+            .input('id', sql.BigInt, id)
+            .query(`DELETE FROM concern_window WHERE window_id = @id`);
+        res.json({ success: true, message: 'Concern window deleted' });
+    } catch (err) { next(err); }
+};
+
+// STUDENT CONCERNS
+exports.raiseConcern = async (req, res, next) => {
+    try {
+        const { student_id, submission_id, concern_message, academic_year } = req.body;
+        if (!student_id || !submission_id || !concern_message) {
+            return res.status(400).json({ success: false, message: 'Missing required fields' });
+        }
+        await pool.request()
+            .input('student_id', sql.BigInt, student_id)
+            .input('submission_id', sql.BigInt, submission_id)
+            .input('concern_message', sql.NVarChar(sql.MAX), concern_message)
+            .input('academic_year', sql.VarChar, academic_year || null)
+            .query(`
+                INSERT INTO mark_concern (student_id, submission_id, concern_message, academic_year)
+                VALUES (@student_id, @submission_id, @concern_message, @academic_year)
+            `);
+        res.status(201).json({ success: true, message: 'Concern raised successfully' });
+    } catch (err) { next(err); }
+};
+
+exports.getConcerns = async (req, res, next) => {
+    try {
+        const result = await pool.request().query(`
+            SELECT mc.*, a.assessment_title, sub.subject_name
+            FROM mark_concern mc
+            LEFT JOIN submission s ON mc.submission_id = s.submission_id
+            LEFT JOIN assessment a ON s.assessment_id = a.assessment_id
+            LEFT JOIN subject_offering so ON a.offering_id = so.offering_id
+            LEFT JOIN subject sub ON so.subject_id = sub.subject_id
+            ORDER BY mc.created_at DESC
+        `);
+        res.json({ success: true, data: result.recordset });
+    } catch (err) { next(err); }
+};
+
+exports.resolveConcern = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { resolution_note } = req.body;
+        await pool.request()
+            .input('id', sql.BigInt, id)
+            .input('resolution_note', sql.NVarChar(sql.MAX), resolution_note || null)
+            .query(`
+                UPDATE mark_concern
+                SET concern_status = 'Resolved',
+                    lecturer_comment = @resolution_note,
+                    last_modified = GETDATE()
+                WHERE id = @id
+            `);
+        res.json({ success: true, message: 'Concern resolved successfully' });
+    } catch (err) { next(err); }
+};
+
+
 exports.bulkPublishMarks = async (req, res, next) => {
     try {
         const { submissions } = req.body; // Expecting array of submissions
@@ -707,161 +543,5 @@ exports.bulkPublishMarks = async (req, res, next) => {
             message: "Failed to bulk publish marks",
             error: err.message
         });
-=======
-exports.getConcernWindows = async (req, res, next) => {
-    try {
-        const result = await pool.request().query(`
-            SELECT 
-                cw.*,
-                a.assessment_title,
-                u.first_name + ' ' + u.last_name AS created_by_name
-            FROM concern_window cw
-            JOIN assessment a ON cw.assessment_id = a.assessment_id
-            JOIN users u ON cw.created_by = u.user_id
-            ORDER BY cw.created_at DESC
-        `);
-        res.json(result.recordset);
-    } catch (err) {
-        next(err);
-    }
-};
-
-exports.getConcernWindowById = async (req, res, next) => {
-    try {
-        const { id } = req.params;
-        const result = await pool.request()
-            .input("id", sql.Int, id)
-            .query(`
-                SELECT 
-                    cw.*,
-                    a.assessment_title,
-                    u.first_name + ' ' + u.last_name AS created_by_name
-                FROM concern_window cw
-                JOIN assessment a ON cw.assessment_id = a.assessment_id
-                JOIN users u ON cw.created_by = u.user_id
-                WHERE cw.window_id = @id
-            `);
-
-        if (!result.recordset.length) {
-            return res.status(404).json({ success: false, error: "Concern window not found" });
-        }
-
-        res.json(result.recordset[0]);
-    } catch (err) {
-        next(err);
-    }
-};
-
-exports.updateConcernWindow = async (req, res, next) => {
-    try {
-        const { id } = req.params;
-        const { start_date, end_date, description } = req.body;
-
-        await pool.request()
-            .input("id", sql.Int, id)
-            .input("start_date", sql.DateTime, start_date)
-            .input("end_date", sql.DateTime, end_date)
-            .input("description", sql.NVarChar, description)
-            .query(`
-                UPDATE concern_window
-                SET start_date = @start_date, end_date = @end_date, description = @description, updated_at = GETDATE()
-                WHERE window_id = @id
-            `);
-
-        res.json({ success: true, message: "Concern window updated successfully" });
-    } catch (err) {
-        next(err);
-    }
-};
-
-exports.deleteConcernWindow = async (req, res, next) => {
-    try {
-        const { id } = req.params;
-        await pool.request()
-            .input("id", sql.Int, id)
-            .query(`DELETE FROM concern_window WHERE window_id = @id`);
-        res.json({ success: true, message: "Concern window deleted successfully" });
-    } catch (err) {
-        next(err);
-    }
-};
-
-// STUDENT CONCERNS
-exports.raiseConcern = async (req, res, next) => {
-    try {
-        const { final_mark_id, concern_type, description } = req.body;
-        const student_id = req.user.user_id;
-
-        const result = await pool.request()
-            .input("final_mark_id", sql.Int, final_mark_id)
-            .input("student_id", sql.Int, student_id)
-            .input("concern_type", sql.NVarChar, concern_type)
-            .input("description", sql.NVarChar, description)
-            .query(`
-                INSERT INTO mark_concern (final_mark_id, student_id, concern_type, description, status, created_at)
-                OUTPUT INSERTED.concern_id
-                VALUES (@final_mark_id, @student_id, @concern_type, @description, 'PENDING', GETDATE())
-            `);
-
-        res.json({
-            success: true,
-            message: "Concern raised successfully",
-            concern_id: result.recordset[0].concern_id
-        });
-    } catch (err) {
-        next(err);
-    }
-};
-
-exports.getConcerns = async (req, res, next) => {
-    try {
-        let query = `
-            SELECT 
-                mc.*,
-                fm.total_marks,
-                s.subject_name,
-                u.first_name + ' ' + u.last_name AS student_name
-            FROM mark_concern mc
-            JOIN final_mark fm ON mc.final_mark_id = fm.final_mark_id
-            JOIN submission sub ON fm.submission_id = sub.submission_id
-            JOIN assessment a ON sub.assessment_id = a.assessment_id
-            JOIN subject_offering so ON a.subject_offering_id = so.subject_offering_id
-            JOIN subject s ON so.subject_id = s.subject_id
-            JOIN users u ON mc.student_id = u.user_id
-        `;
-
-        if (req.user.role === 'STUDENT') {
-            query += ` WHERE mc.student_id = ${req.user.user_id}`;
-        }
-
-        query += ` ORDER BY mc.created_at DESC`;
-
-        const result = await pool.request().query(query);
-        res.json(result.recordset);
-    } catch (err) {
-        next(err);
-    }
-};
-
-exports.resolveConcern = async (req, res, next) => {
-    try {
-        const { id } = req.params;
-        const { resolution_notes } = req.body;
-        const resolved_by = req.user.user_id;
-
-        await pool.request()
-            .input("id", sql.Int, id)
-            .input("resolution_notes", sql.NVarChar, resolution_notes)
-            .input("resolved_by", sql.Int, resolved_by)
-            .query(`
-                UPDATE mark_concern
-                SET status = 'RESOLVED', resolution_notes = @resolution_notes, resolved_by = @resolved_by, resolved_at = GETDATE()
-                WHERE concern_id = @id
-            `);
-
-        res.json({ success: true, message: "Concern resolved successfully" });
-    } catch (err) {
-        next(err);
->>>>>>> 1fad3f5 ((feat) Integrate the all pages and fixed them)
     }
 };

@@ -170,37 +170,75 @@ exports.getAllSubmissionsForLecturer = async () => {
 
     const result = await pool.request().query(`
         SELECT 
-    s.submission_id,
-    s.assessment_id,
-    s.student_id,
-    s.attempt_no,
-    s.is_late,
-    s.late_minutes,
-    s.file_id,
-    s.submitted_at,
-
-    f.original_file_name,
-    f.storage_path,
-
-    ISNULL(ar.similarity_avg, 0) AS similarity_avg,
-    ISNULL(ar.risk_score, 0) AS risk_score
-
-FROM submission s
-
-INNER JOIN file_storage f 
-    ON s.file_id = f.file_id
-
-OUTER APPLY (
-    SELECT TOP 1 *
-    FROM analysis_result ar
-    WHERE ar.submission_id = s.submission_id
-    ORDER BY ar.analysis_result_id DESC
-) ar
-
-WHERE f.storage_category = 'STUDENT_SUBMISSION'
-
-ORDER BY s.submitted_at DESC;
+            s.submission_id,
+            s.assessment_id,
+            s.student_id,
+            s.attempt_no,
+            s.is_late,
+            s.late_minutes,
+            s.file_id,
+            s.submitted_at,
+            f.original_file_name,
+            f.storage_path,
+            sub.subject_id,
+            sub.subject_name,
+            sub.subject_code,
+            a.assessment_title,
+            ISNULL(ar.similarity_avg, 0) AS similarity_avg,
+            ISNULL(ar.risk_score, 0) AS risk_score
+        FROM submission s
+        INNER JOIN file_storage f ON s.file_id = f.file_id
+        INNER JOIN assessment a ON s.assessment_id = a.assessment_id
+        INNER JOIN subject_offering so ON a.offering_id = so.offering_id
+        INNER JOIN subject sub ON so.subject_id = sub.subject_id
+        OUTER APPLY (
+            SELECT TOP 1 *
+            FROM analysis_result ar
+            WHERE ar.submission_id = s.submission_id
+            ORDER BY ar.analysis_result_id DESC
+        ) ar
+        WHERE f.storage_category = 'STUDENT_SUBMISSION'
+        ORDER BY s.submitted_at DESC;
     `);
+
+    return result.recordset;
+};
+
+/**
+ * All submissions for the logged-in student (not limited to published marks).
+ */
+exports.getOwnSubmissionHistory = async (studentId) => {
+    await poolConnect;
+
+    const result = await pool.request()
+        .input("student_id", sql.Int, studentId)
+        .query(`
+            SELECT
+                s.submission_id,
+                s.assessment_id,
+                s.student_id,
+                s.attempt_no,
+                s.is_late,
+                s.late_minutes,
+                s.submitted_at,
+                s.submission_status,
+                f.original_file_name,
+                f.storage_path,
+                f.file_id,
+                a.assessment_title,
+                a.due_date,
+                sub.subject_name,
+                sub.subject_code,
+                so.academic_year
+            FROM submission s
+            INNER JOIN file_storage f ON s.file_id = f.file_id
+            INNER JOIN assessment a ON s.assessment_id = a.assessment_id
+            INNER JOIN subject_offering so ON a.offering_id = so.offering_id
+            INNER JOIN subject sub ON so.subject_id = sub.subject_id
+            WHERE s.student_id = @student_id
+              AND (s.submission_status IS NULL OR s.submission_status <> 'DELETED')
+            ORDER BY s.submitted_at DESC
+        `);
 
     return result.recordset;
 };

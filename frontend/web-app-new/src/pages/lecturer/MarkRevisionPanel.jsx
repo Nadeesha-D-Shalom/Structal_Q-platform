@@ -557,6 +557,8 @@ const MarkRevisionLogTable = ({ revisions, loading, onRefresh }) => {
 };
 
 export default function MarkRevisionAuditLog() {
+  const API_BASE = process.env.REACT_APP_API_URL || "";
+
   const [submissions, setSubmissions] = useState([]);
   const [filteredSubmissions, setFilteredSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -582,7 +584,11 @@ export default function MarkRevisionAuditLog() {
   useEffect(() => {
     const fetchSession = async () => {
       try {
-        const res = await fetch("/api/auth/session", { credentials: "include" });
+        const token = localStorage.getItem("auth_token");
+        const res = await fetch(`${API_BASE}/api/auth/session`, {
+          credentials: "include",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         if (res.ok) {
           const data = await res.json();
           setSession(data);
@@ -917,7 +923,7 @@ export default function MarkRevisionAuditLog() {
                     <div style={cellStyle}>
                       <span style={assignmentNameStyle}>{sub.assignment_name}</span>
                       <a 
-                        href={`${API_BASE_URL}/api/marks/pdf/${sub.submission_id}`} 
+                        href={`${API_BASE}/api/marks/pdf/${sub.submission_id}`} 
                         target="_blank" 
                         rel="noreferrer"
                         style={pdfLinkStyle}

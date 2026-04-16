@@ -22,6 +22,20 @@ exports.getStudentSubmissions = async (req, res) => {
     }
 };
 
+/* Current user (JWT) — full submission history */
+exports.getMySubmissions = async (req, res) => {
+    try {
+        const uid = req.user?.user_id;
+        if (!uid) {
+            return res.status(401).json({ success: false, error: "Not authenticated" });
+        }
+        const data = await service.getOwnSubmissionHistory(uid);
+        res.json({ success: true, data });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
 /* GET ALL STUDENT SUBMISSIONS */
 exports.getAllStudentSubmissions = async (req, res) => {
     try {

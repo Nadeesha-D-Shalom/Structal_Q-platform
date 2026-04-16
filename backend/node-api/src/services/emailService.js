@@ -153,28 +153,10 @@ function buildHtml(title, body, ctaLabel, ctaUrl) {
 </html>`;
 }
 
-// sendEmail
+// sendEmail — disabled for this deployment (in-app status only; no SMTP delivery).
 async function sendEmail(to, subject, textBody, htmlBody, bcc = null) {
-    const emailTransporter = await getTransporter();
-    let lastError;
-
-    for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-            const info = await emailTransporter.sendMail({
-                from: FROM,
-                to,
-                subject,
-                text: textBody,
-                html: htmlBody || `<p style="font-family:Arial,sans-serif;font-size:14px;color:#374151;">${textBody}</p>`,
-                ...(bcc ? { bcc } : {}),
-            });
-            return { info, retryCount: attempt };
-        } catch (err) {
-            lastError = err;
-        }
-    }
-    lastError.retryCount = 1;
-    throw lastError;
+    console.log("[emailService] Email delivery disabled (no message sent).", { to, subject });
+    return { info: { messageId: "email-disabled" }, retryCount: 0 };
 }
 
 async function sendSchedulePublishedEmail(recipientEmail, recipientName, scheduleInfo) {

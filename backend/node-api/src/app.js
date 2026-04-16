@@ -26,7 +26,20 @@ app.use("/api/auth", authRoutes);
 app.use("/api", routes);
 
 app.get("/health", (req, res) => {
-    res.json({ status: "Backend running" });
+    res.json({ status: "Backend running", port: process.env.PORT || 5000 });
+});
+
+app.get("/", (req, res) => {
+    res.send("StructaIQ Backend API running");
+});
+
+app.use((err, req, res, next) => {
+    console.error("GLOBAL ERROR:", err.stack);
+    res.status(500).json({
+        success: false,
+        message: "Something went wrong!",
+        error: err.message
+    });
 });
 
 module.exports = app;

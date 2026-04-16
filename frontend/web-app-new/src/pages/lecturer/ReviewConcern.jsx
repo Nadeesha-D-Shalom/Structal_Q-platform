@@ -1,7 +1,27 @@
 import { useState, useEffect } from "react";
 import LecturerNavbar from "./LecturerNavbar";
 
-const API_BASE_URL = "http://localhost:5000";
+const API_BASE = process.env.REACT_APP_API_URL || "";
+const apiUrl = (path) => `${API_BASE}${path}`;
+
+const getAuthHeaders = (json = true) => {
+  const token = typeof localStorage !== "undefined" ? localStorage.getItem("auth_token") : null;
+  const h = {};
+  if (json) h["Content-Type"] = "application/json";
+  if (token) h.Authorization = `Bearer ${token}`;
+  return h;
+};
+
+const getLecturerId = () => {
+  try {
+    const raw = typeof localStorage !== "undefined" ? localStorage.getItem("auth_user") : null;
+    if (!raw) return null;
+    const u = JSON.parse(raw);
+    return u.user_id ?? u.lecturer_id ?? null;
+  } catch {
+    return null;
+  }
+};
 
 // Success Popup Component
 const SuccessPopup = ({ isVisible, onClose, message, title, details }) => {
@@ -245,17 +265,16 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
     
     setSending(true);
     try {
-      const response = await fetch(`/api/concern/${concern.concern_id}/respond`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      const response = await fetch(apiUrl(`/api/concerns/${encodeURIComponent(concern.concern_id)}/respond`), {
+        method: "PUT",
+        headers: getAuthHeaders(true),
         body: JSON.stringify({
           concern_status: selectedStatus,
           lecturer_comment: comment.trim(),
-          original_mark: concern.originalMark,
+          originalMark: concern.originalMark,
           submission_id: concern.submission_id,
-          revised_mark: revisedMark ? parseFloat(revisedMark) : null
+          revised_mark: revisedMark ? parseFloat(revisedMark) : null,
+          revised_by: getLecturerId()
         })
       });
       
@@ -446,155 +465,6 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
   );
 };
 
-// Email Modal
-const EmailModal = ({ isOpen, onClose, concern, onSend }) => {
-  const [emailContent, setEmailContent] = useState("");
-  const [emailSubject, setEmailSubject] = useState("");
-  const [errors, setErrors] = useState({});
-  const [sending, setSending] = useState(false);
-
-  useEffect(() => {
-    if (concern && isOpen) {
-      const template = `Dear ${concern?.student_name},
-
-Regarding your ${concern?.priority_level} priority concern for ${concern?.assignment} (Concern ID: ${concern?.concern_id})
-
-We have reviewed your concern about the mark you received (${concern?.originalMark}/100).
-
-${concern?.lecturer_comment ? `Lecturer's Response: "${concern?.lecturer_comment}"` : '[Insert your response here]'}
-
-Best regards,
-Dr. Robert Fox
-Lecturer, ${concern?.subject || "Department"}`;
-      
-      setEmailContent(template);
-      setEmailSubject(`Response to ${concern?.priority_level} Priority Concern: ${concern?.assignment}`);
-      setErrors({});
-    }
-  }, [concern, isOpen]);
-
-  const validate = () => {
-    const newErrors = {};
-    if (!emailContent.trim()) {
-      newErrors.emailContent = "Please enter email content";
-    }
-    if (!emailSubject.trim()) {
-      newErrors.emailSubject = "Please enter email subject";
-    }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSend = async () => {
-    if (!validate()) return;
-    
-    setSending(true);
-    try {
-      const response = await fetch('/api/concern/send-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          concern_id: concern?.concern_id,
-          email_content: emailContent,
-          subject: emailSubject
-        })
-      });
-      
-      const result = await response.json();
-      
-      if (result.success) {
-        onSend({
-          concern_id: concern?.concern_id,
-          student_email: concern?.student_email,
-          student_name: concern?.student_name,
-          email_content: emailContent,
-          subject: emailSubject
-        });
-        onClose();
-      } else {
-        throw new Error(result.message);
-      }
-    } catch (err) {
-      console.error("Error sending email:", err);
-      alert("Failed to send email. Please try again.");
-    } finally {
-      setSending(false);
-    }
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div style={modalOverlayStyle} onClick={onClose}>
-      <div style={modalContainerStyle} onClick={(e) => e.stopPropagation()}>
-        <div style={modalHeaderStyle}>
-          <h3 style={modalTitleStyle}>Send Email to Student</h3>
-          <button onClick={onClose} style={modalCloseBtnStyle}>✕</button>
-        </div>
-        
-        <div style={modalBodyStyle}>
-          <div style={infoBoxStyle}>
-            <div style={infoRowStyle}>
-              <span style={infoLabelStyle}>To:</span>
-              <span style={infoValueStyle}>{concern?.student_name} ({concern?.student_email})</span>
-            </div>
-          </div>
-          
-          <div style={formGroupStyle}>
-            <label style={modalLabelStyle}>Email Subject *</label>
-            <input
-              type="text"
-              value={emailSubject}
-              onChange={(e) => setEmailSubject(e.target.value)}
-              style={{
-                ...modalInputStyle,
-                borderColor: errors.emailSubject ? "#ff4d4f" : "#dde3eb"
-              }}
-              placeholder="Enter email subject"
-            />
-            {errors.emailSubject && <p style={errorTextStyle}>{errors.emailSubject}</p>}
-          </div>
-          
-          <div style={formGroupStyle}>
-            <label style={modalLabelStyle}>Email Content *</label>
-            <textarea
-              value={emailContent}
-              onChange={(e) => setEmailContent(e.target.value)}
-              style={{
-                ...modalTextareaStyle,
-                borderColor: errors.emailContent ? "#ff4d4f" : "#dde3eb",
-                minHeight: "300px"
-              }}
-              rows="12"
-              placeholder="Write your email response..."
-            />
-            {errors.emailContent && <p style={errorTextStyle}>{errors.emailContent}</p>}
-          </div>
-          
-          <div style={emailPreviewStyle}>
-            <p style={previewLabelStyle}>Preview:</p>
-            <div style={previewContentStyle}>
-              <p><strong>To:</strong> {concern?.student_name} ({concern?.student_email})</p>
-              <p><strong>Subject:</strong> {emailSubject}</p>
-              <hr />
-              <div style={{ whiteSpace: 'pre-wrap' }}>{emailContent}</div>
-            </div>
-          </div>
-        </div>
-        
-        <div style={modalFooterStyle}>
-          <button onClick={onClose} style={modalCancelBtnStyle}>Cancel</button>
-          <button onClick={handleSend} disabled={sending} style={modalSaveBtnStyle}>
-            {sending ? "Sending..." : "Send Email"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 // View Submission Modal
 const ViewSubmissionModal = ({ isOpen, onClose, submissionUrl }) => {
   if (!isOpen) return null;
@@ -671,7 +541,7 @@ export default function ConcernReviewResolution() {
   const fetchConcerns = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/concern');
+      const response = await fetch(apiUrl('/api/concerns'), { headers: getAuthHeaders(false) });
       if (!response.ok) {
         throw new Error('Failed to fetch concerns');
       }
@@ -694,11 +564,9 @@ export default function ConcernReviewResolution() {
   const handleExportPDF = async () => {
     setExporting(true);
     try {
-      const response = await fetch('/api/concern/export-pdf', {
+      const response = await fetch(apiUrl('/api/concerns/export-pdf'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(true),
         body: JSON.stringify({
           concerns: filteredConcerns,
           filters: {
@@ -779,8 +647,9 @@ export default function ConcernReviewResolution() {
     if (!selectedConcern) return;
     
     try {
-      const response = await fetch(`/api/concern/${selectedConcern.concern_id}`, {
-        method: 'DELETE'
+      const response = await fetch(apiUrl(`/api/concerns/${encodeURIComponent(selectedConcern.concern_id)}`), {
+        method: 'DELETE',
+        headers: getAuthHeaders(false)
       });
       
       if (!response.ok) {
@@ -811,8 +680,8 @@ export default function ConcernReviewResolution() {
     try {
       await fetchConcerns();
       
-      setPopupTitle("✓ Response Sent");
-      setPopupMessage(`Response has been sent to ${responseData.student_name}.`);
+      setPopupTitle("✓ Response saved");
+      setPopupMessage(`The student can see your response in the portal.`);
       setPopupDetails({
         "Student": responseData.student_name,
         "Assignment": responseData.assignment,
@@ -830,29 +699,6 @@ export default function ConcernReviewResolution() {
     }
   };
 
-<<<<<<< HEAD
-  const handleSendEmail = async (emailData) => {
-    try {
-      await fetchConcerns();
-      
-      setPopupTitle("✉️ Email Sent");
-      setPopupMessage(`Email has been sent to ${emailData.student_name}.`);
-      setPopupDetails({
-        "To": `${emailData.student_name} (${emailData.student_email})`,
-        "Subject": emailData.subject,
-        "Status": "Delivered"
-      });
-      setShowSuccessPopup(true);
-      setShowEmailModal(false);
-      setSelectedConcern(null);
-    } catch (err) {
-      console.error("Error sending email:", err);
-      alert("Failed to send email. Please try again.");
-    }
-  };
-
-=======
->>>>>>> 1fad3f5 ((feat) Integrate the all pages and fixed them)
   const handleViewSubmission = (url) => {
     setSubmissionUrl(url);
     setShowViewModal(true);
@@ -1087,7 +933,7 @@ export default function ConcernReviewResolution() {
                         <span style={assignmentNameStyle}>{concern.assignment}</span>
                         {concern.submission_id && (
                           <button
-                            onClick={() => handleViewSubmission(`${API_BASE_URL}/api/marks/pdf/${concern.submission_id}`)}
+                            onClick={() => handleViewSubmission(apiUrl(`/api/marks/pdf/${concern.submission_id}`))}
                             style={viewPdfBtnStyle}
                             title="View Submission"
                           >
@@ -1146,19 +992,6 @@ export default function ConcernReviewResolution() {
                         <button
                           onClick={() => {
                             setSelectedConcern(concern);
-<<<<<<< HEAD
-                            setShowEmailModal(true);
-                          }}
-                          style={emailBtnStyle}
-                          title="Send Email"
-                        >
-                          📧 Email
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedConcern(concern);
-=======
->>>>>>> 1fad3f5 ((feat) Integrate the all pages and fixed them)
                             setShowDeleteModal(true);
                           }}
                           style={deleteActionBtnStyle}

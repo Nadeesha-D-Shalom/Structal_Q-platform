@@ -3,7 +3,7 @@ import "@fortawesome/fontawesome-free/css/all.min.css";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+const API_BASE_URL = process.env.REACT_APP_API_URL || "";
 
 const MLAnalysisPortal = () => {
   const navigate = useNavigate();
@@ -80,8 +80,8 @@ const MLAnalysisPortal = () => {
         body: JSON.stringify({
           submission_id: Number(selectedSubmission),
           marking_guide_id: Number(selectedGuide),
-          submission_path: submission.submission_path,
-          guide_file: guide.file_path,
+          submission_path: submission.storage_path,
+          guide_file: guide.guide_file_path,
         }),
       });
 
@@ -103,7 +103,7 @@ const MLAnalysisPortal = () => {
 
   return (
     <div className="bg-[#f6f8fb] min-h-screen">
-      <LecturerNavbar activePage="Submissions" />
+      <LecturerNavbar />
 
       <div className="p-8">
         <h1 className="text-[24px] font-bold text-[#1c2b3a] mb-6">
@@ -180,7 +180,7 @@ const MLAnalysisPortal = () => {
                   .filter(s => !selectedSubject || Number(s.subject_id) === Number(selectedSubject))
                   .map((s) => (
                     <option key={s.submission_id} value={s.submission_id}>
-                      {s.original_file_name} (Group {s.group_name})
+                      {s.original_file_name} (Student {s.student_id})
                     </option>
                   ))}
               </select>

@@ -2,7 +2,7 @@ import { useState } from "react";
 import LecturerNavbar from "./LecturerNavbar";
 import axios from "axios";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_BASE = process.env.REACT_APP_API_URL || "";
 
 const SubmissionComparison = () => {
     const [left, setLeft] = useState("");
@@ -14,10 +14,12 @@ const SubmissionComparison = () => {
         try {
             setLoading(true);
 
-            const res = await axios.post(`${API_BASE}/ai-analysis/compare`, {
-                file1: left,
-                file2: right
-            });
+            const token = localStorage.getItem("auth_token");
+            const res = await axios.post(
+                `${API_BASE}/api/ai-analysis/compare`,
+                { file1: left, file2: right },
+                { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+            );
 
             if (res.data.success) {
                 setResult(res.data.data);

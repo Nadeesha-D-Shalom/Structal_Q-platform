@@ -1,256 +1,190 @@
-# StructaIQ Platform  
-Intelligent Academic Report Evaluation & Assessment System
+# StructaIQ / Structal Q Platform
+
+Integrated academic evaluation system for **lecturers** and **students**: submissions, marking guides, AI-assisted analysis, lecturer validation, marks publishing, concerns, evaluation scheduling, and exam timetables. **No admin module** and **no email delivery** (in-app status only).
 
 ---
 
-## 1. Overview
+## Architecture
 
-StructaIQ is a modular academic evaluation platform designed to support structured project report submission, lecturer-assisted marking, machine learning–based similarity analysis, student concern handling, and exam timetable management.
+| Layer | Path | Technology |
+|--------|------|------------|
+| Web UI | `frontend/web-app-new/` | React (Create React App), Tailwind-style utility classes |
+| API | `backend/node-api/` | Node.js, Express, JWT, `mssql` |
+| AI / ML | `backend/python-ml/` | FastAPI, evaluation and similarity pipelines |
+| Database scripts | `databse/` | MSSQL schema (`alltables.sql`, etc.) |
+| File storage | `backend/node-api/storage/`, repo `storage/` | PDF/DOCX on disk; paths in `file_storage` |
 
-The system combines rule-based validation with ML-assisted intelligence to enhance fairness, scalability, and efficiency in academic assessment processes while ensuring that all final academic decisions remain fully under lecturer control.
-
-The prototype implementation is validated for:
-Year 2 – Semester 1 – Software Engineering  
-However, the system architecture is designed to support all academic years, semesters, and subjects.
-
----
-
-## 2. Core Objectives
-
-- Digitize project report submission workflows
-- Enable lecturer-defined marking guides per semester
-- Detect semantic and structural similarity using ML
-- Support transparent mark publishing and student concern handling
-- Provide exam timetable management functionality
-- Ensure scalability across multiple subjects and semesters
-- Maintain modular architecture for safe parallel development
+**Request flow:** React → Express (`/api/*`) → MSSQL; AI calls go Express → FastAPI (`ML_SERVICE_URL`).
 
 ---
 
-## 3. System Architecture
+## Core modules
 
-StructaIQ follows a modular monorepo architecture:
-
-- React Web Application (Lecturer & Academic Staff)
-- React Native Mobile Application (Students & Limited Lecturer Access)
-- Node.js Backend API (CRUD & Business Logic)
-- Python ML Service (Analysis & Similarity Detection)
-- Centralized Database
-
-High-Level Flow:
-
-Web/Mobile → Node.js API → Python ML Service → Database
-
-All services communicate via REST APIs.
+1. **Submissions** — Upload PDF/DOCX, attempts, late/grace handling (`/api/submissions`).
+2. **Marking guides** — Upload and versioning (`/api/marking-guides`, lecturer UI `MarkingGuideManagement.jsx`).
+3. **AI analysis** — `/evaluate`, compare, persistence in `analysis_result` (`/api/ai-analysis`).
+4. **Marks** — Publish/revision, student view, PDF where implemented (`/api/marks`, `/api/student/marks`).
+5. **Concerns** — Student raise, lecturer respond (`/api/concerns`).
+6. **Evaluation scheduling** — Slots, groups, publish (`/api/evaluation-scheduling`).
+7. **Exam timetable** — Sessions, rooms, draft/publish (`/api/timetable`).
 
 ---
 
-## 4. Technology Stack
-
-### Frontend
-- React (Web Application)
-- React Native (Mobile Application)
-
-### Backend
-- Node.js (Express-based API)
-- Python (ML service)
-
-### Database
-- Relational database (MySQL / PostgreSQL / MSSQL)
-
-### ML
-- Text embeddings
-- Semantic similarity computation
-- Structural pattern comparison
-- Outlier detection
-
----
-
-## 5. Project Structure
+## Repository layout (main)
 
 ```
-structaiq-platform/
-│
-├── backend/
-│   ├── node-api/
-│   └── python-ml/
-│
-├── frontend/
-│   ├── web-app/
-│   └── mobile-app/
-│
-├── database/
-│
-├── docs/
-│
-├── README.md
-└── CONTRIBUTING.md
+Structal_Q-platform/
+├── backend/node-api/src/
+│   ├── app.js                 # Express app, /api mount, CORS, session, errors
+│   ├── server.js              # DB connect, listen, concern window scheduler
+│   ├── routes/index.js        # JWT-protected API routes
+│   └── modules/               # subject, assessment, marking-guide, submission,
+│                              # ai-analysis, concern, mark-publish, timetable, …
+├── backend/python-ml/app/     # FastAPI app, pipelines, diagram helpers
+├── frontend/web-app-new/src/
+│   ├── App.js                 # Routes (lecturer + student)
+│   └── pages/                 # Dashboards, submissions, marks, concerns, …
+├── databse/                   # SQL scripts
+└── README.md
 ```
 
-Each backend module is isolated under:
+Legacy/alternate UI: `frontend/web-app/my-app/` (timetable-focused; primary app is `web-app-new`).
 
+---
+
+## Prerequisites
+
+- Node.js 18+
+- Python 3.10+ (for FastAPI service)
+- Microsoft SQL Server (instance configured in `.env`)
+- Optional: `pdfkit` for concern PDF export (install in `backend/node-api` if export is used)
+
+---
+
+## Environment variables
+
+### Backend (`backend/node-api/.env`)
+
+| Variable | Purpose |
+|----------|---------|
+| `PORT` | API port (default `5000`) |
+| `DB_SERVER`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | MSSQL connection (see `src/config/db.js`) |
+| `JWT_SECRET`, `JWT_EXPIRE` | JWT signing |
+| `SESSION_SECRET` | Express session |
+| `ML_SERVICE_URL` | FastAPI base URL (e.g. `http://127.0.0.1:8000`) |
+
+Email-related vars are **ignored for delivery**; `sendEmail` is a no-op in this version.
+
+### Frontend (`frontend/web-app-new/.env`)
+
+| Variable | Purpose |
+|----------|---------|
+| `REACT_APP_API_URL` | API origin; use empty string with CRA **proxy** to same host, or `http://localhost:5000` |
+
+Example:
+
+```env
+REACT_APP_API_URL=
 ```
-backend/node-api/src/modules/
+
+(Create React App reads `REACT_APP_*` at build time.)
+
+### Python (`backend/python-ml`)
+
+Use `requirements.txt`; set any ports/hosts expected by `app/main.py` and call the same `ML_SERVICE_URL` as Node.
+
+---
+
+## Run locally
+
+### 1. Database
+
+Apply or sync scripts under `databse/` to your MSSQL instance (preserve existing data; use incremental scripts in production).
+
+### 2. FastAPI (AI)
+
+```bash
+cd backend/python-ml
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
 ```
 
-Each member works only within their assigned module directory to prevent merge conflicts.
+Ensure `ML_SERVICE_URL` in Node matches this URL.
+
+### 3. Node API
+
+```bash
+cd backend/node-api
+npm install
+npm start
+```
+
+### 4. React (primary UI)
+
+```bash
+cd frontend/web-app-new
+npm install
+npm start
+```
+
+CRA dev server proxies API calls when `package.json` contains `"proxy": "http://localhost:5000"` and `REACT_APP_API_URL` is empty.
 
 ---
 
-## 6. Functional Modules
+## Authentication
 
-### Member 1 – ML Analysis & Intelligence Core
-- Semantic similarity detection
-- Structural similarity detection
-- Outlier identification
-- Risk scoring
-- Analysis reports
-
-Entity: analysis_result  
-Full CRUD supported
-
-Important:
-- ML does not assign marks
-- ML does not retrain during semester
-- Model is trained offline
+- **Login:** `POST /api/auth/login` returns JWT + user payload.
+- **Session:** `GET /api/auth/session` with `Authorization: Bearer <token>`.
+- **Storage:** Client keeps `auth_token` and `auth_user` in `localStorage` (for lecturer id on concern responses).
+- **Roles:** `lecturer`, `student` (JWT `role`). Routes under `routes/index.js` use `verifyToken`.
 
 ---
 
-### Member 2 – Student Submission Management
-- Project report upload (PDF/DOCX)
-- Resubmission version tracking
-- Deadline management
-- Submission reports
+## Main workflows
 
-Entity: submission  
-Full CRUD supported
-
----
-
-### Member 3 – Academic Configuration & Marking Guides
-- Subject creation per semester
-- Dynamic marking guide creation
-- Section rule configuration
-- Diagram requirements
-- Rule versioning
-
-Entities:
-- subject
-- marking_guide  
-Full CRUD supported
+1. Lecturer creates subject/offering/assessment and uploads a **marking guide** (PDF/DOCX).
+2. Student uploads submissions (`/student/submissions` → `POST /api/submissions/upload`).
+3. Lecturer runs **AI evaluate** (`/lecturer/ml-portal`: guide + submission → `POST /api/ai-analysis/analyze`). AI does **not** auto-publish final marks.
+4. Lecturer reviews results, sets marks, **publishes** when ready.
+5. Student views published marks; may raise a **concern** within the concern window; lecturer **responds** in app (no email).
 
 ---
 
-### Member 4 – Marks Publishing & Concern Management
-- Mark publishing control
-- Student concern submission
-- Concern review workflow
-- Mark revision tracking
+## AI analysis (summary)
 
-Entity: mark_concern  
-Full CRUD supported
+- Node forwards files to FastAPI `/evaluate` with `student_file` and `guide_file` paths.
+- Results are stored in MSSQL (`analysis_result`, `ai_question_score`, etc.).
+- **Diagram** handling is implemented in Python (`diagram_validator.py`, `diagram_extractor.py`); tuning may continue for accuracy.
 
 ---
 
-### Member 5 – Lecturer Review & Mark Entry
-- Manual mark entry
-- Risk-based prioritization
-- Review finalization
-- Review reports
+## Implementation notes
 
-Entity: review  
-Full CRUD supported
+- **File hashing:** `sha256_hash` / `integrity_hash` are optional and stored as `NULL` where not used.
+- **Duplicate API mounting** was removed from `server.js`; all secured routes go through `app.js` → `routes/index.js`.
+- **Concerns API** base path: **`/api/concerns`** (plural).
+- **Email:** SMTP is not used for user-facing workflows; `emailService.sendEmail` logs and returns without sending.
 
 ---
 
-### Member 6 – Exam Timetable Management
-- Create semester exam timetable
-- Conflict validation
-- Venue/time overlap detection
-- Timetable publishing
-- Timetable reports
+## Known limitations
 
-Entity: exam_timetable  
-Full CRUD supported
+- Jest integration tests may require optional deps (e.g. `pdfkit`) and a live DB; run in CI with mocks or install missing packages.
+- Some legacy pages (`frontend/web-app`) are not the primary UI.
+- AI quality depends on models, OCR, and document structure.
 
 ---
 
-## 7. Machine Learning Scope
+## Future improvements
 
-The ML component performs:
-
-- Semantic similarity detection
-- Structural similarity detection
-- Cohort comparison
-- Risk scoring
-
-ML Data Sources:
-- Extracted report text
-- Section structure
-- Comparison against cohort
-- Rule validation outcomes
-
-ML Limitations:
-- Does not assign grades
-- Does not replace lecturer
-- Does not retrain during live semester operations
+- Stronger role checks per route (lecturer vs student).
+- Automated DB migrations (versioned scripts).
+- Optional real email behind a feature flag (currently off by design).
 
 ---
 
-## 8. Scalability & Concurrency
+## Authors / course context
 
-- Supports 100+ concurrent academic users
-- Uses asynchronous processing
-- Background job queue for ML tasks
-- Non-blocking UI for lecturers
-
----
-
-## 9. Deployment Strategy
-
-- Backend deployed on cloud server or institutional infrastructure
-- ML service deployed separately
-- Web app hosted on web server
-- Mobile app deployable to Google Play Store
-
----
-
-## 10. Security & Access Control
-
-- Role-based authentication
-  - Student
-  - Lecturer
-- Token-based API access
-- Controlled mark publishing
-- Concern submission time windows
-
----
-
-## 11. Development Guidelines
-
-- Each member works in a dedicated module directory
-- Feature branches required for development
-- Pull requests must target dev branch
-- No direct pushes to main
-- Follow consistent naming conventions
-
----
-
-## 12. Future Enhancements
-
-- Cross-subject ML generalization
-- Integration with university ERP systems
-- Advanced analytics dashboards
-- Multi-language report analysis
-
----
-
-## 13. Summary
-
-StructaIQ is a modular, scalable, and intelligent academic evaluation platform that enhances transparency, efficiency, and integrity in project-based assessment while preserving full lecturer authority over final decisions.
-
----
-
-Project Repository: structaiq-platform  
-Version: 1.0  
-Status: Academic Prototype
+Built as an academic group project (Year 2 – Software Engineering style scope). This README reflects the **integrated** codebase in this repository.

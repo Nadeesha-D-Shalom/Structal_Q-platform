@@ -164,13 +164,7 @@ exports.getDetailsForConcernForm = async (req, res) => {
                 a.total_marks as total,
                 sub.subject_name,
                 sub.subject_code,
-<<<<<<< HEAD
-                
                 so.academic_year + ' ' + so.semester AS academic_year
-                
-=======
-                so.academic_year
->>>>>>> 1fad3f5 ((feat) Integrate the all pages and fixed them)
                 FROM final_mark fm
                 INNER JOIN submission s ON fm.submission_id = s.submission_id
                 INNER JOIN assessment a ON s.assessment_id = a.assessment_id

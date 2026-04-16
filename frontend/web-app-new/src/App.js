@@ -24,10 +24,12 @@ import ViewSubmission from "./pages/lecturer/ViewSubmission";
 
 /* AI MODULE */
 import MLAnalysisConfig from "./pages/lecturer/MLAnalysisConfig";
+import MLAnalysisPortal from "./pages/lecturer/MLAnalysisPortal";
 import MLAnalysisResult from "./pages/lecturer/MLAnalysisResult";
 import SubmissionComparison from "./pages/lecturer/SubmissionComparison";
 import ViewAnalysisResults from "./pages/lecturer/ViewAnalysisResults";
 import StudentTimetable from "./pages/student/StudentTimetable";
+import StudentSubmissions from "./pages/student/StudentSubmissions";
 
 function ProtectedRoute({ children }) {
   const [status, setStatus] = useState("checking");
@@ -73,6 +75,7 @@ function App() {
         <Route path="/student/marks" element={<ProtectedRoute><StudentMarksList /></ProtectedRoute>} />
         <Route path="/student/concerns" element={<ProtectedRoute><StudentConcernsOverview /></ProtectedRoute>} />
         <Route path="/student/timetable" element={<ProtectedRoute><StudentTimetable /></ProtectedRoute>} />
+        <Route path="/student/submissions" element={<ProtectedRoute><StudentSubmissions /></ProtectedRoute>} />
 
         {/* ================= LECTURER ================= */}
         <Route path="/lecturer" element={<ProtectedRoute><LecturerDashboard /></ProtectedRoute>} />
@@ -90,6 +93,7 @@ function App() {
 
         {/* ================= AI ANALYSIS ================= */}
         <Route path="/lecturer/ml-analysis" element={<ProtectedRoute><MLAnalysisConfig /></ProtectedRoute>} />
+        <Route path="/lecturer/ml-portal" element={<ProtectedRoute><MLAnalysisPortal /></ProtectedRoute>} />
         <Route path="/lecturer/analysis/:id" element={<ProtectedRoute><MLAnalysisResult /></ProtectedRoute>} />
 
         {/* IMPORTANT: MATCHES YOUR BUTTON */}

@@ -7,7 +7,7 @@ import {
   Cell, CartesianGrid,
 } from "recharts";
 
-const API_BASE = "http://localhost:5000/api";
+const API_BASE = process.env.REACT_APP_API_URL || "";
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem("auth_token");
@@ -251,7 +251,7 @@ const ViewAnalysisResults = () => {
 
   useEffect(() => {
     injectStyles();
-    fetch(`${API_BASE}/ai-analysis/results/${submissionId}`, { headers: getAuthHeaders() })
+    fetch(`${API_BASE}/api/ai-analysis/results/${submissionId}`, { headers: getAuthHeaders() })
       .then((res) => res.json())
       .then((res) => {
         if (res.success) setData(res.data);
@@ -260,7 +260,7 @@ const ViewAnalysisResults = () => {
       })
       .catch(() => { setError(true); setLoading(false); });
 
-    fetch(`${API_BASE}/marks/diagram-pages/${submissionId}`, { headers: getAuthHeaders() })
+    fetch(`${API_BASE}/api/marks/diagram-pages/${submissionId}`, { headers: getAuthHeaders() })
       .then((res) => res.json())
       .then((res) => {
         if (res.success) setDiagramPages(res.data);
@@ -272,7 +272,7 @@ const ViewAnalysisResults = () => {
     if (!submissionId) return;
     try {
       setReportLoading(true);
-      const res = await fetch(`${API_BASE}/ai-analysis/report/${submissionId}`, {
+      const res = await fetch(`${API_BASE}/api/ai-analysis/report/${submissionId}`, {
         headers: getAuthHeaders(),
       });
       if (!res.ok) throw new Error("Failed to generate report");

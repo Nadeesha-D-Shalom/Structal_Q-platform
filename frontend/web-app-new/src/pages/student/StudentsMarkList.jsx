@@ -3,7 +3,7 @@ import StudentNavbar from "./StudentNavbar";
 import { useNavigate } from "react-router-dom";
 
 const PER_PAGE = 5;
-const API_BASE_URL = "http://localhost:5000";
+const API_BASE = process.env.REACT_APP_API_URL || "";
 
 export default function StudentMarksList() {
   const navigate = useNavigate();
@@ -477,7 +477,7 @@ export default function StudentMarksList() {
                   <div style={{ fontSize: 14, color: "#334155", fontWeight: 500 }}>{sub.assignment_name || "N/A"}</div>
                   <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{sub.academic_year || ""}</div>
                   <a 
-                    href={`${API_BASE_URL}/api/marks/pdf/${sub.submission_id}`} 
+                    href={`${API_BASE}/api/marks/pdf/${sub.submission_id}`} 
                     target="_blank" 
                     rel="noreferrer"
                     style={{ fontSize: 11, fontWeight: "bold", color: "#3c74ff", textDecoration: "none", marginBottom: 8, display: "flex", alignItems: "center" }}

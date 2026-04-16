@@ -27,6 +27,7 @@ const StudentNavbar = ({ activePage = "Dashboard" }) => {
       // proceed with client-side logout even if server call fails
     } finally {
       localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_user");
       navigate("/", { replace: true });
     }
   };

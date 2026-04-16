@@ -259,7 +259,6 @@ const handleExportCSV = async () => {
     }
   };
 
-<<<<<<< HEAD
   // Pagination calculations
   const totalPages = Math.ceil(pendingSubmissions.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -272,14 +271,6 @@ const handleExportCSV = async () => {
 
   const getErrorMessage = (submissionId) => {
     return touched[submissionId] && errors[submissionId] ? errors[submissionId] : null;
-=======
-  // Check if mark input is valid
-  const isManualMarkValid = () => {
-    if (!touched.manualMark) return false;
-    if (!manualDocumentMark || manualDocumentMark === "") return false;
-    const error = validateField('manualMark', manualDocumentMark);
-    return !error;
->>>>>>> 1fad3f5 ((feat) Integrate the all pages and fixed them)
   };
 
   return (
