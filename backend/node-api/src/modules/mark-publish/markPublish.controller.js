@@ -494,20 +494,19 @@ exports.bulkPublishMarks = async (req, res, next) => {
                     .input("published_at", sql.DateTimeOffset, new Date())
                     .input("updated_by", sql.VarChar, published_by)
                     .input("updated_at", sql.DateTimeOffset, new Date())
-                    .input("window", sql.Bit, 1)
                     .query(`
                         INSERT INTO final_mark (
                             submission_id, student_id, 
                             ai_marks, diagram_marks, total_marks_awarded,
                             marking_status, published_by, published_at,
-                            updated_by, updated_at, concern_window_open
+                            updated_by, updated_at
                         )
                         OUTPUT INSERTED.id
                         VALUES (
                             @sub_id, @stu_id, 
                             @ai_marks, @diagram_marks, @total_mark,
                             @status, @published_by, @published_at,
-                            @updated_by, @updated_at, @window
+                            @updated_by, @updated_at
                         )
                     `);
                 

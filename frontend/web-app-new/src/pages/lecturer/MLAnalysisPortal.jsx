@@ -39,9 +39,26 @@ const MLAnalysisPortal = () => {
       const guidesData = await guideRes.json();
       const submissionsData = await submissionRes.json();
 
-      setSubjects(Array.isArray(subjectsData) ? subjectsData : []);
-      setGuides(Array.isArray(guidesData) ? guidesData : []);
-      setSubmissions(Array.isArray(submissionsData) ? submissionsData : []);
+      // Subjects: API returns a plain array. Marking guides: { success, data: [] }. Submissions: plain array.
+      const subjectsList = Array.isArray(subjectsData)
+        ? subjectsData
+        : Array.isArray(subjectsData?.data)
+          ? subjectsData.data
+          : [];
+      const guidesList = Array.isArray(guidesData)
+        ? guidesData
+        : Array.isArray(guidesData?.data)
+          ? guidesData.data
+          : [];
+      const submissionsList = Array.isArray(submissionsData)
+        ? submissionsData
+        : Array.isArray(submissionsData?.data)
+          ? submissionsData.data
+          : [];
+
+      setSubjects(subjectsList);
+      setGuides(guidesList);
+      setSubmissions(submissionsList);
 
     } catch (err) {
       console.error("Fetch error:", err);
@@ -71,6 +88,13 @@ const MLAnalysisPortal = () => {
         return;
       }
 
+      const guidePath = guide.guide_file_path || guide.storage_path;
+      if (!guidePath) {
+        alert("Selected marking guide has no file path. Re-upload the guide or pick another guide.");
+        setLoading(false);
+        return;
+      }
+
       const res = await fetch(`${API_BASE_URL}/api/ai-analysis/analyze`, {
         method: "POST",
         headers: {
@@ -81,16 +105,18 @@ const MLAnalysisPortal = () => {
           submission_id: Number(selectedSubmission),
           marking_guide_id: Number(selectedGuide),
           submission_path: submission.storage_path,
-          guide_file: guide.guide_file_path,
+          guide_file: guidePath,
         }),
       });
 
       const result = await res.json();
 
-      if (result.success) {
-        navigate(`/analysis/${selectedSubmission}`);
+      if (result.success && result.analysis_result_id) {
+        navigate(`/analysis/${result.analysis_result_id}`, {
+          state: { analysis_result_id: result.analysis_result_id, fromMlPortal: true },
+        });
       } else {
-        alert("Analysis failed: " + result.error);
+        alert("Analysis failed: " + (result.error || result.message || "Unknown error"));
       }
 
     } catch (err) {

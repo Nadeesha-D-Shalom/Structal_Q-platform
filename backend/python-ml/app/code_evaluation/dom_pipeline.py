@@ -1,3 +1,5 @@
+from typing import Optional
+
 from app.services.pdf_service import DocumentService
 from app.code_evaluation.code_extractor import CodeExtractor
 from app.code_evaluation.answer_sheet_parser import AnswerSheetParser
@@ -7,9 +9,15 @@ import re
 
 class DOMCodeEvaluationPipeline:
 
-    def __init__(self, submission_file: str, answer_sheet_file: str):
+    def __init__(
+        self,
+        submission_file: str,
+        answer_sheet_file: str,
+        answer_text: Optional[str] = None,
+    ):
         self.submission_file = submission_file
         self.answer_sheet_file = answer_sheet_file
+        self.answer_text_cached = answer_text
 
         self.doc_service = DocumentService()
         self.extractor = CodeExtractor()
@@ -19,7 +27,11 @@ class DOMCodeEvaluationPipeline:
     def run(self):
 
         submission_text = self.doc_service.extract_text(self.submission_file)
-        answer_text = self.doc_service.extract_text(self.answer_sheet_file)
+        answer_text = (
+            self.answer_text_cached
+            if self.answer_text_cached is not None
+            else self.doc_service.extract_text(self.answer_sheet_file)
+        )
 
         # -------------------------------------
         # Extract Marks from Lecturer Sheet

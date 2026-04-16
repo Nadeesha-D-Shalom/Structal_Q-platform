@@ -12,6 +12,7 @@ exports.getMarks = async (req, res) => {
             fm.submission_id,
             fm.total_marks_awarded as mark,
             fm.published_at,
+            (SELECT COUNT(*) FROM mark_concern mc WHERE mc.submission_id = fm.submission_id) AS concern_count,
             
             a.assessment_title as assignment_name,
             a.total_marks as total,
@@ -31,12 +32,16 @@ exports.getMarks = async (req, res) => {
             ORDER BY fm.published_at DESC
         `);
         
-        const enriched = result.recordset.map(row => ({
-            ...row,
-            concern_window_open: row.published_at
-                ? ((Date.now() - new Date(row.published_at).getTime()) <= 48 * 60 * 60 * 1000 ? 1 : 0)
-                : 0
-        }));
+        const enriched = result.recordset.map(row => {
+            const within48 =
+                row.published_at &&
+                Number(row.concern_count || 0) === 0 &&
+                Date.now() - new Date(row.published_at).getTime() <= 48 * 60 * 60 * 1000;
+            return {
+                ...row,
+                concern_window_open: within48 ? 1 : 0,
+            };
+        });
 
         res.json({
             success: true,
@@ -160,6 +165,7 @@ exports.getDetailsForConcernForm = async (req, res) => {
                 fm.submission_id,
                 fm.total_marks_awarded as mark,
                 fm.published_at,
+                (SELECT COUNT(*) FROM mark_concern mc WHERE mc.submission_id = fm.submission_id) AS concern_count,
                 a.assessment_title as assignment_name,
                 a.total_marks as total,
                 sub.subject_name,
@@ -183,7 +189,11 @@ exports.getDetailsForConcernForm = async (req, res) => {
 
         const row = result.recordset[0];
         const publishedAt = row.published_at ? new Date(row.published_at) : null;
-        const concernWindowOpen = publishedAt ? ((Date.now() - publishedAt.getTime()) <= 48 * 60 * 60 * 1000) : false;
+        const hasConcern = Number(row.concern_count || 0) > 0;
+        const concernWindowOpen =
+            publishedAt &&
+            !hasConcern &&
+            Date.now() - publishedAt.getTime() <= 48 * 60 * 60 * 1000;
 
         res.json({
             success: true,

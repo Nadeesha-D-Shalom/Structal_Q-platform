@@ -180,17 +180,30 @@ exports.getAllSubmissionsForLecturer = async () => {
             s.submitted_at,
             f.original_file_name,
             f.storage_path,
-            sub.subject_id,
-            sub.subject_name,
-            sub.subject_code,
+            COALESCE(sub.subject_id, mg_sub.subject_id) AS subject_id,
+            COALESCE(sub.subject_name, mg_sub.subject_name) AS subject_name,
+            COALESCE(sub.subject_code, mg_sub.subject_code) AS subject_code,
             a.assessment_title,
             ISNULL(ar.similarity_avg, 0) AS similarity_avg,
             ISNULL(ar.risk_score, 0) AS risk_score
         FROM submission s
         INNER JOIN file_storage f ON s.file_id = f.file_id
         INNER JOIN assessment a ON s.assessment_id = a.assessment_id
-        INNER JOIN subject_offering so ON a.offering_id = so.offering_id
-        INNER JOIN subject sub ON so.subject_id = sub.subject_id
+        LEFT JOIN subject_offering so ON a.offering_id = so.offering_id
+        LEFT JOIN subject sub ON so.subject_id = sub.subject_id
+        OUTER APPLY (
+            SELECT TOP 1
+                sx.subject_id,
+                sx.subject_name,
+                sx.subject_code
+            FROM marking_guide mg
+            INNER JOIN assessment ax ON mg.assessment_id = ax.assessment_id
+            LEFT JOIN subject_offering sox ON ax.offering_id = sox.offering_id
+            LEFT JOIN subject sx ON sox.subject_id = sx.subject_id
+            WHERE mg.assessment_id = a.assessment_id
+              AND sx.subject_id IS NOT NULL
+            ORDER BY mg.marking_guide_id DESC
+        ) mg_sub
         OUTER APPLY (
             SELECT TOP 1 *
             FROM analysis_result ar
@@ -279,6 +292,51 @@ exports.getSubmissionsByAssessment = async (assessmentId) => {
     return result.recordset;
 };
 
+/**
+ * One row per submission for a specific marking guide (avoids duplicate rows when multiple guides exist per assessment).
+ * submissionIds: null/undefined = all submissions for the assessment; non-empty array = only those ids.
+ */
+exports.getSubmissionsForBatchEvaluation = async (assessmentId, markingGuideId, submissionIds) => {
+    await poolConnect;
+
+    const request = pool.request()
+        .input("assessmentId", sql.Int, assessmentId)
+        .input("markingGuideId", sql.BigInt, markingGuideId);
+
+    let inFilter = "";
+    if (Array.isArray(submissionIds) && submissionIds.length > 0) {
+        const parts = [];
+        submissionIds.forEach((id, i) => {
+            const name = `sid${i}`;
+            request.input(name, sql.BigInt, id);
+            parts.push(`@${name}`);
+        });
+        inFilter = ` AND s.submission_id IN (${parts.join(", ")})`;
+    }
+
+    const result = await request.query(`
+        SELECT 
+            s.submission_id,
+            s.assessment_id,
+            s.student_id,
+            s.file_id,
+            fs.storage_path,
+            mg.marking_guide_id,
+            fs2.storage_path AS guide_path
+        FROM submission s
+        INNER JOIN file_storage fs ON s.file_id = fs.file_id
+        INNER JOIN marking_guide mg
+            ON mg.marking_guide_id = @markingGuideId
+            AND mg.assessment_id = s.assessment_id
+        INNER JOIN file_storage fs2 ON mg.file_id = fs2.file_id
+        WHERE s.assessment_id = @assessmentId
+          AND fs.storage_category = 'STUDENT_SUBMISSION'
+          ${inFilter}
+    `);
+
+    return result.recordset;
+};
+
 exports.getByStudent = async (studentId) => {
     await poolConnect;
 
@@ -289,6 +347,7 @@ exports.getByStudent = async (studentId) => {
                 fm.submission_id,
                 fm.total_marks_awarded,
                 fm.published_at,
+                (SELECT COUNT(*) FROM mark_concern mc WHERE mc.submission_id = fm.submission_id) AS concern_count,
                 a.assessment_title AS assignment_name,
                 a.total_marks AS total,
                 sub.subject_name,
@@ -312,9 +371,11 @@ exports.getByStudent = async (studentId) => {
 
     return result.recordset.map(row => ({
         ...row,
-        concern_window_open: row.published_at
-            ? ((Date.now() - new Date(row.published_at).getTime()) <= 48 * 60 * 60 * 1000)
-            : false
+        concern_window_open: !!(
+            row.published_at &&
+            Number(row.concern_count || 0) === 0 &&
+            Date.now() - new Date(row.published_at).getTime() <= 48 * 60 * 60 * 1000
+        ),
     }));
 };
 

@@ -358,9 +358,25 @@ exports.getSubmissionsByAssessment = async (assessmentId) => {
 };
 
 
+function hydrateQuestionScores(record) {
+    if (!record) return null;
+    if (record.question_scores != null) {
+        try {
+            record.question_scores =
+                typeof record.question_scores === "string"
+                    ? JSON.parse(record.question_scores)
+                    : record.question_scores;
+        } catch (e) {
+            record.question_scores = [];
+        }
+    }
+    return record;
+}
+
 // ================= GET ANALYSIS RESULTS =================
 async function getAnalysisResults(submissionId) {
     try {
+        await poolConnect;
         const request = pool.request();
 
         const result = await request
@@ -379,18 +395,7 @@ async function getAnalysisResults(submissionId) {
             return null;
         }
 
-        const record = result.recordset[0];
-
-        // Parse question scores if they exist
-        if (record.question_scores) {
-            try {
-                record.question_scores = JSON.parse(record.question_scores);
-            } catch (e) {
-                record.question_scores = [];
-            }
-        }
-
-        return record;
+        return hydrateQuestionScores(result.recordset[0]);
     } catch (error) {
         console.error("Get Analysis Results Error:", error);
         throw error;
@@ -399,6 +404,7 @@ async function getAnalysisResults(submissionId) {
 
 async function getAnalysisResultById(analysisResultId) {
     try {
+        await poolConnect;
         const request = pool.request();
 
         const result = await request
@@ -417,21 +423,94 @@ async function getAnalysisResultById(analysisResultId) {
             return null;
         }
 
-        const record = result.recordset[0];
-
-        if (record.question_scores) {
-            try {
-                record.question_scores = JSON.parse(record.question_scores);
-            } catch (e) {
-                record.question_scores = [];
-            }
-        }
-
-        return record;
+        return hydrateQuestionScores(result.recordset[0]);
     } catch (error) {
         console.error("Get Analysis Result By ID Error:", error);
         throw error;
     }
+}
+
+/**
+ * Resolve /lecturer/analysis/:id — try in order (avoids one fragile mega-query):
+ *   1) analysis_result_id
+ *   2) submission_id (latest analysis for that submission)
+ *   3) student submission file_id (submission.file_id)
+ *   4) marking_guide_id
+ *   5) marking guide file_id (marking_guide.file_id)
+ */
+async function getAnalysisResultByLookupId(lookupId) {
+    const idNum = parseInt(String(lookupId).trim(), 10);
+    if (!Number.isFinite(idNum) || idNum <= 0) {
+        return null;
+    }
+
+    let row = await getAnalysisResultById(idNum);
+    if (row) return row;
+
+    row = await getAnalysisResults(idNum);
+    if (row) return row;
+
+    const sqlWithScores = `
+        SELECT TOP 1
+            ar.*,
+            (SELECT * FROM ai_question_score WHERE analysis_result_id = ar.analysis_result_id FOR JSON PATH) AS question_scores
+        FROM analysis_result ar
+    `;
+
+    try {
+        await poolConnect;
+        const request = pool.request();
+        const result = await request
+            .input("lookup", sql.BigInt, idNum)
+            .query(`
+                ${sqlWithScores}
+                INNER JOIN submission s ON s.submission_id = ar.submission_id
+                WHERE s.file_id = @lookup
+                ORDER BY ar.analysis_result_id DESC
+            `);
+        if (result.recordset.length > 0) {
+            return hydrateQuestionScores(result.recordset[0]);
+        }
+    } catch (error) {
+        console.error("Analysis lookup by student file_id:", error.message);
+    }
+
+    try {
+        await poolConnect;
+        const request = pool.request();
+        const result = await request
+            .input("lookup", sql.BigInt, idNum)
+            .query(`
+                ${sqlWithScores}
+                WHERE ar.marking_guide_id = @lookup
+                ORDER BY ar.analysis_result_id DESC
+            `);
+        if (result.recordset.length > 0) {
+            return hydrateQuestionScores(result.recordset[0]);
+        }
+    } catch (error) {
+        console.error("Analysis lookup by marking_guide_id:", error.message);
+    }
+
+    try {
+        await poolConnect;
+        const request = pool.request();
+        const result = await request
+            .input("lookup", sql.BigInt, idNum)
+            .query(`
+                ${sqlWithScores}
+                INNER JOIN marking_guide mg ON mg.marking_guide_id = ar.marking_guide_id
+                WHERE mg.file_id = @lookup
+                ORDER BY ar.analysis_result_id DESC
+            `);
+        if (result.recordset.length > 0) {
+            return hydrateQuestionScores(result.recordset[0]);
+        }
+    } catch (error) {
+        console.error("Analysis lookup by marking_guide.file_id:", error.message);
+    }
+
+    return null;
 }
 
 const getAllEvaluatedResults = async () => {
@@ -439,47 +518,31 @@ const getAllEvaluatedResults = async () => {
 
     const request = pool.request();
 
+    /**
+     * Latest analysis per submission (do not require status = COMPLETED — some rows may be NULL).
+     * Use LEFT JOINs so rows still appear if guide file, student file, or assessment links are missing.
+     */
     const result = await request.query(`
-        SELECT 
-    ar.analysis_result_id,
-    ar.submission_id,
-
-    CAST(ar.similarity_avg * 100 AS DECIMAL(10,2)) AS final_score,
-
-    ISNULL(ar.risk_level, 'LOW') AS risk_level,
-
-    fs.file_id AS student_file_id,
-    fg.file_id AS guide_file_id,
-
-    a.assessment_title AS assessment_name
-
-FROM analysis_result ar
-
-INNER JOIN (
-    -- GET LATEST RESULT PER SUBMISSION
-    SELECT submission_id, MAX(analysis_result_id) AS latest_id
-    FROM analysis_result
-    WHERE status = 'COMPLETED'
-    GROUP BY submission_id
-) latest
-    ON ar.analysis_result_id = latest.latest_id
-
-INNER JOIN submission s 
-    ON ar.submission_id = s.submission_id
-
-INNER JOIN file_storage fs 
-    ON s.file_id = fs.file_id
-
-INNER JOIN marking_guide mg 
-    ON ar.marking_guide_id = mg.marking_guide_id
-
-INNER JOIN file_storage fg 
-    ON mg.file_id = fg.file_id
-
-INNER JOIN assessment a 
-    ON s.assessment_id = a.assessment_id
-
-ORDER BY ar.analysis_result_id DESC
+        SELECT
+            ar.analysis_result_id,
+            ar.submission_id,
+            CAST(ar.similarity_avg * 100 AS DECIMAL(10,2)) AS final_score,
+            ISNULL(ar.risk_level, 'LOW') AS risk_level,
+            fs.file_id AS student_file_id,
+            fg.file_id AS guide_file_id,
+            ISNULL(a.assessment_title, N'') AS assessment_name
+        FROM analysis_result ar
+        INNER JOIN (
+            SELECT submission_id, MAX(analysis_result_id) AS latest_id
+            FROM analysis_result
+            GROUP BY submission_id
+        ) latest ON ar.analysis_result_id = latest.latest_id
+        INNER JOIN submission s ON ar.submission_id = s.submission_id
+        LEFT JOIN file_storage fs ON s.file_id = fs.file_id
+        LEFT JOIN marking_guide mg ON ar.marking_guide_id = mg.marking_guide_id
+        LEFT JOIN file_storage fg ON mg.file_id = fg.file_id
+        LEFT JOIN assessment a ON s.assessment_id = a.assessment_id
+        ORDER BY ar.analysis_result_id DESC
     `);
 
     return result.recordset;
@@ -490,5 +553,7 @@ module.exports = {
     runAIAnalysis,
     saveAnalysisToDB,
     getAnalysisResults,
+    getAnalysisResultById,
+    getAnalysisResultByLookupId,
     getAllEvaluatedResults
 };

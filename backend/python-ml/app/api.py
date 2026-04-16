@@ -25,6 +25,24 @@ class CompareRequest(BaseModel):
     file2: str
 
 
+def _evaluate_error_payload(message: str) -> dict:
+    """Structured response when guide/student files cannot be read (avoid HTTP 500 for Node)."""
+    return {
+        "error": message,
+        "final_score": 0,
+        "semantic_similarity": 0,
+        "structural_similarity": 0,
+        "section_A": 0,
+        "section_B": 0,
+        "section_C": 0,
+        "section_D": 0,
+        "section_E": 0,
+        "section_F": 0,
+        "diagram_analysis": {},
+        "guide_weights": {},
+    }
+
+
 # UNIFIED EVALUATION ENDPOINT
 @router.post("/evaluate")
 def evaluate(request: EvaluateRequest, req: Request):
@@ -32,26 +50,33 @@ def evaluate(request: EvaluateRequest, req: Request):
     student_path = request.student_file
     guide_path = request.guide_file
 
-    guide_text = doc_service.extract_text(guide_path)
+    try:
+        guide_text = doc_service.extract_text(guide_path)
+    except Exception as e:
+        return _evaluate_error_payload(f"Marking guide could not be read: {e}")
 
-    # AUTO DETECTION
-    if "Full Marks:" in guide_text or "Compile:" in guide_text:
-        pipeline = DOMCodeEvaluationPipeline(
-            submission_file=student_path,
-            answer_sheet_file=guide_path
-        )
-        return pipeline.run()
+    try:
+        # AUTO DETECTION
+        if "Full Marks:" in guide_text or "Compile:" in guide_text:
+            pipeline = DOMCodeEvaluationPipeline(
+                submission_file=student_path,
+                answer_sheet_file=guide_path,
+                answer_text=guide_text,
+            )
+            return pipeline.run()
 
-    else:
         similarity_service = SimilarityService(req.app.state.similarity_model)
 
         pipeline = EvaluationPipeline(
             student_file=student_path,
             guide_file=guide_path,
-            similarity_service=similarity_service
+            similarity_service=similarity_service,
+            guide_text=guide_text,
         )
 
         return pipeline.run()
+    except Exception as e:
+        return _evaluate_error_payload(f"Evaluation failed: {e}")
 
 
 # SEPARATE COMPARE ENDPOINT (UTILITY)

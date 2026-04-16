@@ -19,6 +19,9 @@ router.get("/results/all", controller.getAllEvaluatedResults);
 // Get analysis results by submission
 router.get("/results/:submissionId", controller.getAnalysisResults);
 
+// Single lookup: id may be analysis_result_id OR submission_id (lecturer analysis page)
+router.get("/lookup/:id", controller.getAnalysisByLookupId);
+
 // Get analysis results by analysis result ID
 router.get("/result/:analysisResultId", controller.getAnalysisResultById);
 

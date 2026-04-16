@@ -1,3 +1,5 @@
+from typing import Optional
+
 from app.services.report_parser import ReportParser
 from app.services.marking_guide_parser import MarkingGuideParser
 from app.services.pdf_service import DocumentService
@@ -7,9 +9,10 @@ from app.services.diagram_validator import DiagramValidator
 
 class EvaluationPipeline:
 
-    def __init__(self, student_file: str, guide_file: str, similarity_service):
+    def __init__(self, student_file: str, guide_file: str, similarity_service, guide_text: Optional[str] = None):
         self.student_file = student_file
         self.guide_file = guide_file
+        self.guide_text_cached = guide_text
 
         self.report_parser = ReportParser()
         self.guide_parser = MarkingGuideParser()
@@ -23,8 +26,8 @@ class EvaluationPipeline:
         # 1. Parse Student Report
         parsed_report = self.report_parser.parse(self.student_file)
 
-        # 2. Parse Lecturer Marking Guide
-        guide_text = self.doc_service.extract_text(self.guide_file)
+        # 2. Parse Lecturer Marking Guide (reuse text from api layer if provided)
+        guide_text = self.guide_text_cached if self.guide_text_cached is not None else self.doc_service.extract_text(self.guide_file)
         guide = self.guide_parser.parse(guide_text)
 
         if not guide.sections:

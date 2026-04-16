@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import LecturerNavbar from "./LecturerNavbar";
 import { useNavigate } from "react-router-dom";
 import "@fortawesome/fontawesome-free/css/all.min.css";
@@ -91,6 +91,173 @@ const LecturerSubmissions = () => {
   const [popupDetails, setPopupDetails] = useState({});
   const [savedResults, setSavedResults] = useState([]);
 
+  /** Batch "Evaluate all" — subject/assessment filter + marking guide + submission multiselect */
+  const [showBatchModal, setShowBatchModal] = useState(false);
+  /** Loaded on mount so assignment/guide dropdowns are ready when the modal opens */
+  const [allMarkingGuides, setAllMarkingGuides] = useState([]);
+  const [batchSubjectId, setBatchSubjectId] = useState("");
+  const [batchAssessmentId, setBatchAssessmentId] = useState("");
+  const [batchMarkingGuideId, setBatchMarkingGuideId] = useState("");
+  const [batchSelectedSubmissionIds, setBatchSelectedSubmissionIds] = useState([]);
+  /** Full subject catalog (DB) + marking guides — fills dropdown when submission rows lack subject fields */
+  const [catalogSubjects, setCatalogSubjects] = useState([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/subjects`, { headers: getAuthHeaders() });
+        const json = await res.json();
+        setCatalogSubjects(Array.isArray(json) ? json : json?.data ?? []);
+      } catch (e) {
+        console.error(e);
+        setCatalogSubjects([]);
+      }
+    })();
+  }, [getAuthHeaders]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/marking-guides`, { headers: getAuthHeaders() });
+        const json = await res.json();
+        const list =
+          json?.success && Array.isArray(json.data)
+            ? json.data
+            : Array.isArray(json)
+              ? json
+              : json?.data && Array.isArray(json.data)
+                ? json.data
+                : [];
+        if (!cancelled) setAllMarkingGuides(list);
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) setAllMarkingGuides([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [getAuthHeaders]);
+
+  const subjectOptions = useMemo(() => {
+    const m = new Map();
+    const add = (id, name) => {
+      if (id == null || id === "") return;
+      const key = String(id);
+      if (!m.has(key)) m.set(key, { id, name });
+    };
+    data.forEach((r) => {
+      add(r.subject_id, r.subject_name || r.subject_code || `Subject ${r.subject_id}`);
+    });
+    catalogSubjects.forEach((s) => {
+      add(s.subject_id, s.subject_name || s.subject_code || `Subject ${s.subject_id}`);
+    });
+    allMarkingGuides.forEach((g) => {
+      add(g.subject_id, g.subject_name || `Subject ${g.subject_id}`);
+    });
+    const list = [...m.values()].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    const hasMissing = data.some((r) => r.subject_id == null);
+    if (hasMissing) {
+      return [{ id: "__uncat__", name: "No subject linked (see assessment)" }, ...list];
+    }
+    return list;
+  }, [data, catalogSubjects, allMarkingGuides]);
+
+  const rowsForSubject = useMemo(() => {
+    if (!batchSubjectId) return data;
+    if (batchSubjectId === "__uncat__") {
+      return data.filter((r) => r.subject_id == null || r.subject_id === undefined);
+    }
+    return data.filter((r) => String(r.subject_id) === String(batchSubjectId));
+  }, [data, batchSubjectId]);
+
+  const assessmentOptions = useMemo(() => {
+    const m = new Map();
+    const addAss = (id, title) => {
+      if (id == null || id === "") return;
+      const key = String(id);
+      if (!m.has(key)) {
+        m.set(key, { id, title: title || `Assignment ${id}` });
+      }
+    };
+
+    rowsForSubject.forEach((r) => addAss(r.assessment_id, r.assessment_title));
+
+    if (m.size === 0 && batchSubjectId && batchSubjectId !== "__uncat__") {
+      allMarkingGuides.forEach((g) => {
+        if (g.assessment_id == null) return;
+        if (String(g.subject_id) !== String(batchSubjectId)) return;
+        addAss(g.assessment_id, g.assessment_title);
+      });
+    }
+
+    if (m.size === 0) {
+      data.forEach((r) => addAss(r.assessment_id, r.assessment_title));
+    }
+
+    if (m.size === 0) {
+      allMarkingGuides.forEach((g) => addAss(g.assessment_id, g.assessment_title));
+    }
+
+    return [...m.values()].sort((a, b) => String(a.title).localeCompare(String(b.title)));
+  }, [rowsForSubject, batchSubjectId, allMarkingGuides, data]);
+
+  const submissionRows = useMemo(() => {
+    if (!batchAssessmentId) return [];
+    const pool = rowsForSubject.length > 0 ? rowsForSubject : data;
+    return pool.filter((r) => String(r.assessment_id) === String(batchAssessmentId));
+  }, [rowsForSubject, batchAssessmentId, data]);
+
+  const guidesForAssessment = useMemo(() => {
+    if (!batchAssessmentId) return [];
+    const aid = String(batchAssessmentId);
+    return allMarkingGuides.filter(
+      (g) => g.assessment_id != null && String(g.assessment_id) === aid
+    );
+  }, [allMarkingGuides, batchAssessmentId]);
+
+  useEffect(() => {
+    if (!showBatchModal) return;
+    setBatchSelectedSubmissionIds(submissionRows.map((r) => Number(r.submission_id)));
+  }, [showBatchModal, batchSubjectId, batchAssessmentId, submissionRows]);
+
+  useEffect(() => {
+    if (!showBatchModal) return;
+    const opts = assessmentOptions;
+    if (opts.length === 0) {
+      if (batchAssessmentId) setBatchAssessmentId("");
+      return;
+    }
+    if (!opts.some((o) => String(o.id) === String(batchAssessmentId))) {
+      setBatchAssessmentId(String(opts[0].id));
+    }
+  }, [showBatchModal, assessmentOptions, batchAssessmentId]);
+
+  useEffect(() => {
+    if (!showBatchModal || !batchAssessmentId) return;
+    const g = guidesForAssessment;
+    const gid = (x) => x.marking_guide_id ?? x.guide_id;
+    if (g.length && !g.some((x) => String(gid(x)) === String(batchMarkingGuideId))) {
+      setBatchMarkingGuideId(String(gid(g[0])));
+    }
+    if (!g.length) setBatchMarkingGuideId("");
+  }, [showBatchModal, batchAssessmentId, guidesForAssessment, batchMarkingGuideId]);
+
+  const openBatchEvaluateModal = () => {
+    const first = data[0];
+    const defaultSubject =
+      first?.subject_id != null
+        ? String(first.subject_id)
+        : data.some((r) => r.subject_id == null)
+          ? "__uncat__"
+          : "";
+    setBatchSubjectId(defaultSubject);
+    setBatchAssessmentId(first?.assessment_id != null ? String(first.assessment_id) : "");
+    setBatchMarkingGuideId("");
+    setShowBatchModal(true);
+  };
+
   const fetchSubmissions = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/api/submissions/lecturer/all`, {
@@ -121,13 +288,20 @@ const LecturerSubmissions = () => {
         headers: getAuthHeaders(),
       });
 
-      if (res.data.success && Array.isArray(res.data.data)) {
-        setEvaluatedResults(res.data.data);
+      const rows = Array.isArray(res.data?.data)
+        ? res.data.data
+        : Array.isArray(res.data)
+          ? res.data
+          : null;
+      if (rows) {
+        setEvaluatedResults(rows);
         const initialManualMarks = {};
         const initialFinalMarks = {};
-        res.data.data.forEach((result) => {
-          initialManualMarks[result.analysis_result_id] = "";
-          initialFinalMarks[result.analysis_result_id] = result.final_score || 0;
+        rows.forEach((result) => {
+          const rid = result.analysis_result_id ?? result.Analysis_Result_Id;
+          if (rid == null) return;
+          initialManualMarks[rid] = "";
+          initialFinalMarks[rid] = Number(result.final_score ?? result.Final_Score ?? 0) || 0;
         });
         setManualMarks(initialManualMarks);
         setFinalMarks(initialFinalMarks);
@@ -190,13 +364,16 @@ const LecturerSubmissions = () => {
   const handleSaveAllResults = async () => {
     // Filter only results that have manual marks entered
     const resultsToSave = evaluatedResults
-      .map(result => ({
-        analysis_result_id: result.analysis_result_id,
-        submission_id: result.submission_id,
-        ai_marks: result.final_score || 0,
-        diagram_marks: manualMarks[result.analysis_result_id] || 0,
-        final_mark: finalMarks[result.analysis_result_id] || result.final_score || 0
-      }))
+      .map((result) => {
+        const arId = result.analysis_result_id ?? result.Analysis_Result_Id;
+        return {
+          analysis_result_id: arId,
+          submission_id: result.submission_id ?? result.Submission_Id,
+          ai_marks: result.final_score ?? result.Final_Score ?? 0,
+          diagram_marks: manualMarks[arId] || 0,
+          final_mark: finalMarks[arId] || result.final_score || result.Final_Score || 0,
+        };
+      })
       .filter(r => r.diagram_marks > 0 && r.diagram_marks !== "" && r.diagram_marks !== null);
     
     if (resultsToSave.length === 0) {
@@ -236,18 +413,22 @@ const LecturerSubmissions = () => {
   };
 
   // ===================== ACTIONS =====================
-  const handleEvaluateAll = async () => {
+  const runBatchEvaluation = async () => {
+    if (!batchAssessmentId || !batchMarkingGuideId) {
+      alert("Please select an assessment and a marking guide.");
+      return;
+    }
+    if (!batchSelectedSubmissionIds.length) {
+      alert("Select at least one submission to evaluate.");
+      return;
+    }
+
+    setShowBatchModal(false);
+
     try {
       setIsEvaluating(true);
       setCurrentStep(0);
 
-      const assessmentId = data[0]?.assessment_id;
-      if (!assessmentId) {
-        alert("No assessment found. Please load submissions first.");
-        return;
-      }
-
-      // Simulate step-by-step progress visually while real API runs
       const stepInterval = setInterval(() => {
         setCurrentStep((prev) => {
           if (prev < EVAL_STEPS.length - 1) return prev + 1;
@@ -257,12 +438,17 @@ const LecturerSubmissions = () => {
       }, 900);
 
       const res = await fetch(
-        `${API_BASE}/api/ai-analysis/evaluate-all/${assessmentId}`,
+        `${API_BASE}/api/ai-analysis/evaluate-all/${batchAssessmentId}`,
         {
           method: "POST",
           headers: {
+            "Content-Type": "application/json",
             ...getAuthHeaders(),
           },
+          body: JSON.stringify({
+            marking_guide_id: Number(batchMarkingGuideId),
+            submission_ids: batchSelectedSubmissionIds,
+          }),
         }
       );
 
@@ -274,16 +460,13 @@ const LecturerSubmissions = () => {
       }
 
       clearInterval(stepInterval);
-      setCurrentStep(EVAL_STEPS.length); // all done
-
-      console.log("SUCCESS:", result);
+      setCurrentStep(EVAL_STEPS.length);
 
       setTimeout(() => {
         fetchSubmissions();
-        fetchEvaluatedResults(); // Refresh evaluated results after evaluation
+        fetchEvaluatedResults();
         setTimeout(() => setCurrentStep(-1), 2000);
       }, 1000);
-
     } catch (err) {
       console.error("REAL ERROR:", err);
       alert(err.message);
@@ -433,6 +616,157 @@ const LecturerSubmissions = () => {
         details={popupDetails}
       />
 
+      {showBatchModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setShowBatchModal(false)}
+          role="presentation"
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 border border-gray-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold text-gray-800 mb-1">Batch AI evaluation</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Choose subject, assignment, marking guide, and which submissions to include. The same guide is used for every selected row.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Subject</label>
+                <select
+                  value={batchSubjectId}
+                  onChange={(e) => setBatchSubjectId(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="">All subjects</option>
+                  {subjectOptions.map((s) => (
+                    <option key={s.id} value={String(s.id)}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Assignment</label>
+                <select
+                  value={batchAssessmentId}
+                  onChange={(e) => setBatchAssessmentId(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                >
+                  {assessmentOptions.length === 0 ? (
+                    <option value="">No assessments in this filter</option>
+                  ) : (
+                    assessmentOptions.map((a) => (
+                      <option key={a.id} value={String(a.id)}>
+                        {a.title}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Marking guide (required)</label>
+                <select
+                  value={batchMarkingGuideId}
+                  onChange={(e) => setBatchMarkingGuideId(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                  disabled={!batchAssessmentId || guidesForAssessment.length === 0}
+                >
+                  {!batchAssessmentId || guidesForAssessment.length === 0 ? (
+                    <option value="">
+                      {batchAssessmentId ? "No guide for this assignment — upload one under Marking Guide" : "Select an assignment first"}
+                    </option>
+                  ) : (
+                    guidesForAssessment.map((g) => {
+                      const gid = g.marking_guide_id ?? g.guide_id;
+                      return (
+                        <option key={gid} value={String(gid)}>
+                          {g.title || g.guide_name || `Guide #${gid}`}
+                        </option>
+                      );
+                    })
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-gray-500">Submissions to evaluate</span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="text-xs text-blue-600 hover:underline"
+                      onClick={() =>
+                        setBatchSelectedSubmissionIds(submissionRows.map((r) => Number(r.submission_id)))
+                      }
+                    >
+                      Select all
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs text-gray-500 hover:underline"
+                      onClick={() => setBatchSelectedSubmissionIds([])}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <div className="border border-gray-100 rounded-lg max-h-40 overflow-y-auto divide-y divide-gray-50">
+                  {submissionRows.length === 0 ? (
+                    <p className="p-3 text-sm text-gray-400">No submissions for this assignment.</p>
+                  ) : (
+                    submissionRows.map((r) => {
+                      const sid = Number(r.submission_id);
+                      const checked = batchSelectedSubmissionIds.includes(sid);
+                      return (
+                        <label
+                          key={sid}
+                          className="flex items-center gap-3 px-3 py-2 text-sm cursor-pointer hover:bg-gray-50"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              setBatchSelectedSubmissionIds((prev) =>
+                                checked ? prev.filter((id) => id !== sid) : [...prev, sid]
+                              );
+                            }}
+                          />
+                          <span className="truncate">
+                            #{sid} — {r.original_file_name || "file"}
+                          </span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                type="button"
+                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100"
+                onClick={() => setShowBatchModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+                disabled={!batchAssessmentId || !batchMarkingGuideId || batchSelectedSubmissionIds.length === 0}
+                onClick={runBatchEvaluation}
+              >
+                Start evaluation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="p-8">
 
         {/* HEADER ROW — title left, buttons right */}
@@ -474,7 +808,7 @@ const LecturerSubmissions = () => {
 
             {/* Evaluate All button */}
             <button
-              onClick={handleEvaluateAll}
+              onClick={openBatchEvaluateModal}
               disabled={isEvaluating || data.length === 0}
               className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg
                          hover:bg-blue-700 disabled:opacity-50 transition font-medium text-sm
@@ -517,7 +851,7 @@ const LecturerSubmissions = () => {
 
             <p className={`text-xs mt-1 ${allDone ? "text-green-600 font-medium" : "text-gray-400"}`}>
               {allDone
-                ? `✓ All ${EVAL_STEPS.length} steps complete — ${data.length} submissions processed`
+                ? `✓ All ${EVAL_STEPS.length} steps complete`
                 : `Step ${currentStep + 1} of ${EVAL_STEPS.length}: ${EVAL_STEPS[currentStep]}...`}
             </p>
           </div>
@@ -700,19 +1034,22 @@ const LecturerSubmissions = () => {
             </div>
           ) : (
             evaluatedResults.map((row, index) => {
-              console.log("Rendering row:", row); // Debug each row
+              const arId = row.analysis_result_id ?? row.Analysis_Result_Id;
+              const submissionId = row.submission_id ?? row.Submission_Id;
+              const studentFid = row.student_file_id ?? row.Student_File_Id;
+              const guideFid = row.guide_file_id ?? row.Guide_File_Id;
               const isSaved = savedResults.some(s => s === row.submission_id);
-              const hasManualMark = manualMarks[row.analysis_result_id] && manualMarks[row.analysis_result_id] !== "";
+              const hasManualMark = manualMarks[arId] && manualMarks[arId] !== "";
               return (
                 <div
-                  key={row.analysis_result_id}
+                  key={String(arId ?? submissionId ?? index)}
                   className="grid grid-cols-9 px-6 py-4 items-center text-sm border-b hover:bg-gray-50 transition"
                 >
                   <div className="font-medium text-gray-700">G{index + 1}</div>
 
                   {/* STUDENT FILE */}
                   <a 
-                    href={`${API_BASE}/api/marks/pdf/${row.student_file_id}`} 
+                    href={`${API_BASE}/api/marks/pdf/${studentFid}`} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-xs font-bold text-blue-600 hover:text-blue-800 no-underline"
@@ -723,7 +1060,7 @@ const LecturerSubmissions = () => {
                 
                   {/* MARKING GUIDE */}
                   <a 
-                    href={`${API_BASE}/api/marks/pdf/${row.guide_file_id}`} 
+                    href={`${API_BASE}/api/marks/pdf/${guideFid}`} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-xs font-bold text-blue-600 hover:text-blue-800 no-underline"
@@ -732,11 +1069,24 @@ const LecturerSubmissions = () => {
                     <span>Marking Guide</span>
                   </a>
                   
-                  <div className="text-gray-600 truncate">{row.assessment_name || "N/A"}</div>
+                  <div className="text-gray-600 truncate">{row.assessment_name ?? row.Assessment_Name ?? "N/A"}</div>
 
-                  {/* AI SCORE */}
+                  {/* AI SCORE — opens ML analysis page for this result */}
                   <div className="font-semibold text-blue-600">
-                    {row.final_score ?? 0}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (arId == null || arId === "") {
+                          console.warn("Missing analysis_result_id for evaluated row", row);
+                          return;
+                        }
+                        navigate(`/lecturer/analysis/${arId}`, { state: row });
+                      }}
+                      className="underline decoration-blue-300 hover:decoration-blue-600 underline-offset-2 bg-transparent border-0 cursor-pointer font-semibold text-blue-600 p-0"
+                      title="Open ML analysis report"
+                    >
+                      {row.final_score ?? row.Final_Score ?? 0}
+                    </button>
                   </div>
 
                   {/* MANUAL INPUT */}
@@ -744,8 +1094,8 @@ const LecturerSubmissions = () => {
                     <input
                       type="number"
                       placeholder="0"
-                      value={manualMarks[row.analysis_result_id] !== undefined ? manualMarks[row.analysis_result_id] : ""}
-                      onChange={handleManualMarkChange(row.analysis_result_id, row.final_score, 100)}
+                      value={manualMarks[arId] !== undefined ? manualMarks[arId] : ""}
+                      onChange={handleManualMarkChange(arId, row.final_score ?? row.Final_Score, 100)}
                       disabled={isSaved}
                       className={`w-20 px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-300
                         ${isSaved ? "bg-gray-100 text-gray-500" : ""}`}
@@ -757,7 +1107,7 @@ const LecturerSubmissions = () => {
 
                   {/* FINAL SCORE */}
                   <div className="font-semibold text-green-600">
-                    {finalMarks[row.analysis_result_id]?.toFixed(2) ?? row.final_score ?? 0}
+                    {finalMarks[arId]?.toFixed(2) ?? row.final_score ?? row.Final_Score ?? 0}
                   </div>
 
                   {/* RISK */}

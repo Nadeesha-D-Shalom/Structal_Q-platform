@@ -5,49 +5,21 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="73978067-b5a3-4b9e-bce9-b1f97c06eaa6" name="Changes" comment="feat: implement hybrid semantic retrieval with TOC filtering and rubric-driven scoring">
-      <change beforePath="$PROJECT_DIR$/../node-api/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/sql/seed_default_user.sql" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/sql/seed_default_user.sql" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../node-api/src/app.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/app.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/src/middleware/authMiddleware.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/middleware/authMiddleware.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../node-api/src/modules/ai-analysis/aiAnalysis.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/ai-analysis/aiAnalysis.controller.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../node-api/src/modules/ai-analysis/aiAnalysis.routes.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/ai-analysis/aiAnalysis.routes.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../node-api/src/modules/ai-analysis/aiAnalysis.service.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/ai-analysis/aiAnalysis.service.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/auth/auth.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/auth/auth.controller.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/auth/auth.routes.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/auth/auth.routes.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/auth/auth.service.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/auth/auth.service.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/concern/concern.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/concern/concern.controller.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/concern/concern.routes.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/concern/concern.routes.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/evaluation-scheduling/evaluationSchedule.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/evaluation-scheduling/evaluationSchedule.controller.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/mark-publish/markPublish.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/mark-publish/markPublish.controller.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/mark-publish/markPublish.routes.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/mark-publish/markPublish.routes.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/mark-publish/viewMarks.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/mark-publish/viewMarks.controller.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/mark-publish/viewMarks.routes.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/mark-publish/viewMarks.routes.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/marking-guide/markingGuide.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/marking-guide/markingGuide.controller.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/submission/submission.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/submission/submission.controller.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../node-api/src/modules/submission/submission.service.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/submission/submission.service.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/timetable/timetable.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/timetable/timetable.controller.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/timetable/timetable.routes.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/timetable/timetable.routes.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../node-api/src/routes/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/routes/index.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/api.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/api.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/code_evaluation/dom_pipeline.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/code_evaluation/dom_pipeline.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/pipelines/evaluation_pipeline.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/pipelines/evaluation_pipeline.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/services/diagram_validator.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/services/diagram_validator.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../databse/SQLQuery2.sql" beforeDir="false" afterPath="$PROJECT_DIR$/../../databse/SQLQuery2.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/App.js" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/App.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/auth/LoginPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/auth/LoginPage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/CompareWithGuide.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/CompareWithGuide.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/LecturerNavbar.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/LecturerNavbar.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/services/pdf_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/services/pdf_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/LecturerSubmissions.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/LecturerSubmissions.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/MLAnalysisConfig.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/MLAnalysisConfig.jsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/MLAnalysisPortal.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/MLAnalysisPortal.jsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/MLAnalysisResult.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/MLAnalysisResult.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/MarkPublishingInterface.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/MarkPublishingInterface.jsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/ViewAnalysisResults.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/ViewAnalysisResults.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/ViewSubmission.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/ViewSubmission.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/student/RaiseConcernForm.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/student/RaiseConcernForm.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/student/StudentNavbar.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/student/StudentNavbar.jsx" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

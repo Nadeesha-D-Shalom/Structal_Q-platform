@@ -260,10 +260,10 @@ const ViewAnalysisResults = () => {
       })
       .catch(() => { setError(true); setLoading(false); });
 
-    fetch(`${API_BASE}/api/marks/diagram-pages/${submissionId}`, { headers: getAuthHeaders() })
+    fetch(`${API_BASE}/api/marks/ai-scores/${submissionId}`, { headers: getAuthHeaders() })
       .then((res) => res.json())
       .then((res) => {
-        if (res.success) setDiagramPages(res.data);
+        if (res.success && Array.isArray(res.data)) setDiagramPages(res.data);
       })
       .catch(() => {});
   }, [submissionId]);

@@ -1,24 +1,14 @@
 const cron = require("node-cron");
-const { pool } = require("../../config/db");
 
+/**
+ * Concern eligibility is computed from published_at + 48h (see viewMarks.controller,
+ * submission.service) and from mark_concern (duplicate check). No persisted
+ * concern_window_open column is not required on final_mark — avoids DB errors when that
+ * column was never migrated.
+ */
 const closeConcernWindows = async () => {
   try {
-    const result = await pool.request().query(`
-      UPDATE final_mark
-      SET
-        concern_window_open = 0
-      WHERE marking_status      = 'PUBLISHED'
-        AND concern_window_open = 1
-        AND published_at IS NOT NULL
-        AND DATEDIFF(HOUR, published_at, GETDATE()) >= 48
-    `);
-
-    const closed = result.rowsAffected[0];
-    if (closed > 0) {
-      console.log(
-        `[ConcernWindow] Closed ${closed} concern window(s) at ${new Date().toISOString()}`
-      );
-    }
+    /* no-op: time window enforced in API responses; optional future: notify / audit */
   } catch (err) {
     console.error("[ConcernWindow] Scheduler error:", err);
   }

@@ -9,6 +9,13 @@ const authRoutes = require("./modules/auth/auth.routes");
 
 const app = express();
 
+app.set("json replacer", (key, value) => {
+    if (typeof value === "bigint") {
+        return Number(value);
+    }
+    return value;
+});
+
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 

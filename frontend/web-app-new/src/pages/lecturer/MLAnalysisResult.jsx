@@ -1,13 +1,19 @@
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import LecturerNavbar from "./LecturerNavbar";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   Cell, CartesianGrid, Legend,
 } from "recharts";
+import { getApiBaseUrl } from "../../utils/apiBase";
+import {
+  hasUsableAnalysisPayload,
+  normalizeAnalysisPayload,
+  unwrapAnalysisApiData,
+} from "../../utils/analysisPayload";
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || "";
+const API_BASE = getApiBaseUrl();
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem("auth_token");
@@ -249,12 +255,28 @@ const CustomRadarTooltip = ({ active, payload }) => {
 /* ─────────────────────────────────────────
    MAIN COMPONENT
 ───────────────────────────────────────── */
+/** Normalize :id from the router (handles trailing slash in path, e.g. /analysis/10/) */
+function normalizeRouteId(param) {
+  if (param == null || param === "") return "";
+  return String(param).replace(/\/+$/, "").trim();
+}
+
 const MLAnalysisResult = () => {
-  const { state } = useLocation();
-  const { id } = useParams();
+  const location = useLocation();
+  const { id: rawId } = useParams();
+  const id = normalizeRouteId(rawId);
   const navigate = useNavigate();
-  const [analysisData, setAnalysisData] = useState(state || null);
-  const [fetchError, setFetchError] = useState(false);
+  const [analysisData, setAnalysisData] = useState(() =>
+    normalizeAnalysisPayload(location.state || null)
+  );
+  const analysisDataRef = useRef(analysisData);
+  useEffect(() => {
+    analysisDataRef.current = analysisData;
+  }, [analysisData]);
+  const [errorDetail, setErrorDetail] = useState("");
+  const [loading, setLoading] = useState(
+    () => !hasUsableAnalysisPayload(normalizeAnalysisPayload(location.state || null))
+  );
   const [reportLoading, setReportLoading] = useState(false);
 
   useEffect(() => {
@@ -262,27 +284,118 @@ const MLAnalysisResult = () => {
   }, []);
 
   useEffect(() => {
-    if (analysisData || !id) return;
+    if (!id) {
+      setLoading(false);
+      setErrorDetail("Missing id in URL.");
+      return;
+    }
+
+    let cancelled = false;
 
     const fetchAnalysisById = async () => {
+      setErrorDetail("");
+      if (!hasUsableAnalysisPayload(analysisDataRef.current)) {
+        setLoading(true);
+      }
+
+      const tryApply = (raw) => {
+        try {
+          const normalized = normalizeAnalysisPayload(raw);
+          if (!hasUsableAnalysisPayload(normalized)) return false;
+          setAnalysisData(normalized);
+          setErrorDetail("");
+          setLoading(false);
+          return true;
+        } catch (e) {
+          console.warn("tryApply analysis row", e);
+          return false;
+        }
+      };
+
+      let lastErrorJson = {};
+      let sawUnauthorized = false;
+
+      const tryFetchRow = async (url) => {
+        const res = await fetch(url, { headers: getAuthHeaders() });
+        if (res.status === 401) sawUnauthorized = true;
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          lastErrorJson = json;
+          return false;
+        }
+        const row = unwrapAnalysisApiData(json);
+        if (row && tryApply(row)) return true;
+        lastErrorJson = json;
+        return false;
+      };
+
       try {
-        const res = await fetch(`${API_BASE_URL}/api/ai-analysis/result/${id}`, {
-          headers: getAuthHeaders(),
-        });
-        const result = await res.json();
-        if (result.success) {
-          setAnalysisData(result.data);
-        } else {
-          setFetchError(true);
+        // /lecturer/analysis/:id may be analysis_result_id, submission_id, file_id, or marking_guide_id.
+        // ALWAYS call lookup FIRST — it resolves all of the above via getAnalysisResultByLookupId().
+        // Do NOT call /results/:id before lookup: that endpoint is WHERE submission_id = :id only,
+        // so /results/124 would wrongly look for submission_id = 124 when 124 is analysis_result_id.
+        // Order: lookup → result (analysis id) → results (submission id) as fallbacks only.
+        if (!cancelled) {
+          const ok =
+            (await tryFetchRow(
+              `${API_BASE}/api/ai-analysis/lookup/${encodeURIComponent(id)}`
+            )) ||
+            (await tryFetchRow(
+              `${API_BASE}/api/ai-analysis/result/${encodeURIComponent(id)}`
+            )) ||
+            (await tryFetchRow(
+              `${API_BASE}/api/ai-analysis/results/${encodeURIComponent(id)}`
+            ));
+          if (ok) return;
+        }
+
+        if (!cancelled) {
+          const fromState = normalizeAnalysisPayload(location.state || null);
+          const preserved =
+            hasUsableAnalysisPayload(fromState) ? fromState
+            : hasUsableAnalysisPayload(analysisDataRef.current) ? analysisDataRef.current
+            : null;
+          if (hasUsableAnalysisPayload(preserved)) {
+            setAnalysisData(preserved);
+            setErrorDetail("");
+            setLoading(false);
+            return;
+          }
+          setAnalysisData(null);
+          const apiMsg = lastErrorJson.error || lastErrorJson.message || "";
+          setErrorDetail(
+            sawUnauthorized
+              ? "Authentication failed (401). Sign out, sign in again, and reopen this report."
+              : apiMsg ||
+                  "No completed AI analysis was found for this id. You can use analysis result id, submission id, student file id, marking guide file id, or marking_guide_id. Open Submissions → load evaluated results → click the AI score to open the report for that run."
+          );
         }
       } catch (err) {
         console.error("Fetch analysis by id failed", err);
-        setFetchError(true);
+        if (!cancelled) {
+          const fromState = normalizeAnalysisPayload(location.state || null);
+          const preserved =
+            hasUsableAnalysisPayload(fromState) ? fromState
+            : hasUsableAnalysisPayload(analysisDataRef.current) ? analysisDataRef.current
+            : null;
+          if (hasUsableAnalysisPayload(preserved)) {
+            setAnalysisData(preserved);
+            setErrorDetail("");
+          } else {
+            setAnalysisData(null);
+            setErrorDetail(err?.message || "Network error while loading analysis.");
+          }
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchAnalysisById();
-  }, [id, analysisData]);
+    return () => {
+      cancelled = true;
+    };
+  }, [id, location.state]);
 
   const handleDownloadReport = async () => {
     const submissionId = analysisData?.submission_id;
@@ -294,7 +407,7 @@ const MLAnalysisResult = () => {
     try {
       setReportLoading(true);
       const res = await fetch(
-        `${API_BASE_URL}/api/ai-analysis/report/${submissionId}`,
+        `${API_BASE}/api/ai-analysis/report/${submissionId}`,
         { headers: getAuthHeaders() }
       );
       if (!res.ok) throw new Error("Failed to generate report");
@@ -316,24 +429,111 @@ const MLAnalysisResult = () => {
     }
   };
 
-  /* ── Error state ── */
-  if (!analysisData || fetchError) return (
-    <div className="mr-root" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <LecturerNavbar />
-      <div style={{ background: "#fff", borderRadius: 14, border: "1.5px solid #fecaca", padding: "48px 40px", maxWidth: 400, textAlign: "center", boxShadow: "0 4px 24px rgba(0,0,0,0.06)" }}>
-        <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#fef2f2", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", color: "#dc2626" }}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
-            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-          </svg>
+  /* ── Loading ── */
+  if (loading) {
+    return (
+      <div className="mr-root" style={{ minHeight: "100vh", background: "#f8f9fb" }}>
+        <LecturerNavbar />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", paddingTop: 80 }}>
+          <p style={{ fontFamily: "'Inter',sans-serif", color: "#6b7280", fontSize: 14 }}>
+            Loading analysis…
+          </p>
         </div>
-        <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0f1729", margin: "0 0 8px", fontFamily: "'Inter',sans-serif" }}>Failed to load analysis result</h3>
-        <button onClick={() => navigate(-1)} style={{ background: "#2e3bbf", color: "#fff", border: "none", borderRadius: 9, padding: "10px 24px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>
-          Go Back
-        </button>
       </div>
-    </div>
-  );
+    );
+  }
+
+  /* ── Error state ── */
+  if (!hasUsableAnalysisPayload(analysisData)) {
+    return (
+      <div className="mr-root" style={{ minHeight: "100vh", background: "#f8f9fb", padding: "24px" }}>
+        <LecturerNavbar />
+        <div
+          style={{
+            margin: "0 auto",
+            marginTop: 24,
+            background: "#fff",
+            borderRadius: 14,
+            border: "1.5px solid #fecaca",
+            padding: "40px 36px",
+            maxWidth: 460,
+            textAlign: "left",
+            boxShadow: "0 4px 24px rgba(0,0,0,0.06)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: "50%",
+                background: "#fef2f2",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#dc2626",
+                flexShrink: 0,
+              }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            </div>
+            <div>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0f1729", margin: "0 0 8px", fontFamily: "'Inter',sans-serif" }}>
+                No analysis to show yet
+              </h3>
+              <p style={{ fontSize: 13, color: "#4b5563", margin: "0 0 12px", lineHeight: 1.5, fontFamily: "'Inter',sans-serif" }}>
+                {errorDetail ||
+                  "We could not find a saved AI result for this link. Analysis is only created after the ML service runs successfully."}
+              </p>
+              <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 16px", lineHeight: 1.55, fontFamily: "'Inter',sans-serif" }}>
+                <strong style={{ color: "#374151" }}>What you need first:</strong> an <strong>assignment</strong> (assessment) under a subject, a <strong>marking guide</strong> for that assignment, and at least one <strong>student submission</strong> (file). Then run <strong>AI analysis</strong> from Submissions or ML Analysis. This page opens after a successful run, or you can open it with the analysis id or submission id from the database.
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => navigate(-1)}
+                  style={{
+                    background: "#2e3bbf",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 9,
+                    padding: "10px 18px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    fontFamily: "'Inter',sans-serif",
+                  }}
+                >
+                  Go back
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate("/lecturer/submissions")}
+                  style={{
+                    background: "#f3f4f6",
+                    color: "#1f2937",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 9,
+                    padding: "10px 18px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    fontFamily: "'Inter',sans-serif",
+                  }}
+                >
+                  Open Submissions
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const data = analysisData;
   const sections = ["A", "B", "C", "D", "E", "F"];

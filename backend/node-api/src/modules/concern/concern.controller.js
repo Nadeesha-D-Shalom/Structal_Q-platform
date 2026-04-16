@@ -6,6 +6,16 @@ exports.createConcern = async (req, res, next) => {
     try {
         const {student_id, student_name, student_email, academic_year, concern_message, submission_id} = req.body;
 
+        const dup = await pool.request()
+            .input("submission_id", sql.BigInt, submission_id)
+            .query(`SELECT COUNT(*) AS c FROM mark_concern WHERE submission_id = @submission_id`);
+        if (dup.recordset[0].c > 0) {
+            return res.status(400).json({
+                success: false,
+                message: "A concern has already been submitted for this submission.",
+            });
+        }
+
         const priority = await priorityDetector(student_id, academic_year, concern_message, submission_id);
 
         const result = await pool.request()
@@ -28,15 +38,6 @@ exports.createConcern = async (req, res, next) => {
             .input('concern_id', sql.VarChar, formattedId)
             .input('id', sql.Int, numericId)
             .query(`UPDATE mark_concern SET concern_id = @concern_id WHERE id = @id`);
-
-        //to make the concern form disable for that submission
-        await pool.request()
-            .input('submission_id', sql.BigInt, submission_id)
-            .query(`
-                UPDATE final_mark
-                SET concern_window_open = 0
-                WHERE submission_id = @submission_id
-            `);
 
         res.json({ success: true, message: "Concern created successfully." });
     } catch (err) {

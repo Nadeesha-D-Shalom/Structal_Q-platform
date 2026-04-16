@@ -3,6 +3,7 @@ const {
     saveAnalysisToDB,
     getAnalysisResults,
     getAnalysisResultById,
+    getAnalysisResultByLookupId,
     getAllEvaluatedResults
 } = require("./aiAnalysis.service");
 
@@ -48,9 +49,12 @@ async function analyzeSubmission(req, res) {
             aiResult: aiData
         });
 
+        const fullRow = await getAnalysisResultById(saved.analysis_result_id);
+
         return res.json({
             success: true,
-            analysis_result_id: saved.analysis_result_id
+            analysis_result_id: saved.analysis_result_id,
+            data: fullRow
         });
 
     } catch (err) {
@@ -66,6 +70,8 @@ async function analyzeSubmission(req, res) {
 async function evaluateAllSubmissions(req, res) {
     try {
         const { assessmentId } = req.params;
+        const marking_guide_id = req.body?.marking_guide_id;
+        const submission_ids = req.body?.submission_ids;
 
         if (!assessmentId) {
             return res.status(400).json({
@@ -74,12 +80,34 @@ async function evaluateAllSubmissions(req, res) {
             });
         }
 
-        const submissions = await submissionService.getSubmissionsByAssessment(assessmentId);
+        if (marking_guide_id == null || marking_guide_id === "") {
+            return res.status(400).json({
+                success: false,
+                error: "marking_guide_id is required in the request body"
+            });
+        }
+
+        if (Array.isArray(submission_ids) && submission_ids.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: "Select at least one submission, or omit submission_ids to evaluate all submissions for this assessment and guide"
+            });
+        }
+
+        const idList = Array.isArray(submission_ids)
+            ? submission_ids.map((x) => Number(x)).filter((n) => !Number.isNaN(n))
+            : null;
+
+        const submissions = await submissionService.getSubmissionsForBatchEvaluation(
+            Number(assessmentId),
+            Number(marking_guide_id),
+            idList
+        );
 
         if (!submissions || submissions.length === 0) {
             return res.status(404).json({
                 success: false,
-                error: "No submissions found"
+                error: "No submissions match this assessment, marking guide, and selection"
             });
         }
 
@@ -194,6 +222,31 @@ async function getAnalysisByIdController(req, res) {
             return res.status(404).json({
                 success: false,
                 error: "No analysis result found"
+            });
+        }
+
+        return res.json({
+            success: true,
+            data: result
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+}
+
+// ================= LOOKUP (analysis_result_id OR submission_id) =================
+async function getAnalysisByLookupController(req, res) {
+    try {
+        const { id } = req.params;
+        const result = await getAnalysisResultByLookupId(id);
+
+        if (!result) {
+            return res.status(404).json({
+                success: false,
+                error: "No analysis result found for this id. Run AI analysis from Submissions after a successful ML evaluation."
             });
         }
 
@@ -341,6 +394,7 @@ module.exports = {
     getAllEvaluatedResults: getAllEvaluatedResultsController,
     getAnalysisResults: getResultsController,
     getAnalysisResultById: getAnalysisByIdController,
+    getAnalysisByLookupId: getAnalysisByLookupController,
     generateReportForSubmission,
     generateReportForAnalysisResultId,
 };
