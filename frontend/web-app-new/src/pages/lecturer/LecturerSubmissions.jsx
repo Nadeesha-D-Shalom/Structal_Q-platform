@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import LecturerNavbar from "./LecturerNavbar";
 import { useNavigate } from "react-router-dom";
 import "@fortawesome/fontawesome-free/css/all.min.css";
@@ -66,16 +66,22 @@ const SuccessPopup = ({ isVisible, onClose, message, title, details }) => {
 
 const LecturerSubmissions = () => {
   const navigate = useNavigate();
+  const getAuthHeaders = useCallback(() => {
+    const token = localStorage.getItem("auth_token");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }, []);
 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluatedResults, setEvaluatedResults] = useState([]);
   const [resultsLoading, setResultsLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   //  Step tracker: -1 = idle, 0..N = active step, N+1 = all done
   const [currentStep, setCurrentStep] = useState(-1);
 
+<<<<<<< HEAD
   // State for manual marks and final marks
   const [manualMarks, setManualMarks] = useState({});
   const [finalMarks, setFinalMarks] = useState({});
@@ -92,8 +98,13 @@ const LecturerSubmissions = () => {
   }, []);
 
   const fetchSubmissions = async () => {
+=======
+  const fetchSubmissions = useCallback(async () => {
+>>>>>>> 1fad3f5 ((feat) Integrate the all pages and fixed them)
     try {
-      const res = await fetch(`${API_BASE}/api/submissions/lecturer/all`);
+      const res = await fetch(`${API_BASE}/api/submissions/lecturer/all`, {
+        headers: getAuthHeaders(),
+      });
       const result = await res.json();
       if (Array.isArray(result)) {
         setData(result);
@@ -108,12 +119,17 @@ const LecturerSubmissions = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getAuthHeaders]);
+
+  useEffect(() => {
+    fetchSubmissions();
+  }, [fetchSubmissions]);
 
   // ── STEP 3.1 ── fetch evaluated results
   const fetchEvaluatedResults = async () => {
     try {
       setResultsLoading(true);
+<<<<<<< HEAD
       
       const res = await axios.get(`${API_BASE}/api/ai-analysis/results/all`);
       
@@ -121,6 +137,14 @@ const LecturerSubmissions = () => {
       
       if (res.data.success && Array.isArray(res.data.data)) {
         console.log("Results data:", res.data.data); // Debug: Check the data array
+=======
+
+      const res = await axios.get(`${API_BASE}/api/ai-analysis/results/all`, {
+        headers: getAuthHeaders(),
+      });
+
+      if (res.data.success) {
+>>>>>>> 1fad3f5 ((feat) Integrate the all pages and fixed them)
         setEvaluatedResults(res.data.data);
         // Initialize manual marks and final marks state
         const initialManualMarks = {};
@@ -255,7 +279,12 @@ const LecturerSubmissions = () => {
 
       const res = await fetch(
         `${API_BASE}/api/ai-analysis/evaluate-all/${assessmentId}`,
-        { method: "POST" }
+        {
+          method: "POST",
+          headers: {
+            ...getAuthHeaders(),
+          },
+        }
       );
 
       const result = await res.json();
@@ -272,7 +301,11 @@ const LecturerSubmissions = () => {
 
       setTimeout(() => {
         fetchSubmissions();
+<<<<<<< HEAD
         fetchEvaluatedResults(); // Refresh evaluated results after evaluation
+=======
+        fetchEvaluatedResults();
+>>>>>>> 1fad3f5 ((feat) Integrate the all pages and fixed them)
         setTimeout(() => setCurrentStep(-1), 2000);
       }, 1000);
 
@@ -325,6 +358,34 @@ const LecturerSubmissions = () => {
         storage_path: row.storage_path,
       },
     });
+
+  const handleDeleteSubmission = async (submissionId) => {
+    const sid = Number(submissionId);
+    if (!sid) return;
+    if (!window.confirm(`Delete submission #${sid}?`)) return;
+
+    try {
+      setDeletingId(sid);
+      const res = await fetch(`${API_BASE}/api/submissions/${sid}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload?.message || "Delete failed");
+
+      // Refresh tables
+      await fetchSubmissions();
+      await fetchEvaluatedResults();
+
+      setData((prev) => prev.filter((x) => Number(x.submission_id) !== sid));
+    } catch (err) {
+      console.error("Delete error:", err);
+      alert(err?.message || "Delete failed");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   /* ===================== STEP CIRCLE COMPONENT ===================== */
 
@@ -570,8 +631,10 @@ const LecturerSubmissions = () => {
                       <i className="fa-regular fa-eye text-gray-600"></i>
                     </button>
                     <button
-                      title="More"
-                      className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition"
+                      title="Delete submission"
+                      onClick={() => handleDeleteSubmission(row.submission_id)}
+                      disabled={deletingId === row.submission_id}
+                      className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition disabled:opacity-60"
                     >
                       <i className="fa-solid fa-ellipsis-vertical text-gray-600"></i>
                     </button>

@@ -1,5 +1,4 @@
 const { pool, poolConnect, sql } = require('../../config/db');
-const crypto = require('crypto');
 const fs = require('fs');
 const path = require("path");
 
@@ -13,15 +12,11 @@ exports.upload = async (req) => {
 
         if (!req.file) throw new Error("File required");
 
-        const { assessment_id, student_id } = req.body;
+        const assessment_id = req.body.assessment_id || req.body.assessmentId;
+        const student_id = req.user?.user_id || req.body.student_id || req.body.studentId;
 
         if (!assessment_id || !student_id) {
             throw new Error("assessment_id and student_id are required");
-        }
-
-        // ================= IGNORE TEMP FILES =================
-        if (req.file.originalname.startsWith("~$")) {
-            throw new Error("Temporary files are not allowed");
         }
 
         // ================= FILE VALIDATION =================
@@ -32,19 +27,6 @@ exports.upload = async (req) => {
 
         if (!allowedTypes.includes(req.file.mimetype)) {
             throw new Error("Only PDF and DOCX files are allowed");
-        }
-
-        // ================= HASH =================
-        const fileBuffer = fs.readFileSync(req.file.path);
-        const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
-
-        // ================= DUPLICATE CHECK =================
-        const duplicate = await pool.request()
-            .input('hash', sql.VarChar, hash)
-            .query(`SELECT file_id FROM file_storage WHERE sha256_hash = @hash`);
-
-        if (duplicate.recordset.length > 0) {
-            throw new Error("Duplicate file detected");
         }
 
         // ================= ASSESSMENT =================
@@ -58,14 +40,16 @@ exports.upload = async (req) => {
 
         const assess = assessmentRes.recordset[0];
 
-        // ================= LATE CHECK =================
+        // ================= LATE CHECK WITH GRACE PERIOD =================
         const now = new Date();
         const dueDate = new Date(assess.due_date);
+        const gracePeriod = assess.grace_period_minutes || 0;
+        const graceEnd = new Date(dueDate.getTime() + gracePeriod * 60000);
 
         let isLate = 0;
         let lateMinutes = 0;
 
-        if (now > dueDate) {
+        if (now > graceEnd) {
             lateMinutes = Math.floor((now - dueDate) / 60000);
 
             if (assess.late_policy_enabled) {
@@ -73,6 +57,10 @@ exports.upload = async (req) => {
             } else {
                 throw new Error("Late submission not allowed");
             }
+        } else if (now > dueDate) {
+            // Within grace period, allow but mark as late
+            lateMinutes = Math.floor((now - dueDate) / 60000);
+            isLate = 1;
         }
 
         // ================= ATTEMPT =================
@@ -101,7 +89,8 @@ exports.upload = async (req) => {
             .input('storage_path', sql.VarChar, fullPath)
             .input('mime_type', sql.VarChar, req.file.mimetype)
             .input('file_size_bytes', sql.BigInt, req.file.size)
-            .input('sha256_hash', sql.VarChar, hash)
+            // Hashing disabled (per requirements). Store NULL.
+            .input('sha256_hash', sql.VarChar, null)
             .input('upload_user_id', sql.Int, student_id)
             .query(`
                 INSERT INTO file_storage (
@@ -137,7 +126,8 @@ exports.upload = async (req) => {
             .input('is_late', sql.Bit, isLate)
             .input('late_minutes', sql.Int, lateMinutes)
             .input('file_id', sql.Int, file_id)
-            .input('integrity_hash', sql.VarChar, hash)
+            // Hashing disabled (per requirements). Store NULL.
+            .input('integrity_hash', sql.VarChar, null)
             .query(`
                 INSERT INTO submission (
                     assessment_id,
@@ -249,4 +239,157 @@ exports.getSubmissionsByAssessment = async (assessmentId) => {
         `);
 
     return result.recordset;
+};
+
+exports.getByStudent = async (studentId) => {
+    await poolConnect;
+
+    const result = await pool.request()
+        .input('studentId', sql.BigInt, studentId)
+        .query(`
+            SELECT
+                fm.submission_id,
+                fm.total_marks_awarded,
+                fm.published_at,
+                a.assessment_title AS assignment_name,
+                a.total_marks AS total,
+                sub.subject_name,
+                sub.subject_code,
+                so.academic_year,
+                s.attempt_no,
+                s.submitted_at,
+                s.submission_status,
+                f.original_file_name,
+                f.storage_path
+            FROM final_mark fm
+            INNER JOIN submission s ON fm.submission_id = s.submission_id
+            INNER JOIN assessment a ON s.assessment_id = a.assessment_id
+            INNER JOIN subject_offering so ON a.offering_id = so.offering_id
+            INNER JOIN subject sub ON so.subject_id = sub.subject_id
+            INNER JOIN file_storage f ON s.file_id = f.file_id
+            WHERE s.student_id = @studentId
+              AND fm.marking_status = 'PUBLISHED'
+            ORDER BY fm.published_at DESC
+        `);
+
+    return result.recordset.map(row => ({
+        ...row,
+        concern_window_open: row.published_at
+            ? ((Date.now() - new Date(row.published_at).getTime()) <= 48 * 60 * 60 * 1000)
+            : false
+    }));
+};
+
+exports.getAllStudentSubmissions = async () => {
+    await poolConnect;
+
+    const result = await pool.request().query(`
+        SELECT 
+            s.submission_id,
+            s.student_id,
+            s.assessment_id,
+            s.attempt_no,
+            s.submitted_at,
+            s.submission_status,
+            f.original_file_name,
+            f.storage_path,
+            a.assessment_title AS assignment_name,
+            so.academic_year,
+            sub.subject_name,
+            sub.subject_code,
+            f.upload_user_id
+        FROM submission s
+        INNER JOIN file_storage f ON s.file_id = f.file_id
+        INNER JOIN assessment a ON s.assessment_id = a.assessment_id
+        INNER JOIN subject_offering so ON a.offering_id = so.offering_id
+        INNER JOIN subject sub ON so.subject_id = sub.subject_id
+        WHERE f.storage_category = 'STUDENT_SUBMISSION'
+        ORDER BY s.submitted_at DESC
+    `);
+
+    return result.recordset;
+};
+
+exports.getAIMetadata = async (submissionId) => {
+    await poolConnect;
+
+    const analysisResult = await pool.request()
+        .input('submission_id', sql.BigInt, submissionId)
+        .query(`
+            SELECT
+                ar.*,
+                f.original_file_name AS student_file_name,
+                f.storage_path AS student_file_path,
+                fg.original_file_name AS guide_file_name,
+                fg.storage_path AS guide_file_path
+            FROM analysis_result ar
+            INNER JOIN submission s ON ar.submission_id = s.submission_id
+            INNER JOIN file_storage f ON s.file_id = f.file_id
+            LEFT JOIN marking_guide mg ON ar.marking_guide_id = mg.marking_guide_id
+            LEFT JOIN file_storage fg ON mg.file_id = fg.file_id
+            WHERE ar.submission_id = @submission_id
+            ORDER BY ar.analysis_result_id DESC
+            OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY
+        `);
+
+    if (analysisResult.recordset.length === 0) {
+        return null;
+    }
+
+    const analysis = analysisResult.recordset[0];
+
+    const questionScores = await pool.request()
+        .input('analysis_result_id', sql.BigInt, analysis.analysis_result_id)
+        .query(`
+            SELECT *
+            FROM ai_question_score
+            WHERE analysis_result_id = @analysis_result_id
+        `);
+
+    const rubricScores = await pool.request()
+        .input('analysis_result_id', sql.BigInt, analysis.analysis_result_id)
+        .query(`
+            SELECT *
+            FROM ai_rubric_score
+            WHERE analysis_result_id = @analysis_result_id
+        `);
+
+    return {
+        ...analysis,
+        question_scores: questionScores.recordset,
+        rubric_scores: rubricScores.recordset
+    };
+};
+
+exports.softDelete = async (submissionId) => {
+    await poolConnect;
+
+    const submissionResult = await pool.request()
+        .input('submissionId', sql.BigInt, submissionId)
+        .query(`
+            SELECT file_id
+            FROM submission
+            WHERE submission_id = @submissionId
+        `);
+
+    if (submissionResult.recordset.length === 0) {
+        throw new Error('Submission not found');
+    }
+
+    const fileId = submissionResult.recordset[0].file_id;
+
+    await pool.request()
+        .input('submissionId', sql.BigInt, submissionId)
+        .input('fileId', sql.BigInt, fileId)
+        .query(`
+            UPDATE submission
+            SET submission_status = 'DELETED', updated_at = GETDATE()
+            WHERE submission_id = @submissionId;
+
+            UPDATE file_storage
+            SET is_deleted = 1
+            WHERE file_id = @fileId;
+        `);
+
+    return true;
 };

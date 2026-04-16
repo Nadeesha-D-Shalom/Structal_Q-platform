@@ -1,7 +1,6 @@
 'use strict';
 
-const sql    = require('mssql');
-const config = require('../../config/db');
+const { pool: dbPool, poolConnect, sql } = require('../../config/db');
 
 // Load typed email helpers; fall back to no-ops if service is missing
 // AFTER
@@ -13,21 +12,7 @@ let sendReminderEmail               = async () => {};
 let sendScheduleUpdatedEmail        = async () => {};
 let sendRescheduleNotificationEmail = async () => {};
 let sendEmailRaw                    = async () => {};
-
-try {
-    const svc = require('../../services/emailService');
-    sendSchedulePublishedEmail      = svc.sendSchedulePublishedEmail;
-    sendSlotAssignedEmail           = svc.sendSlotAssignedEmail;
-    sendGroupSlotAssignedEmail      = svc.sendGroupSlotAssignedEmail;
-    sendGroupReminderEmail          = svc.sendGroupReminderEmail;
-    sendReminderEmail               = svc.sendReminderEmail;
-    sendScheduleUpdatedEmail        = svc.sendScheduleUpdatedEmail;
-    sendRescheduleNotificationEmail = svc.sendRescheduleNotificationEmail;
-    sendEmailRaw               = svc.sendEmail;
-    console.log('[evalSchedule] emailService loaded ✓');
-} catch (_) {
-    console.warn('[evalSchedule] emailService not found — email notifications disabled');
-}
+// Compliance: all email sending is disabled in this platform version.
 
 // ───────── HELPERS ─────────
 
@@ -59,7 +44,7 @@ let _userTableExists = null;
 async function userTableExists(pool) {
     if (_userTableExists !== null) return _userTableExists;
     try {
-        await pool.request().query(`SELECT TOP 1 user_id FROM [user]`);
+        await pool.request().query(`SELECT TOP 1 user_id FROM users`);
         _userTableExists = true;
     } catch (_) {
         _userTableExists = false;
@@ -135,7 +120,7 @@ async function getAssignedRecipients(pool, scheduleId) {
                 FROM evaluation_slot sl
                 JOIN evaluation_group_assignment ga ON ga.evaluation_slot_id = sl.evaluation_slot_id
                 JOIN group_member gm ON gm.group_id = ga.group_id
-                JOIN [user] u ON u.user_id = gm.student_id
+                JOIN users u ON u.user_id = gm.student_id
                 WHERE sl.evaluation_schedule_id = @scheduleId
                   AND u.status = 'ACTIVE'
             `);
@@ -179,41 +164,8 @@ async function sendTypedScheduleEmail(emailType, recipientEmail, recipientName, 
 }
 
 async function notifyScheduleRecipients(pool, { scheduleId, recipients, emailType, scheduleInfo }) {
-    let emailsSent = 0;
-    let emailsFailed = 0;
-
-    for (const recipient of recipients) {
-        const recipientName = `${recipient.first_name} ${recipient.last_name}`.trim() || 'Student';
-        let deliveryStatus = 'SENT';
-        let retryCount = 0;
-
-        try {
-            const emailPayload = {
-                ...scheduleInfo,
-                slot_start_time: recipient.slot_start_time || scheduleInfo.slot_start_time,
-                slot_end_time: recipient.slot_end_time || scheduleInfo.slot_end_time,
-                group_label: recipient.group_label || scheduleInfo.group_label,
-            };
-            const result = await sendTypedScheduleEmail(emailType, recipient.email, recipientName, emailPayload);
-            retryCount = result?.retryCount || 0;
-            emailsSent++;
-        } catch (emailErr) {
-            console.error(`[notifyScheduleRecipients] ${emailType} failed for ${recipient.email}:`, emailErr.message);
-            deliveryStatus = 'FAILED';
-            retryCount = emailErr.retryCount || 1;
-            emailsFailed++;
-        }
-
-        await logEmail(pool, {
-            scheduleId,
-            userId: recipient.user_id,
-            emailType,
-            status: deliveryStatus,
-            retryCount,
-        });
-    }
-
-    return { emailsSent, emailsFailed };
+    // No-op: email sending and email log writes are disabled.
+    return { emailsSent: 0, emailsFailed: 0 };
 }
 
 async function resolveScheduleConflicts(pool, scheduleId) {
@@ -236,9 +188,9 @@ async function resolveScheduleConflicts(pool, scheduleId) {
 
 exports.getAllAssessments = async (req, res) => {
     try {
-        const pool   = await sql.connect(config);
-        const result = await pool.request()
-            .query(`SELECT assessment_id, assessment_title FROM Assessments ORDER BY assessment_title`);
+        await poolConnect;
+        const result = await dbPool.request()
+            .query(`SELECT assessment_id, assessment_title FROM assessment ORDER BY assessment_title`);
         res.json(result.recordset);
     } catch (err) {
         console.error('[getAllAssessments]', err);
@@ -263,8 +215,8 @@ exports.createLocation = async (req, res) => {
             return res.status(400).json({ message: 'Invalid available_from or available_to time.' });
         }
 
-        const pool = await sql.connect(config);
-        await pool.request()
+        await poolConnect;
+        await dbPool.request()
             .input('location_name',  sql.VarChar(255), location_name.trim())
             .input('building_name',  sql.VarChar(255), building_name.trim())
             .input('room_number',    sql.VarChar(50),  room_number.trim())
@@ -288,8 +240,8 @@ exports.createLocation = async (req, res) => {
 
 exports.getAllLocations = async (req, res) => {
     try {
-        const pool = await sql.connect(config);
-        const result = await pool.request()
+        await poolConnect;
+        const result = await dbPool.request()
             .query(`
                 SELECT
                     location_id,
@@ -885,15 +837,13 @@ exports.updateSchedule = async (req, res) => {
 
 exports.getSchedules = async (req, res) => {
     try {
-        const pool   = await sql.connect(config);
-        const result = await pool.request().query(`
+        await poolConnect;
+        const result = await dbPool.request().query(`
             SELECT
                 es.evaluation_schedule_id,
                 es.assessment_id,
                 es.location_id,
                 es.schedule_title,
-                es.fallback_recipient_email,
-                es.fallback_recipient_name,
                 es.date,
                 CONVERT(VARCHAR, es.start_time, 108) AS start_time,
                 CONVERT(VARCHAR, es.end_time,   108) AS end_time,
@@ -915,7 +865,7 @@ exports.getSchedules = async (req, res) => {
                 ) AS assigned_count
             FROM evaluation_schedule es
             LEFT JOIN evaluation_location el ON es.location_id   = el.location_id
-            LEFT JOIN Assessments          a  ON es.assessment_id = a.assessment_id
+            LEFT JOIN assessment           a  ON es.assessment_id = a.assessment_id
             ORDER BY es.date DESC
         `);
         res.json(result.recordset);
@@ -1294,6 +1244,9 @@ exports.assignGroupToSlot = async (req, res) => {
 
             throw dbErr;
         }
+        // Compliance: email sending disabled (no notification emails).
+        return res.json({ message: 'Group assigned successfully.', emailsSent: 0, emailsFailed: 0 });
+
 // ── Send SLOT_ASSIGNED email to entire group via BCC ─────────────────
         const hasUserTable = await userTableExists(pool);
         let emailsSent = 0;
@@ -1310,7 +1263,7 @@ exports.assignGroupToSlot = async (req, res) => {
                                ISNULL(u.first_name, '') AS first_name,
                                ISNULL(u.last_name,  '') AS last_name
                         FROM group_member gm
-                        JOIN [user] u ON u.user_id = gm.student_id
+                        JOIN users u ON u.user_id = gm.student_id
                         WHERE gm.group_id = @gid
                           AND u.status    = 'ACTIVE'
                     `);
@@ -1381,6 +1334,8 @@ exports.assignGroupToSlot = async (req, res) => {
 // Retries all FAILED email log entries for a given schedule.
 
 exports.retryFailedEmails = async (req, res) => {
+    // Compliance: email retries disabled.
+    return res.status(501).json({ message: "Email notifications are disabled." });
     try {
         const scheduleId = Number(req.params.id);
         if (!scheduleId) return res.status(400).json({ message: 'Invalid schedule ID.' });
@@ -1405,7 +1360,7 @@ exports.retryFailedEmails = async (req, res) => {
                     ISNULL(u.first_name, '') AS first_name,
                     ISNULL(u.last_name,  '') AS last_name
                 FROM evaluation_email_log el
-                JOIN [user] u ON u.user_id = el.recipient_user_id
+                JOIN users u ON u.user_id = el.recipient_user_id
                 WHERE el.evaluation_schedule_id = @id
                   AND el.delivery_status = 'FAILED'
             `);
@@ -1527,6 +1482,8 @@ exports.getConflicts = async (req, res) => {
 // ───────── EMAIL NOTIFICATION LOG ─────────
 
 exports.getEmailLogs = async (req, res) => {
+    // Compliance: email logs disabled.
+    return res.status(501).json({ message: "Email notifications are disabled." });
     try {
         const id = Number(req.params.id);
         if (!id) return res.status(400).json({ message: 'Invalid schedule ID.' });
@@ -1553,7 +1510,7 @@ exports.getEmailLogs = async (req, res) => {
                         COALESCE(u.role, 'FALLBACK_RECIPIENT') AS recipient_role
                     FROM evaluation_email_log el
                     JOIN evaluation_schedule es ON es.evaluation_schedule_id = el.evaluation_schedule_id
-                    LEFT JOIN [user] u ON u.user_id = el.recipient_user_id
+                    LEFT JOIN users u ON u.user_id = el.recipient_user_id
                     WHERE el.evaluation_schedule_id = @id
                     ORDER BY el.sent_at DESC
                 `);
@@ -1729,6 +1686,8 @@ exports.getStudentScheduleView = async (req, res) => {
 // POST /api/evaluation-scheduling/schedules/:id/send-reminders
 
 exports.sendReminderBlast = async (req, res) => {
+    // Compliance: email reminders disabled.
+    return res.status(501).json({ message: "Email notifications are disabled." });
     try {
         const scheduleId = Number(req.params.id);
         if (!scheduleId) return res.status(400).json({ message: 'Invalid schedule ID.' });
@@ -1790,7 +1749,7 @@ if (hasUserTable) {
             .query(`
                 SELECT u.email
                 FROM group_member gm
-                JOIN [user] u ON u.user_id = gm.student_id
+                JOIN users u ON u.user_id = gm.student_id
                 WHERE gm.group_id = @gid AND u.status = 'ACTIVE'
             `);
         emails = membersRes.recordset.map(r => r.email).filter(Boolean);
@@ -1858,6 +1817,8 @@ if (emails.length === 0 && sched.fallback_recipient_email) {
 // POST /api/evaluation-scheduling/email-logs/:logId/resend
 
 exports.resendGroupEmail = async (req, res) => {
+    // Compliance: email resend disabled.
+    return res.status(501).json({ message: "Email notifications are disabled." });
     try {
         const logId = Number(req.params.logId);
         if (!logId) return res.status(400).json({ message: 'Invalid log ID.' });

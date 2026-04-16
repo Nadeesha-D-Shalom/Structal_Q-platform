@@ -1188,7 +1188,6 @@ const Screen56 = ({ navigate, activeScheduleId }) => {
                                 }/>
                         ))}
                         <div style={{ display:"flex", alignItems:"center", gap:10, paddingTop:20, borderTop:`1px solid ${T.border}` }}>
-                            <Btn variant="ghost" onClick={() => navigate("5.7")}>View Email Log</Btn>
                             <div style={{ marginLeft:"auto" }}>
                                 <Btn variant="outline" onClick={fetchData}>Re-validate</Btn>
                             </div>
@@ -1207,7 +1206,7 @@ const Screen56 = ({ navigate, activeScheduleId }) => {
                             ["Published By",       schedule.published_by || "—"],
                             ["Published At",       schedule.published_at ? new Date(schedule.published_at).toLocaleString() : "—"],
                             ["Status",             <Badge color={schedule.status==="PUBLISHED"?"green":schedule.status==="DRAFT"?"yellow":"gray"}>{schedule.status}</Badge>],
-                            ["Email Notification", <Toggle on/>],
+                            ["Email Notifications", <span style={{ fontSize:12.5, color:T.text3, fontWeight:600 }}>Disabled</span>],
                         ].map(([k, v], i, arr) => (
                             <div key={i} style={{ display:"flex", alignItems:"center", gap:12, padding:"11px 0",
                                                  fontSize:13.5, borderBottom:i<arr.length-1?`1px solid ${T.border}`:"none" }}>
@@ -1268,6 +1267,8 @@ const Screen57 = ({ navigate, activeScheduleId }) => {
     const hideFlash = useCallback(() => setFlash({ msg:"", type:"" }), []);
 
     const fetchLogs = useCallback(async () => {
+        // Compliance: email notification features are disabled (no email log fetching, no sending).
+        return;
         if (!activeScheduleId) return;
         setLoading(true);
         try {
@@ -1295,6 +1296,9 @@ const Screen57 = ({ navigate, activeScheduleId }) => {
     useEffect(() => { fetchLogs(); }, [fetchLogs]);
 
     const handleSendReminders = async () => {
+        // Compliance: no reminder emails
+        showFlash("Email notification features are disabled in this platform version.", "warning");
+        return;
         if (!activeScheduleId) return;
         if (!window.confirm("Send reminder emails to all assigned groups for this schedule?")) return;
         setSendingReminder(true);
@@ -1310,6 +1314,9 @@ const Screen57 = ({ navigate, activeScheduleId }) => {
     };
 
     const handleResend = async (log) => {
+        // Compliance: no resend emails
+        showFlash("Email notification features are disabled in this platform version.", "warning");
+        return;
         setResending(log.email_log_id);
         try {
             const res = await axios.post(`${BASE}/email-logs/${log.email_log_id}/resend`);
@@ -1659,8 +1666,8 @@ const Screen58 = () => {
                     </table>
                     <div style={{ padding:"12px 22px", borderTop:`1px solid ${T.border}` }}>
                         <Alert type="info" icon="📧">
-                            Email confirmations are sent automatically when a schedule is published.
-                            Contact your lecturer if your slot shows <strong>Pending</strong> for more than 48 hours.
+                            Email notifications are disabled in this platform version.
+                            Contact your lecturer if your slot remains <strong>Pending</strong> for an extended period.
                         </Alert>
                     </div>
                 </Card>
@@ -1679,7 +1686,6 @@ const SCREENS = [
     { id:"5.4", label:"Auto Slot Preview"      },
     { id:"5.5", label:"Group Assignment"       },
     { id:"5.6", label:"Conflict & Publication" },
-    { id:"5.7", label:"Email Notification Log" },
     { id:"5.8", label:"Student Schedule View"  },
 ];
 
@@ -1699,7 +1705,6 @@ export default function App() {
             case "5.4": return <Screen54 {...sharedProps}/>;
             case "5.5": return <Screen55 {...sharedProps}/>;
             case "5.6": return <Screen56 {...sharedProps}/>;
-            case "5.7": return <Screen57 {...sharedProps}/>;
             case "5.8": return <Screen58/>;
             default:    return <Screen51/>;
         }

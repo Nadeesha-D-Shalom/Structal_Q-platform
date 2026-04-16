@@ -5,7 +5,7 @@ Fixes:
 - json -> nvarchar(max)  (optionally add ISJSON checks later)
 - text -> nvarchar(max)
 - Adds safe drop section (optional) to rerun cleanly
-- Uses schema dbo and avoids reserved keyword issues by using dbo.[user]
+- Uses schema dbo and table name users
 */
 
 SET NOCOUNT ON;
@@ -59,7 +59,7 @@ IF OBJECT_ID('dbo.assessment','U') IS NOT NULL DROP TABLE dbo.assessment;
 IF OBJECT_ID('dbo.subject_offering','U') IS NOT NULL DROP TABLE dbo.subject_offering;
 IF OBJECT_ID('dbo.subject','U') IS NOT NULL DROP TABLE dbo.subject;
 
-IF OBJECT_ID('dbo.[user]','U') IS NOT NULL DROP TABLE dbo.[user];
+IF OBJECT_ID('dbo.users','U') IS NOT NULL DROP TABLE dbo.users;
 GO
 */
 
@@ -70,8 +70,8 @@ BEGIN TRY
      1) CORE TABLES
   ========================= */
 
-  IF OBJECT_ID('dbo.[user]','U') IS NULL
-  CREATE TABLE dbo.[user] (
+  IF OBJECT_ID('dbo.users','U') IS NULL
+  CREATE TABLE dbo.users (
     user_id bigint IDENTITY(1,1) PRIMARY KEY,
     first_name nvarchar(255) NULL,
     last_name nvarchar(255) NULL,
@@ -608,7 +608,7 @@ CREATE TABLE dbo.mark_revision_log (
   IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_assessment_created_by')
     ALTER TABLE dbo.assessment
     ADD CONSTRAINT FK_assessment_created_by
-    FOREIGN KEY (created_by) REFERENCES dbo.[user](user_id);
+    FOREIGN KEY (created_by) REFERENCES dbo.users(user_id);
 
   -- marking_guide -> assessment, user
   IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_marking_guide_assessment')
@@ -619,7 +619,7 @@ CREATE TABLE dbo.mark_revision_log (
   IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_marking_guide_created_by')
     ALTER TABLE dbo.marking_guide
     ADD CONSTRAINT FK_marking_guide_created_by
-    FOREIGN KEY (created_by) REFERENCES dbo.[user](user_id);
+    FOREIGN KEY (created_by) REFERENCES dbo.users(user_id);
 
   -- guide_* -> marking_guide / guide_question
   IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_guide_section_rule_marking_guide')
@@ -646,7 +646,7 @@ CREATE TABLE dbo.mark_revision_log (
   IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_file_storage_upload_user')
     ALTER TABLE dbo.file_storage
     ADD CONSTRAINT FK_file_storage_upload_user
-    FOREIGN KEY (upload_user_id) REFERENCES dbo.[user](user_id);
+    FOREIGN KEY (upload_user_id) REFERENCES dbo.users(user_id);
 
   -- submission -> assessment, user, file_storage
   IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_submission_assessment')
@@ -657,7 +657,7 @@ CREATE TABLE dbo.mark_revision_log (
   IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_submission_student')
     ALTER TABLE dbo.submission
     ADD CONSTRAINT FK_submission_student
-    FOREIGN KEY (student_id) REFERENCES dbo.[user](user_id);
+    FOREIGN KEY (student_id) REFERENCES dbo.users(user_id);
 
   IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_submission_file')
     ALTER TABLE dbo.submission
@@ -728,7 +728,7 @@ CREATE TABLE dbo.mark_revision_log (
   IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_final_mark_lecturer')
     ALTER TABLE dbo.final_mark
     ADD CONSTRAINT FK_final_mark_lecturer
-    FOREIGN KEY (lecturer_id) REFERENCES dbo.[user](user_id);
+    FOREIGN KEY (lecturer_id) REFERENCES dbo.users(user_id);
 
   -- final_question_mark -> final_mark, guide_question
   IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_final_question_mark_final_mark')
@@ -750,7 +750,7 @@ CREATE TABLE dbo.mark_revision_log (
   IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_mark_alert_ack_by')
     ALTER TABLE dbo.mark_alert
     ADD CONSTRAINT FK_mark_alert_ack_by
-    FOREIGN KEY (acknowledged_by) REFERENCES dbo.[user](user_id);
+    FOREIGN KEY (acknowledged_by) REFERENCES dbo.users(user_id);
 
   -- mark_concern -> final_mark, user
   IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_mark_concern_final_mark')
@@ -783,7 +783,7 @@ CREATE TABLE dbo.mark_revision_log (
   IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_mark_revision_log_lecturer')
     ALTER TABLE dbo.mark_revision_log
     ADD CONSTRAINT FK_mark_revision_log_lecturer
-    FOREIGN KEY (lecturer_id) REFERENCES dbo.[user](user_id);
+    FOREIGN KEY (lecturer_id) REFERENCES dbo.users(user_id);
 
   -- audit_log -> user
   IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_audit_log_actor')
@@ -805,12 +805,12 @@ CREATE TABLE dbo.mark_revision_log (
   IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_evaluation_schedule_created_by')
     ALTER TABLE dbo.evaluation_schedule
     ADD CONSTRAINT FK_evaluation_schedule_created_by
-    FOREIGN KEY (created_by) REFERENCES dbo.[user](user_id);
+    FOREIGN KEY (created_by) REFERENCES dbo.users(user_id);
 
   IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_evaluation_schedule_published_by')
     ALTER TABLE dbo.evaluation_schedule
     ADD CONSTRAINT FK_evaluation_schedule_published_by
-    FOREIGN KEY (published_by) REFERENCES dbo.[user](user_id);
+    FOREIGN KEY (published_by) REFERENCES dbo.users(user_id);
 
   -- evaluation_slot -> evaluation_schedule
   IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_evaluation_slot_schedule')
@@ -827,7 +827,7 @@ CREATE TABLE dbo.mark_revision_log (
   IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_evaluation_group_assignment_assigned_by')
     ALTER TABLE dbo.evaluation_group_assignment
     ADD CONSTRAINT FK_evaluation_group_assignment_assigned_by
-    FOREIGN KEY (assigned_by) REFERENCES dbo.[user](user_id);
+    FOREIGN KEY (assigned_by) REFERENCES dbo.users(user_id);
 
   -- evaluation_email_log -> evaluation_schedule, user
   IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_evaluation_email_log_schedule')
@@ -855,7 +855,7 @@ CREATE TABLE dbo.mark_revision_log (
   IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_exam_timetable_created_by')
     ALTER TABLE dbo.exam_timetable
     ADD CONSTRAINT FK_exam_timetable_created_by
-    FOREIGN KEY (created_by) REFERENCES dbo.[user](user_id);
+    FOREIGN KEY (created_by) REFERENCES dbo.users(user_id);
 
   IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_exam_timetable_published_by')
     ALTER TABLE dbo.exam_timetable

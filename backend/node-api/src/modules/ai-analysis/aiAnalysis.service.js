@@ -136,6 +136,85 @@ async function saveAiQuestionScores(analysis_result_id, questionScores = []) {
 }
 
 
+// ================= SAVE DIAGRAM EVIDENCE (PER PAGE) =================
+async function saveDiagramPageResultsToDB(analysis_result_id, diagramAnalysis) {
+    const pages = diagramAnalysis?.page_diagram_results || [];
+    if (!Array.isArray(pages) || pages.length === 0) return;
+
+    const transaction = new sql.Transaction(pool);
+
+    try {
+        await transaction.begin();
+
+        for (const page of pages) {
+            if (!page || !page.has_diagram) continue;
+
+            // OCR evidence row
+            await new sql.Request(transaction)
+                .input("analysis_result_id", sql.BigInt, analysis_result_id)
+                .input("page_no", sql.Int, Number(page.page_no))
+                .input("ocr_text", sql.NVarChar(sql.MAX), page.ocr_text || null)
+                .input("ocr_confidence", sql.Decimal(10, 4), Number(page.ocr_confidence || 0))
+                .input("has_diagram", sql.Bit, page.has_diagram ? 1 : 0)
+                .query(`
+                    INSERT INTO dbo.ocr_page_result (
+                        analysis_result_id,
+                        page_no,
+                        ocr_text,
+                        ocr_confidence,
+                        has_diagram,
+                        created_at
+                    )
+                    VALUES (
+                        @analysis_result_id,
+                        @page_no,
+                        @ocr_text,
+                        @ocr_confidence,
+                        @has_diagram,
+                        GETDATE()
+                    );
+                `);
+
+            // Diagram validation/check row
+            await new sql.Request(transaction)
+                .input("analysis_result_id", sql.BigInt, analysis_result_id)
+                .input("diagram_type", sql.NVarChar(50), page.diagram_type || null)
+                .input("page_no", sql.Int, Number(page.page_no))
+                .input("detected_labels", sql.NVarChar(sql.MAX), JSON.stringify(page.detected_labels || []))
+                .input("expected_labels", sql.NVarChar(sql.MAX), JSON.stringify(page.expected_labels || []))
+                .input("match_score", sql.Decimal(10, 4), Number(page.match_score || 0))
+                .input("issues", sql.NVarChar(sql.MAX), JSON.stringify(page.issues || []))
+                .query(`
+                    INSERT INTO dbo.diagram_check_result (
+                        analysis_result_id,
+                        diagram_type,
+                        page_no,
+                        detected_labels,
+                        expected_labels,
+                        match_score,
+                        issues,
+                        created_at
+                    )
+                    VALUES (
+                        @analysis_result_id,
+                        @diagram_type,
+                        @page_no,
+                        @detected_labels,
+                        @expected_labels,
+                        @match_score,
+                        @issues,
+                        GETDATE()
+                    );
+                `);
+        }
+
+        await transaction.commit();
+    } catch (error) {
+        await transaction.rollback();
+        console.error("DIAGRAM EVIDENCE INSERT ERROR:", error);
+        throw error;
+    }
+}
 
 
 // ================= DB SAVE =================
@@ -233,6 +312,12 @@ async function saveAnalysisToDB({
         console.log("Generated analysis_result_id:", analysis_result_id);
 
         // ===== FIXED STEP =====
+        // Persist per-page diagram OCR evidence so lecturer UI can render diagram evidence cards.
+        await saveDiagramPageResultsToDB(
+            analysis_result_id,
+            aiResult?.diagram_analysis
+        );
+
         const questionScores = await mapSectionsToQuestions(
             aiResult,
             marking_guide_id
@@ -308,6 +393,43 @@ async function getAnalysisResults(submissionId) {
         return record;
     } catch (error) {
         console.error("Get Analysis Results Error:", error);
+        throw error;
+    }
+}
+
+async function getAnalysisResultById(analysisResultId) {
+    try {
+        const request = pool.request();
+
+        const result = await request
+            .input("analysis_result_id", sql.BigInt, analysisResultId)
+            .query(`
+                SELECT 
+                    ar.*,
+                    (SELECT * FROM ai_question_score WHERE analysis_result_id = ar.analysis_result_id FOR JSON PATH) as question_scores
+                FROM analysis_result ar
+                WHERE ar.analysis_result_id = @analysis_result_id
+                ORDER BY ar.analysis_result_id DESC
+                OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY
+            `);
+
+        if (result.recordset.length === 0) {
+            return null;
+        }
+
+        const record = result.recordset[0];
+
+        if (record.question_scores) {
+            try {
+                record.question_scores = JSON.parse(record.question_scores);
+            } catch (e) {
+                record.question_scores = [];
+            }
+        }
+
+        return record;
+    } catch (error) {
+        console.error("Get Analysis Result By ID Error:", error);
         throw error;
     }
 }

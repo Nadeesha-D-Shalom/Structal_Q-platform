@@ -33,10 +33,11 @@ class EvaluationPipeline:
                 "final_score": 0
             }
 
-        # 3. Diagram Validation (OCR + Signals)
+        # 3. Diagram Validation (OCR + Signals + per-page evidence)
         diagram_analysis = self.diagram_service.validate(
             self.student_file,
-            parsed_report.full_text
+            parsed_report.full_text,
+            guide_text=guide_text,
         )
 
         # 4. Semantic Similarity (Student vs Guide)

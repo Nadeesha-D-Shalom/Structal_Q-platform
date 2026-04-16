@@ -1,9 +1,9 @@
 -- Seed a system user so exam_timetable.created_by (NOT NULL) can be satisfied.
 -- Run once against Structal_Q_platform (or your DB name) in SSMS / Azure Data Studio / sqlcmd.
 
-IF NOT EXISTS (SELECT 1 FROM dbo.[user])
+IF NOT EXISTS (SELECT 1 FROM dbo.users)
 BEGIN
-  INSERT INTO dbo.[user] (
+  INSERT INTO dbo.users (
     email,
     role,
     status,
@@ -25,6 +25,6 @@ BEGIN
 END
 ELSE
 BEGIN
-  PRINT N'dbo.[user] already has rows; no insert. If you still see "no users", check your database name / connection.';
+  PRINT N'dbo.users already has rows; no insert. If you still see "no users", check your database name / connection.';
 END
 GO

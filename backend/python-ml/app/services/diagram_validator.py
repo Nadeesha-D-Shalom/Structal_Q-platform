@@ -21,11 +21,20 @@ class DiagramValidator:
         self.extractor = DiagramExtractor()
         self.ocr = OCRService()
 
-    def validate(self, file_path: str, full_text: str) -> Dict[str, Any]:
+    def validate(self, file_path: str, full_text: str, guide_text: str = "") -> Dict[str, Any]:
 
         has_architecture_section = "System Architecture Diagram" in full_text
         has_usecase_section = "Use Case Diagram" in full_text
         has_er_section = "ER / EER Diagram" in full_text or "ER Diagram" in full_text
+
+        expected_types: List[str] = []
+        guide_lower = (guide_text or "").lower()
+        if "er / eer diagram" in guide_lower or "er diagram" in guide_lower or "er / eer" in guide_lower:
+            expected_types.append("ER")
+        if "use case diagram" in guide_lower:
+            expected_types.append("UML")
+        if "system architecture diagram" in guide_lower or "architecture diagram" in guide_lower:
+            expected_types.append("ARCH")
 
         doc_type, images = self.extractor.extract_images(file_path)
         image_count = len(images)
@@ -35,7 +44,10 @@ class DiagramValidator:
         total_words = 0
         all_ocr_text_parts: List[str] = []
 
-        for img_path in images:
+        page_diagram_results: List[Dict[str, Any]] = []
+
+        for idx, img_path in enumerate(images):
+            page_no = idx + 1
             o = self.ocr.ocr_image(img_path)
 
             confidences.append(float(o.get("avg_confidence", 0)))
@@ -43,6 +55,101 @@ class DiagramValidator:
 
             if o.get("text"):
                 all_ocr_text_parts.append(o["text"])
+
+            page_ocr_text = (o.get("text") or "")
+            page_text_lower = page_ocr_text.lower()
+            ocr_conf = float(o.get("avg_confidence", 0))
+            word_count = int(o.get("word_count", 0))
+
+            # -------- Clarity Score (per page) --------
+            conf_component = min(max(ocr_conf / 100.0, 0.0), 1.0)
+            if word_count >= 300:
+                text_component = 1.0
+            elif word_count >= 150:
+                text_component = 0.7
+            elif word_count >= 60:
+                text_component = 0.4
+            else:
+                text_component = 0.1
+
+            diagram_clarity_score = round((0.6 * conf_component + 0.4 * text_component), 3)  # 0..1
+
+            # -------- Signal Detection (per page) --------
+            er_signals = self._detect_er_signals(page_text_lower)
+            usecase_signals = self._detect_usecase_signals(page_text_lower)
+            arch_signals = self._detect_arch_signals(page_text_lower)
+
+            max_signal = max(
+                er_signals.get("signal_score", 0),
+                usecase_signals.get("signal_score", 0),
+                arch_signals.get("signal_score", 0),
+            )
+
+            # If we detected diagram-ish signals, we treat this page as a diagram page.
+            has_diagram = bool(max_signal > 0)
+
+            # -------- Diagram Type Guess --------
+            diagram_type_guess = None
+            if max_signal > 0:
+                if er_signals.get("signal_score", 0) >= usecase_signals.get("signal_score", 0) and \
+                   er_signals.get("signal_score", 0) >= arch_signals.get("signal_score", 0):
+                    diagram_type_guess = "ER"
+                elif usecase_signals.get("signal_score", 0) >= arch_signals.get("signal_score", 0):
+                    diagram_type_guess = "UML"
+                else:
+                    diagram_type_guess = "ARCH"
+
+            # -------- Detected Labels for UI --------
+            labels: List[str] = []
+            if er_signals.get("pk_detected"): labels.append("PK")
+            if er_signals.get("fk_detected"): labels.append("FK")
+            if er_signals.get("entity_terms_detected"): labels.append("Entity")
+            if er_signals.get("cardinality_detected"): labels.append("Cardinality")
+            if er_signals.get("crowfoot_detected"): labels.append("Crow's Foot")
+
+            if usecase_signals.get("actor_detected"): labels.append("Actor")
+            if usecase_signals.get("include_detected"): labels.append("Include")
+            if usecase_signals.get("extend_detected"): labels.append("Extend")
+            if usecase_signals.get("boundary_detected"): labels.append("Boundary")
+            if usecase_signals.get("usecase_term_detected"): labels.append("Use Case")
+
+            if arch_signals.get("three_tier_detected"): labels.append("3-Tier")
+            if arch_signals.get("frontend_detected"): labels.append("Frontend")
+            if arch_signals.get("backend_detected"): labels.append("Backend")
+            if arch_signals.get("database_detected"): labels.append("Database")
+
+            if diagram_type_guess:
+                labels.append(diagram_type_guess)
+
+            # -------- Issues for UI --------
+            issues: List[str] = []
+            if has_diagram and diagram_clarity_score < 0.4:
+                issues.append("Low diagram clarity")
+
+            if expected_types:
+                if not diagram_type_guess:
+                    issues.append(
+                        f"Diagram type not detected (expected: {', '.join(expected_types)})"
+                    )
+                elif diagram_type_guess not in expected_types:
+                    issues.append(
+                        f"Diagram type mismatch (expected: {', '.join(expected_types)})"
+                    )
+
+            page_diagram_results.append(
+                {
+                    "page_no": page_no,
+                    "has_diagram": has_diagram,
+                    "ocr_text": page_ocr_text,
+                    "ocr_confidence": ocr_conf,
+                    "clarity_score": round(diagram_clarity_score * 10, 2),  # 0..10 for display
+                    "match_score": diagram_clarity_score,  # 0..1 for backend join/clarity
+                    "diagram_type": diagram_type_guess,
+                    "detected_labels": labels,
+                    "expected_labels": expected_types,
+                    "issues": issues,
+                }
+            )
 
         all_ocr_text = " ".join(all_ocr_text_parts).lower()
         ocr_avg_conf = round(sum(confidences) / len(confidences), 2) if confidences else 0.0
@@ -88,7 +195,8 @@ class DiagramValidator:
                 "er": er_signals,
                 "usecase": usecase_signals,
                 "architecture": arch_signals
-            }
+            },
+            "page_diagram_results": page_diagram_results,
         }
 
     # ---------------- ER Detection ----------------

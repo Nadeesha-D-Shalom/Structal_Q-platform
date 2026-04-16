@@ -43,12 +43,12 @@ function parseSubjectLine(line) {
 async function getDefaultCreatedBy(transaction) {
   const req = new sql.Request(transaction);
   const r = await req.query(`
-    SELECT TOP 1 user_id AS uid FROM dbo.[user] ORDER BY user_id
+    SELECT TOP 1 user_id AS uid FROM dbo.users ORDER BY user_id
   `);
   const uid = r.recordset[0]?.uid;
   if (uid == null) {
     throw new Error(
-      'Database has no users. Insert at least one row into dbo.[user] (created_by is required for exam_timetable).',
+      'Database has no users. Insert at least one row into dbo.users (created_by is required for exam_timetable).',
     );
   }
   return uid;

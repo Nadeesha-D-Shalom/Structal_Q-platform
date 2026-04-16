@@ -16,9 +16,9 @@ const CompareWithGuide = () => {
 
   const fetchAnalysis = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/analysis/${analysisId}`);
+      const res = await fetch(`${API_BASE_URL}/api/ai-analysis/result/${analysisId}`);
       const result = await res.json();
-      setData(result);
+      setData(result.data || result);
     } catch (err) {
       console.error(err);
     } finally {

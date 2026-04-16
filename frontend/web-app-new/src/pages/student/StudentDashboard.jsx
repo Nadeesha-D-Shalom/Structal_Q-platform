@@ -1,6 +1,49 @@
 import StudentNavbar from "./StudentNavbar";
 
+import { useEffect, useState } from "react";
+
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
 const StudentDashboard = () => {
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("auth_token");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        setLoading(true);
+        const [sessionRes, summaryRes] = await Promise.all([
+          fetch(`${API_BASE}/api/auth/session`, { headers: getAuthHeaders() }),
+          fetch(`${API_BASE}/api/dashboard/student/summary`, { headers: getAuthHeaders() }),
+        ]);
+
+        const sessionData = sessionRes.ok ? await sessionRes.json() : null;
+        const summaryPayload = summaryRes.ok ? await summaryRes.json() : null;
+
+        if (!mounted) return;
+        setUser(sessionData);
+        if (summaryPayload?.success) setSummary(summaryPayload.data);
+      } catch {
+        if (mounted) setSummary(null);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      mounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#f5f6fa]">
 
@@ -12,7 +55,7 @@ const StudentDashboard = () => {
 
         {/* Header */}
         <h1 className="text-[22px] font-bold text-[#1b2b44]">
-          Welcome, Nadeesha Shalom
+          Welcome, {user?.student_name || user?.name || user?.first_name || "Student"}
         </h1>
         <p className="text-[12px] text-[#7a8aa0] mb-5">
           Year 2 • Semester 1 • Student Portal
@@ -35,9 +78,11 @@ const StudentDashboard = () => {
               <p className="text-[12px] text-gray-500">My Submissions</p>
             </div>
 
-            <h2 className="text-[20px] font-bold">4</h2>
+            <h2 className="text-[20px] font-bold">
+              {loading ? "…" : summary?.my_submissions_count ?? 0}
+            </h2>
             <p className="text-[11px] text-orange-500">
-              1 Pending Review
+              {loading ? "" : `${summary?.active_concerns_count ?? 0} Pending Concern(s)`}
             </p>
           </div>
 
@@ -51,9 +96,11 @@ const StudentDashboard = () => {
               <p className="text-[12px] text-gray-500">Published Marks</p>
             </div>
 
-            <h2 className="text-[20px] font-bold">2</h2>
+            <h2 className="text-[20px] font-bold">
+              {loading ? "…" : summary?.total_assignments ?? 0}
+            </h2>
             <p className="text-[11px] text-gray-500">
-              Highest: <span className="text-blue-500">82%</span>
+              Published Marks
             </p>
           </div>
 
@@ -67,10 +114,10 @@ const StudentDashboard = () => {
               <p className="text-[12px] text-gray-500">Active Concerns</p>
             </div>
 
-            <h2 className="text-[20px] font-bold">1</h2>
-            <p className="text-[11px] text-gray-500">
-              Subject: Software Engineering
-            </p>
+            <h2 className="text-[20px] font-bold">
+              {loading ? "…" : summary?.active_concerns_count ?? 0}
+            </h2>
+            <p className="text-[11px] text-gray-500">Active Concerns</p>
           </div>
 
         </div>
@@ -91,20 +138,19 @@ const StudentDashboard = () => {
 
             <div className="p-4 space-y-3 text-[12px]">
 
-              {[
-                ["Assignment submitted", "Software Engineering - SE201 Report", "2 mins ago"],
-                ["Grade updated", "Database Systems Lab - 85/100", "1 hour ago"],
-                ["Course material downloaded", "Data Structures - Lecture 08 Slides", "5 hours ago"],
-                ["Message from Lecturer", "Please check your feedback...", "Yesterday"],
-              ].map((item, i) => (
-                <div key={i} className="flex justify-between">
-                  <div>
-                    <p className="font-medium">{item[0]}</p>
-                    <p className="text-gray-400 text-[11px]">{item[1]}</p>
+              {(summary?.recent_activities || []).length ? (
+                summary.recent_activities.map((item, i) => (
+                  <div key={i} className="flex justify-between">
+                    <div>
+                      <p className="font-medium">{item.text}</p>
+                      <p className="text-gray-400 text-[11px]">{item.time}</p>
+                    </div>
+                    <span className="text-gray-400 text-[10px]">{item.time}</span>
                   </div>
-                  <span className="text-gray-400 text-[10px]">{item[2]}</span>
-                </div>
-              ))}
+                ))
+              ) : (
+                <div className="text-gray-400 text-[12px]">No activities yet.</div>
+              )}
 
             </div>
           </div>

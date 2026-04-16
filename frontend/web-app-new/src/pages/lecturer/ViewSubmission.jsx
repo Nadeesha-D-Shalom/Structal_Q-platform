@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import LecturerNavbar from "./LecturerNavbar";
 
@@ -293,30 +293,24 @@ const IcoWarn = () => (
   </svg>
 );
 
-/* ══════════════ FIELD ROW ══════════════ */
-const FieldRow = ({ icon, iconBg, iconColor, label, children, style }) => (
-  <div className="vs-field" style={{ padding: "14px 18px", ...style }}>
-    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-      <div style={{
-        width: 34, height: 34, borderRadius: 8,
-        background: iconBg, color: iconColor,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        flexShrink: 0,
-      }}>
-        {icon}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <span className="vs-label">{label}</span>
-        {children}
-      </div>
-    </div>
-  </div>
-);
+const TICKER_MESSAGES = [
+  "Reading submission document…",
+  "Parsing marking criteria…",
+  "Evaluating answers with AI…",
+  "Computing section scores…",
+  "Generating detailed feedback…",
+  "Finalising result…",
+];
 
 /* ══════════════ MAIN ══════════════ */
 const ViewSubmission = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("auth_token");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
 
   const [data, setData] = useState(null);
   const [guides, setGuides] = useState([]);
@@ -327,28 +321,13 @@ const ViewSubmission = () => {
   const [info, setInfo] = useState("");
   const [msgIdx, setMsgIdx] = useState(0);
 
-  const tickerMessages = [
-    "Reading submission document…",
-    "Parsing marking criteria…",
-    "Evaluating answers with AI…",
-    "Computing section scores…",
-    "Generating detailed feedback…",
-    "Finalising result…",
-  ];
-
   useEffect(() => { injectStyles(); }, []);
-  useEffect(() => { fetchSubmission(); fetchGuides(); }, [id]);
-
-  useEffect(() => {
-    if (!running) return;
-    const t = setInterval(() => setMsgIdx(i => (i + 1) % tickerMessages.length), 2700);
-    return () => clearInterval(t);
-  }, [running]);
-
-  const fetchSubmission = async () => {
+  const fetchSubmission = useCallback(async () => {
     try {
       setError("");
-      const res = await fetch(`${API_BASE}/api/submissions/${id}`);
+      const res = await fetch(`${API_BASE}/api/submissions/${id}`, {
+        headers: getAuthHeaders(),
+      });
       const result = await res.json();
       const extracted = result?.data || result[0] || result;
       if (!extracted) throw new Error("Submission data not found");
@@ -360,11 +339,13 @@ const ViewSubmission = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
-  const fetchGuides = async () => {
+  const fetchGuides = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/marking-guides`);
+      const res = await fetch(`${API_BASE}/api/marking-guides`, {
+        headers: getAuthHeaders(),
+      });
       const result = await res.json();
       const extracted = Array.isArray(result) ? result : Array.isArray(result?.data) ? result.data : [];
       setGuides(extracted);
@@ -372,18 +353,29 @@ const ViewSubmission = () => {
       console.error(err);
       setError("Failed to load marking guides.");
     }
-  };
+  }, []);
+
+  useEffect(() => { fetchSubmission(); fetchGuides(); }, [fetchSubmission, fetchGuides]);
+
+  useEffect(() => {
+    if (!running) return;
+    const t = setInterval(() => setMsgIdx(i => (i + 1) % TICKER_MESSAGES.length), 2700);
+    return () => clearInterval(t);
+  }, [running]);
 
   const runAnalysis = async () => {
     setError(""); setInfo("");
     if (!selectedGuide) { setError("Please select a marking guide before running analysis."); return; }
-    const guideObj = guides.find(g => g.guide_id == selectedGuide);
+    const guideObj = guides.find((g) => String(g.guide_id) === String(selectedGuide));
     if (!guideObj?.guide_file_path) { setError("Selected guide file is missing."); return; }
     try {
       setRunning(true); setMsgIdx(0);
       const res = await fetch(`${API_BASE}/api/ai-analysis/analyze`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
         body: JSON.stringify({
           submission_id: id,
           marking_guide_id: selectedGuide,
@@ -405,7 +397,7 @@ const ViewSubmission = () => {
 
   const fileName  = data?.original_file_name || data?.file_name || "N/A";
   const groupName = fileName !== "N/A" ? fileName.replace(/\.[^/.]+$/, "") : "N/A";
-  const guideName = guides.find(g => g.guide_id == selectedGuide)?.guide_name || null;
+  const guideName = guides.find((g) => String(g.guide_id) === String(selectedGuide))?.guide_name || null;
   const canRun    = !running && !!selectedGuide;
 
   /* ── SKELETON ── */
@@ -443,7 +435,7 @@ const ViewSubmission = () => {
     <div className="vs-root">
       <LecturerNavbar />
 
-      {running && <AnalysisModal messages={tickerMessages} msgIdx={msgIdx} />}
+      {running && <AnalysisModal messages={TICKER_MESSAGES} msgIdx={msgIdx} />}
 
       <div style={{ maxWidth: 700, margin: "0 auto", padding: "40px 24px 72px" }}>
 

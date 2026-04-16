@@ -645,7 +645,6 @@ export default function ConcernReviewResolution() {
   const [selectedConcern, setSelectedConcern] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showRespondModal, setShowRespondModal] = useState(false);
-  const [showEmailModal, setShowEmailModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
@@ -831,6 +830,7 @@ export default function ConcernReviewResolution() {
     }
   };
 
+<<<<<<< HEAD
   const handleSendEmail = async (emailData) => {
     try {
       await fetchConcerns();
@@ -851,6 +851,8 @@ export default function ConcernReviewResolution() {
     }
   };
 
+=======
+>>>>>>> 1fad3f5 ((feat) Integrate the all pages and fixed them)
   const handleViewSubmission = (url) => {
     setSubmissionUrl(url);
     setShowViewModal(true);
@@ -1144,6 +1146,7 @@ export default function ConcernReviewResolution() {
                         <button
                           onClick={() => {
                             setSelectedConcern(concern);
+<<<<<<< HEAD
                             setShowEmailModal(true);
                           }}
                           style={emailBtnStyle}
@@ -1154,6 +1157,8 @@ export default function ConcernReviewResolution() {
                         <button
                           onClick={() => {
                             setSelectedConcern(concern);
+=======
+>>>>>>> 1fad3f5 ((feat) Integrate the all pages and fixed them)
                             setShowDeleteModal(true);
                           }}
                           style={deleteActionBtnStyle}
@@ -1199,16 +1204,6 @@ export default function ConcernReviewResolution() {
         }}
         concern={selectedConcern}
         onSend={handleSendResponse}
-      />
-
-      <EmailModal
-        isOpen={showEmailModal}
-        onClose={() => {
-          setShowEmailModal(false);
-          setSelectedConcern(null);
-        }}
-        concern={selectedConcern}
-        onSend={handleSendEmail}
       />
 
       <ViewSubmissionModal

@@ -16,9 +16,20 @@ router.post("/evaluate-all/:assessmentId", controller.evaluateAllSubmissions);
 router.get("/results/all", controller.getAllEvaluatedResults);
 
 
-// Get analysis results
+// Get analysis results by submission
 router.get("/results/:submissionId", controller.getAnalysisResults);
 
+// Get analysis results by analysis result ID
+router.get("/result/:analysisResultId", controller.getAnalysisResultById);
+
+// Generate downloadable report (JSON) for a submission
+router.get("/report/:submissionId", controller.generateReportForSubmission);
+
+// Generate downloadable report (JSON) for an analysis_result_id
+router.get(
+  "/report/analysis-result/:analysisResultId",
+  controller.generateReportForAnalysisResultId
+);
 
 // Compare documents
 router.post("/compare", async (req, res) => {

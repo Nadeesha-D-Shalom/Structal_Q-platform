@@ -1,11 +1,18 @@
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import LecturerNavbar from "./LecturerNavbar";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   Cell, CartesianGrid, Legend,
 } from "recharts";
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("auth_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 /* ─────────────────────────────────────────
    STYLE INJECTION
@@ -244,16 +251,73 @@ const CustomRadarTooltip = ({ active, payload }) => {
 ───────────────────────────────────────── */
 const MLAnalysisResult = () => {
   const { state } = useLocation();
+  const { id } = useParams();
   const navigate = useNavigate();
-  const [mounted, setMounted] = useState(false);
+  const [analysisData, setAnalysisData] = useState(state || null);
+  const [fetchError, setFetchError] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
 
   useEffect(() => {
     injectStyles();
-    setTimeout(() => setMounted(true), 60);
   }, []);
 
+  useEffect(() => {
+    if (analysisData || !id) return;
+
+    const fetchAnalysisById = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/ai-analysis/result/${id}`, {
+          headers: getAuthHeaders(),
+        });
+        const result = await res.json();
+        if (result.success) {
+          setAnalysisData(result.data);
+        } else {
+          setFetchError(true);
+        }
+      } catch (err) {
+        console.error("Fetch analysis by id failed", err);
+        setFetchError(true);
+      }
+    };
+
+    fetchAnalysisById();
+  }, [id, analysisData]);
+
+  const handleDownloadReport = async () => {
+    const submissionId = analysisData?.submission_id;
+    if (!submissionId) {
+      alert("Submission id not found for report generation.");
+      return;
+    }
+
+    try {
+      setReportLoading(true);
+      const res = await fetch(
+        `${API_BASE_URL}/api/ai-analysis/report/${submissionId}`,
+        { headers: getAuthHeaders() }
+      );
+      if (!res.ok) throw new Error("Failed to generate report");
+      const report = await res.json();
+
+      const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `analysis_report_submission_${submissionId}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(e?.message || "Report download failed");
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
   /* ── Error state ── */
-  if (!state) return (
+  if (!analysisData || fetchError) return (
     <div className="mr-root" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
       <LecturerNavbar />
       <div style={{ background: "#fff", borderRadius: 14, border: "1.5px solid #fecaca", padding: "48px 40px", maxWidth: 400, textAlign: "center", boxShadow: "0 4px 24px rgba(0,0,0,0.06)" }}>
@@ -271,7 +335,7 @@ const MLAnalysisResult = () => {
     </div>
   );
 
-  const data = state;
+  const data = analysisData;
   const sections = ["A", "B", "C", "D", "E", "F"];
 
   /* Chart datasets */
@@ -292,8 +356,6 @@ const MLAnalysisResult = () => {
   const totalScore = data.final_score ?? 0;
   const maxTotal   = sections.reduce((s, k) => s + (data.guide_weights?.[k]?.marks ?? 0), 0);
   const totalPct   = maxTotal ? ((totalScore / maxTotal) * 100).toFixed(1) : 0;
-  const totalColors = scoreColor(parseFloat(totalPct));
-
   return (
     <div className="mr-root">
       <LecturerNavbar />
@@ -310,12 +372,23 @@ const MLAnalysisResult = () => {
               Detailed breakdown of the submission evaluation
             </p>
           </div>
-          <button className="mr-back-btn" onClick={() => navigate(-1)}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="m15 18-6-6 6-6"/>
-            </svg>
-            Back
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              className="mr-back-btn"
+              onClick={handleDownloadReport}
+              disabled={reportLoading}
+              style={{ opacity: reportLoading ? 0.6 : 1 }}
+              title="Download generated analysis report"
+            >
+              {reportLoading ? "Generating..." : "Download Report"}
+            </button>
+            <button className="mr-back-btn" onClick={() => navigate(-1)}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m15 18-6-6 6-6"/>
+              </svg>
+              Back
+            </button>
+          </div>
         </div>
 
         {/* ── TOP SUMMARY CARDS ── */}

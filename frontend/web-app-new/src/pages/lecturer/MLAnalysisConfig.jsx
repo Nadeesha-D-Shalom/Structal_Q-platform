@@ -326,9 +326,16 @@ const MLAnalysisConfig = () => {
     injectStyles();
   }, []);
 
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("auth_token");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
   // Fetch submissions
   useEffect(() => {
-    fetch(`${API_BASE}/api/submissions/lecturer/all`)
+    fetch(`${API_BASE}/api/submissions/lecturer/all`, {
+      headers: getAuthHeaders(),
+    })
       .then(res => res.json())
       .then(data => setSubmissions(Array.isArray(data) ? data : []))
       .catch(() => setSubmissions([]));
@@ -354,7 +361,10 @@ const MLAnalysisConfig = () => {
     try {
       const res = await fetch(`${API_BASE}/api/ai-analysis/compare`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
         body: JSON.stringify({
           file1: file1.storage_path,
           file2: file2.storage_path

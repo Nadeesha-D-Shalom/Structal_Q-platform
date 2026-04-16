@@ -12,7 +12,6 @@ exports.getMarks = async (req, res) => {
             fm.submission_id,
             fm.total_marks_awarded as mark,
             fm.published_at,
-            fm.concern_window_open,
             
             a.assessment_title as assignment_name,
             a.total_marks as total,
@@ -32,10 +31,17 @@ exports.getMarks = async (req, res) => {
             ORDER BY fm.published_at DESC
         `);
         
+        const enriched = result.recordset.map(row => ({
+            ...row,
+            concern_window_open: row.published_at
+                ? ((Date.now() - new Date(row.published_at).getTime()) <= 48 * 60 * 60 * 1000 ? 1 : 0)
+                : 0
+        }));
+
         res.json({
             success: true,
-            data: result.recordset,
-            count: result.recordset.length
+            data: enriched,
+            count: enriched.length
         });
     
     } catch (err) {
@@ -49,9 +55,12 @@ exports.getMarks = async (req, res) => {
 
 exports.getStats = async (req, res) => {
     try {
-        const { student_id } = req.params;
+        const student_id = req.params.student_id || req.query.student_id;
         
-        // Get total subjects
+        if (!student_id) {
+            return res.status(400).json({ success: false, message: 'student_id is required' });
+        }
+
         const subjectsResult = await pool.request()
         .input('student_id', sql.BigInt, student_id)
         .query(`
@@ -95,6 +104,12 @@ exports.getStats = async (req, res) => {
 
 exports.getAllSubjects = async (req, res) => {
     try {
+        const student_id = req.params.student_id || req.query.student_id;
+
+        if (!student_id) {
+            return res.status(400).json({ success: false, message: 'student_id is required' });
+        }
+
         const result = await pool.request()
             .input('student_id', sql.BigInt, student_id)
             .query(`
@@ -145,16 +160,17 @@ exports.getDetailsForConcernForm = async (req, res) => {
                 fm.submission_id,
                 fm.total_marks_awarded as mark,
                 fm.published_at,
-                fm.concern_window_open,
-                
                 a.assessment_title as assignment_name,
                 a.total_marks as total,
-                
                 sub.subject_name,
                 sub.subject_code,
+<<<<<<< HEAD
                 
                 so.academic_year + ' ' + so.semester AS academic_year
                 
+=======
+                so.academic_year
+>>>>>>> 1fad3f5 ((feat) Integrate the all pages and fixed them)
                 FROM final_mark fm
                 INNER JOIN submission s ON fm.submission_id = s.submission_id
                 INNER JOIN assessment a ON s.assessment_id = a.assessment_id
@@ -170,10 +186,17 @@ exports.getDetailsForConcernForm = async (req, res) => {
                 message: 'Submission not found'
             });
         }
-        
+
+        const row = result.recordset[0];
+        const publishedAt = row.published_at ? new Date(row.published_at) : null;
+        const concernWindowOpen = publishedAt ? ((Date.now() - publishedAt.getTime()) <= 48 * 60 * 60 * 1000) : false;
+
         res.json({
             success: true,
-            data: result.recordset[0]
+            data: {
+                ...row,
+                concern_window_open: concernWindowOpen ? 1 : 0
+            }
         });
         
     } catch (err) {

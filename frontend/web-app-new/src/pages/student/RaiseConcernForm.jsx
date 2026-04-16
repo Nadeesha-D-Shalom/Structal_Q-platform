@@ -121,7 +121,7 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted }) {
     };
 
     try {
-      const res = await fetch("/api/concern", {
+      const res = await fetch("/api/concerns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),

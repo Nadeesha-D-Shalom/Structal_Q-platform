@@ -9,14 +9,17 @@ const authRoutes = require("./modules/auth/auth.routes");
 
 const app = express();
 
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
 app.use(session({
-    secret: process.env.SESSION_SECRET,
+    secret: process.env.SESSION_SECRET || "default_secret_change_me",
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false }
+    cookie: {
+        secure: false,
+        sameSite: "lax"
+    }
 }));
 
 app.use("/api/auth", authRoutes);

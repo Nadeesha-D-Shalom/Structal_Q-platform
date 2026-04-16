@@ -1,8 +1,10 @@
-import { useState } from "react"; 
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import bg from "../../assets/login/bg2.jpg";
 import logo from "../../assets/login/logo.png";
 
 const LoginPage = () => {
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -13,7 +15,7 @@ const LoginPage = () => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!email || !password) {
       setError("All fields are required");
       return;
@@ -25,7 +27,37 @@ const LoginPage = () => {
     }
 
     setError("");
-    console.log("Login success", { email, password });
+
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        credentials: "include",
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        setError(data.error || "Login failed");
+        return;
+      }
+
+      if (data.token) {
+        localStorage.setItem("auth_token", data.token);
+      }
+
+      const role = (data?.user?.role || data?.users?.role || "").toLowerCase().trim();
+      if (role === "lecturer" || role === "admin") {
+        navigate("/lecturer");
+      } else {
+        navigate("/student");
+      }
+    } catch (err) {
+      setError("Unable to complete login");
+    }
   };
 
   return (
@@ -60,6 +92,9 @@ const LoginPage = () => {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Eg:-jhon,John Doe@gmail.com"
               className="w-full bg-transparent outline-none text-gray-700 text-sm"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleLogin();
+              }}
             />
           </div>
         </div>
@@ -77,6 +112,9 @@ const LoginPage = () => {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="***************"
               className="w-full bg-transparent outline-none text-gray-700 text-sm"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleLogin();
+              }}
             />
 
             <i
@@ -99,12 +137,19 @@ const LoginPage = () => {
         </div>
 
         {/* Button */}
-        <button
-          onClick={handleLogin}
-          className="w-full py-3 rounded-xl bg-gray-300 text-gray-800 font-semibold shadow-inner hover:bg-gray-400 transition"
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleLogin();
+          }}
         >
-          Login
-        </button>
+          <button
+            type="submit"
+            className="w-full py-3 rounded-xl bg-gray-300 text-gray-800 font-semibold shadow-inner hover:bg-gray-400 transition"
+          >
+            Login
+          </button>
+        </form>
       </div>
     </div>
   );

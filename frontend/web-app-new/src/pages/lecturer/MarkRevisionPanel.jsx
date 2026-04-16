@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import LecturerNavbar from "./LecturerNavbar";
 
-const API_BASE_URL = "http://localhost:5000";
-
 // Success Popup Component
 const SuccessPopup = ({ isVisible, onClose, message, title, details }) => {
   useEffect(() => {

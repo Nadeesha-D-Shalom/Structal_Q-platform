@@ -4,10 +4,15 @@ import LecturerNavbar from "./LecturerNavbar";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-  Cell, CartesianGrid, Legend,
+  Cell, CartesianGrid,
 } from "recharts";
 
 const API_BASE = "http://localhost:5000/api";
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("auth_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 /* ─────────────────────────────────────────
    STYLE INJECTION  (shared with MLAnalysisResult)
@@ -144,9 +149,6 @@ const injectStyles = () => {
 /* ─────────────────────────────────────────
    HELPERS
 ───────────────────────────────────────── */
-const fmt = (val, decimals = 1) =>
-  val != null ? Number(val).toFixed(decimals) : "—";
-
 const scoreColor = (pct) => {
   if (pct >= 75) return { bg: "#ecfdf5", text: "#059669", bar: "#10b981" };
   if (pct >= 50) return { bg: "#eff6ff", text: "#2e3bbf", bar: "#4a58e8" };
@@ -242,12 +244,14 @@ const ViewAnalysisResults = () => {
   const { submissionId } = useParams();
   const navigate         = useNavigate();
   const [data, setData]  = useState(null);
+  const [diagramPages, setDiagramPages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
 
   useEffect(() => {
     injectStyles();
-    fetch(`${API_BASE}/ai-analysis/results/${submissionId}`)
+    fetch(`${API_BASE}/ai-analysis/results/${submissionId}`, { headers: getAuthHeaders() })
       .then((res) => res.json())
       .then((res) => {
         if (res.success) setData(res.data);
@@ -255,7 +259,42 @@ const ViewAnalysisResults = () => {
         setLoading(false);
       })
       .catch(() => { setError(true); setLoading(false); });
+
+    fetch(`${API_BASE}/marks/diagram-pages/${submissionId}`, { headers: getAuthHeaders() })
+      .then((res) => res.json())
+      .then((res) => {
+        if (res.success) setDiagramPages(res.data);
+      })
+      .catch(() => {});
   }, [submissionId]);
+
+  const handleDownloadReport = async () => {
+    if (!submissionId) return;
+    try {
+      setReportLoading(true);
+      const res = await fetch(`${API_BASE}/ai-analysis/report/${submissionId}`, {
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) throw new Error("Failed to generate report");
+      const report = await res.json();
+
+      const blob = new Blob([JSON.stringify(report, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `analysis_report_submission_${submissionId}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(e?.message || "Report download failed");
+    } finally {
+      setReportLoading(false);
+    }
+  };
 
   /* ── Similarity bar chart data ── */
   const simBarData = data
@@ -333,12 +372,23 @@ const ViewAnalysisResults = () => {
               {loading ? "Loading analysis data…" : `Submission #${data?.submission_id} · ${data?.analysis_type ?? "—"}`}
             </p>
           </div>
-          <button className="mr-back-btn" onClick={() => navigate(-1)}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              className="mr-back-btn"
+              onClick={handleDownloadReport}
+              disabled={reportLoading || loading}
+              style={{ opacity: reportLoading || loading ? 0.6 : 1 }}
+              title="Download generated analysis report"
+            >
+              {reportLoading ? "Generating..." : "Download Report"}
+            </button>
+            <button className="mr-back-btn" onClick={() => navigate(-1)}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="m15 18-6-6 6-6"/>
             </svg>
             Back
-          </button>
+            </button>
+          </div>
         </div>
 
         {/* ── TOP SUMMARY CARDS ── */}
@@ -539,6 +589,53 @@ const ViewAnalysisResults = () => {
                   <RingChart key={label} value={p} max={100} label={label} color={color} delay={i * 0.1} />
                 ))}
               </div>
+            )}
+        </div>
+
+        {/* ── DIAGRAM ANALYSIS ── */}
+        <div className="mr-fade mr-fade-5 mr-card" style={{ padding: "22px 24px", marginBottom: 16 }}>
+          <h3 className="mr-section-title">Diagram Analysis</h3>
+          {loading
+            ? <Skeleton h={120} r={10} />
+            : diagramPages.length > 0 ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 12 }}>
+                {diagramPages.map((page, index) => (
+                  <div key={index} style={{ background: "#f8f9fb", borderRadius: 10, padding: "14px 16px", border: "1px solid #e8eaf0" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "#0f1729", fontFamily: "'Inter',sans-serif" }}>Page {page.page_no}</span>
+                      <span className="mr-badge" style={{ background: page.has_diagram ? "#ecfdf5" : "#fef2f2", color: page.has_diagram ? "#059669" : "#dc2626" }}>
+                        {page.has_diagram ? "Diagram" : "No Diagram"}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "'Inter',sans-serif" }}>Clarity Score</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: "#0f1729", fontFamily: "'Inter',sans-serif" }}>{page.clarity_score}/10</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "'Inter',sans-serif" }}>Manual Review</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: page.manual_review_recommended ? "#dc2626" : "#059669", fontFamily: "'Inter',sans-serif" }}>
+                          {page.manual_review_recommended ? "Recommended" : "Not Needed"}
+                        </span>
+                      </div>
+                      {page.detected_labels && page.detected_labels.length > 0 && (
+                        <div>
+                          <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "'Inter',sans-serif" }}>Labels: </span>
+                          <span style={{ fontSize: 12, fontWeight: 500, color: "#0f1729", fontFamily: "'Inter',sans-serif" }}>{page.detected_labels.join(', ')}</span>
+                        </div>
+                      )}
+                      {page.issues && (
+                        <div>
+                          <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "'Inter',sans-serif" }}>Issues: </span>
+                          <span style={{ fontSize: 12, fontWeight: 500, color: "#dc2626", fontFamily: "'Inter',sans-serif" }}>{page.issues}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ fontSize: 13, color: "#6b7280", margin: 0, fontFamily: "'Inter',sans-serif" }}>No diagram analysis available for this submission.</p>
             )}
         </div>
 

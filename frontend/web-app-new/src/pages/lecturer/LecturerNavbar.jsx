@@ -1,9 +1,10 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
 import logo from "../../assets/logo.png";
 
 const NAV_ITEMS = [
   { name: "Dashboard", path: "/lecturer", icon: "fas fa-border-all" },
-  { name: "Subjects", path: "/lecturer/subjects", icon: "far fa-clipboard" },
+  { name: "Marking Guide", path: "/lecturer/marking-guides", icon: "fas fa-book-open" },
   { name: "Mark Revision", path: "/lecturer/marks", icon: "fas fa-star" },
   { name: "Publish Marks", path: "/lecturer/publish-marks", icon: "fas fa-check-double" },
   { name: "Review Concerns", path: "/lecturer/review-concerns", icon: "fas fa-question-circle" },
@@ -15,6 +16,22 @@ const NAV_ITEMS = [
 const LecturerNavbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
+
+  const handleLogout = async () => {
+    try {
+      const token = localStorage.getItem("auth_token");
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+    } catch {
+      // proceed with client-side logout even if server call fails
+    } finally {
+      localStorage.removeItem("auth_token");
+      navigate("/", { replace: true });
+    }
+  };
 
   // ================= ACTIVE PAGE DETECTION =================
   const getActivePage = () => {
@@ -29,8 +46,7 @@ const LecturerNavbar = () => {
     ) {
       return "Submissions";
     }
-
-    if (path.startsWith("/lecturer/subjects")) return "Subjects";
+    if (path.startsWith("/lecturer/marking-guides")) return "Marking Guide";
     if (path.startsWith("/lecturer/marks")) return "Mark Revision";
     if (path.startsWith("/lecturer/publish-marks")) return "Publish Marks";
     if (path.startsWith("/lecturer/review-concerns")) return "Review Concerns";
@@ -41,6 +57,20 @@ const LecturerNavbar = () => {
   };
 
   const currentPage = getActivePage();
+
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem("auth_token");
+    if (!token) return;
+
+    fetch("/api/auth/session", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setUser(d))
+      .catch(() => setUser(null));
+  }, []);
 
   // ================= STYLE =================
   const getItemStyle = (itemName) =>
@@ -86,7 +116,11 @@ const LecturerNavbar = () => {
       <div className="flex items-center gap-4">
 
         {/* LOGOUT */}
-        <div className="w-[34px] h-[34px] rounded-full border border-[#e4e8ee] flex items-center justify-center bg-white cursor-pointer hover:bg-gray-50">
+        <div
+          onClick={handleLogout}
+          title="Logout"
+          className="w-[34px] h-[34px] rounded-full border border-[#e4e8ee] flex items-center justify-center bg-white cursor-pointer hover:bg-gray-50"
+        >
           <i className="fas fa-sign-out-alt text-[13px] text-[#ff6b63]"></i>
         </div>
 
@@ -98,8 +132,12 @@ const LecturerNavbar = () => {
         {/* USER */}
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <p className="text-[12px] font-semibold">Dr. Robert Fox</p>
-            <p className="text-[10px] text-gray-400">Lecturer ID: 202401</p>
+            <p className="text-[12px] font-semibold">
+              {user?.student_name || user?.name || user?.first_name || "—"}
+            </p>
+            <p className="text-[10px] text-gray-400">
+              {user?.registration_no ? `ID: ${user.registration_no}` : `Role: ${user?.role || "—"}`}
+            </p>
           </div>
           <div className="w-[32px] h-[32px] bg-[#f4b37a] rounded-full cursor-pointer"></div>
         </div>

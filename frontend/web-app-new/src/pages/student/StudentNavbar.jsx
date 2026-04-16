@@ -1,6 +1,7 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import logo from "../../assets/logo.png";
+import { useEffect, useState } from "react";
 
 const NAV_ITEMS = [
   { name: "Dashboard", path: "/student", icon: "fas fa-border-all" },
@@ -12,6 +13,35 @@ const NAV_ITEMS = [
 
 const StudentNavbar = ({ activePage = "Dashboard" }) => {
   const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+
+  const handleLogout = async () => {
+    try {
+      const token = localStorage.getItem("auth_token");
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+    } catch {
+      // proceed with client-side logout even if server call fails
+    } finally {
+      localStorage.removeItem("auth_token");
+      navigate("/", { replace: true });
+    }
+  };
+
+  useEffect(() => {
+    const token = localStorage.getItem("auth_token");
+    if (!token) return;
+
+    fetch("/api/auth/session", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setUser(d))
+      .catch(() => setUser(null));
+  }, []);
 
   const getItemStyle = (itemName) =>
     `flex items-center gap-2 cursor-pointer transition-all duration-200 whitespace-nowrap ${
@@ -56,7 +86,11 @@ const StudentNavbar = ({ activePage = "Dashboard" }) => {
       <div className="flex items-center gap-4">
 
         {/* LOGOUT */}
-        <div className="w-[34px] h-[34px] rounded-full border border-[#e4e8ee] flex items-center justify-center bg-white cursor-pointer hover:bg-gray-50">
+        <div
+          onClick={handleLogout}
+          title="Logout"
+          className="w-[34px] h-[34px] rounded-full border border-[#e4e8ee] flex items-center justify-center bg-white cursor-pointer hover:bg-gray-50"
+        >
           <i className="fas fa-sign-out-alt text-[13px] text-[#ff6b63]"></i>
         </div>
 
@@ -68,8 +102,12 @@ const StudentNavbar = ({ activePage = "Dashboard" }) => {
         {/* USER */}
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <p className="text-[12px] font-semibold">Nadeesha S.</p>
-            <p className="text-[10px] text-gray-400">Student ID: 202401</p>
+          <p className="text-[12px] font-semibold">
+            {user?.student_name || user?.name || user?.first_name || "—"}
+          </p>
+          <p className="text-[10px] text-gray-400">
+            {user?.registration_no ? `Student ID: ${user.registration_no}` : `Role: ${user?.role || "—"}`}
+          </p>
           </div>
           <div className="w-[32px] h-[32px] bg-[#f4b37a] rounded-full cursor-pointer"></div>
         </div>

@@ -26,17 +26,8 @@ router.post('/slots/:slotId/assign', controller.assignGroupToSlot);
 // ───────── CONFLICT LOG ─────────
 router.get('/schedules/:id/conflicts', controller.getConflicts);
 
-// ───────── EMAIL NOTIFICATION LOG ─────────
-router.get( '/schedules/:id/email-logs',    controller.getEmailLogs);
-router.post('/schedules/:id/send-reminders',   controller.sendReminderBlast);
-router.post('/email-logs/:logId/resend',        controller.resendGroupEmail);
-
 // ───────── DELETE SCHEDULE ─────────
 router.delete('/schedules/:id', controller.deleteSchedule);
-
-// ───────── RETRY FAILED EMAILS ─────────
-// Retries all FAILED entries in evaluation_email_log for a given schedule
-router.post('/schedules/:id/retry-emails', controller.retryFailedEmails);
 
 // ───────── STUDENT VIEW ─────────
 router.get('/student/schedules', controller.getStudentScheduleView);

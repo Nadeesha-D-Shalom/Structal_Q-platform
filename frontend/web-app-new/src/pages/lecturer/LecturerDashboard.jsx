@@ -1,34 +1,40 @@
-
 import LecturerNavbar from "./LecturerNavbar";
 
+import { useEffect, useState } from "react";
+
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
 const LecturerDashboard = () => {
-  const activities = [
-    {
-      color: "bg-blue-500",
-      text: "Submission by Group A - Advanced Machine Learning",
-      time: "15 MINS AGO",
-    },
-    {
-      color: "bg-green-500",
-      text: "ML Analysis Completed for CS-402 Batch",
-      time: "2 HOURS AGO",
-    },
-    {
-      color: "bg-amber-500",
-      text: "New Feedback requested for Software Architecture Draft",
-      time: "5 HOURS AGO",
-    },
-    {
-      color: "bg-slate-300",
-      text: "Timetable update for Lab 302 (SE-301)",
-      time: "YESTERDAY",
-    },
-    {
-      color: "bg-slate-200",
-      text: "Digital Office Hours Session Logged",
-      time: "OCT 12, 2023",
-    },
-  ];
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("auth_token");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(`${API_BASE}/api/dashboard/lecturer/summary`, {
+          headers: getAuthHeaders(),
+        });
+        const payload = await res.json();
+        if (mounted && payload?.success) setSummary(payload.data);
+      } catch (e) {
+        if (mounted) setSummary(null);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      mounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#f5f6fa]">
@@ -54,7 +60,7 @@ const LecturerDashboard = () => {
                 Pending Reviews
               </p>
               <h3 className="mt-[2px] text-[24px] font-bold text-[#18243d]">
-                12
+                {loading ? "…" : summary?.pending_reviews_count ?? 0}
               </h3>
             </div>
 
@@ -69,7 +75,7 @@ const LecturerDashboard = () => {
                 High Risk Items
               </p>
               <h3 className="mt-[2px] text-[24px] font-bold text-[#18243d]">
-                5
+                {loading ? "…" : summary?.high_risk_count ?? 0}
               </h3>
             </div>
 
@@ -84,7 +90,7 @@ const LecturerDashboard = () => {
                 Active Guides
               </p>
               <h3 className="mt-[2px] text-[24px] font-bold text-[#18243d]">
-                3
+                {loading ? "…" : summary?.active_guides_count ?? 0}
               </h3>
             </div>
 
@@ -108,7 +114,7 @@ const LecturerDashboard = () => {
 
           <div className="px-[14px] py-[12px]">
             <div className="space-y-[16px]">
-              {activities.map((item, index) => (
+              {(summary?.recent_activities || []).map((item, index) => (
                 <div
                   key={index}
                   className="flex items-center justify-between"

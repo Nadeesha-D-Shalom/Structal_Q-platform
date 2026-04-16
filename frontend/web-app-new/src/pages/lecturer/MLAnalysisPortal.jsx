@@ -8,6 +8,11 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 const MLAnalysisPortal = () => {
   const navigate = useNavigate();
 
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("auth_token");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
   const [subjects, setSubjects] = useState([]);
   const [guides, setGuides] = useState([]);
   const [submissions, setSubmissions] = useState([]);
@@ -25,9 +30,9 @@ const MLAnalysisPortal = () => {
   const fetchAll = async () => {
     try {
       const [subRes, guideRes, submissionRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/subjects`),
-        fetch(`${API_BASE_URL}/api/marking-guides`),
-        fetch(`${API_BASE_URL}/api/submission/lecturer/all`)
+        fetch(`${API_BASE_URL}/api/subjects`, { headers: getAuthHeaders() }),
+        fetch(`${API_BASE_URL}/api/marking-guides`, { headers: getAuthHeaders() }),
+        fetch(`${API_BASE_URL}/api/submissions/lecturer/all`, { headers: getAuthHeaders() }),
       ]);
 
       const subjectsData = await subRes.json();
@@ -68,7 +73,10 @@ const MLAnalysisPortal = () => {
 
       const res = await fetch(`${API_BASE_URL}/api/ai-analysis/analyze`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
         body: JSON.stringify({
           submission_id: Number(selectedSubmission),
           marking_guide_id: Number(selectedGuide),
@@ -80,7 +88,7 @@ const MLAnalysisPortal = () => {
       const result = await res.json();
 
       if (result.success) {
-        navigate(`/lecturer/compare-guide?analysis_id=${result.analysis_result_id}`);
+        navigate(`/analysis/${selectedSubmission}`);
       } else {
         alert("Analysis failed: " + result.error);
       }
