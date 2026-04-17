@@ -2,6 +2,22 @@ const PDFDocument = require('pdfkit');
 const { pool, sql } = require("../../config/db");
 const priorityDetector = require('./priorityDetector');
 
+function normalizeConcernRow(row) {
+    const fallbackName = (row.fallback_student_name || "").trim();
+    return {
+        ...row,
+        concern_id: row.concern_id || (row.id != null ? `CON-${String(row.id).padStart(4, "0")}` : null),
+        student_name: row.student_name || fallbackName || `Student ${row.student_id ?? ""}`.trim(),
+        student_email: row.student_email || row.fallback_student_email || "",
+        concern_status: row.concern_status || "Pending",
+        priority_level: row.priority_level || "Low",
+        assignment: row.assignment || row.assessment_title || "N/A",
+        subject: row.subject || row.subject_name || "",
+        originalMark: row.originalMark ?? row.original_mark ?? null,
+        original_mark: row.original_mark ?? row.originalMark ?? null
+    };
+}
+
 exports.createConcern = async (req, res, next) => {
     try {
         const {student_id, student_name, student_email, academic_year, concern_message, submission_id} = req.body;
@@ -50,34 +66,24 @@ exports.getAllConcerns = async (req, res, next) => {
     try {
         const result = await pool.request().query(`
             SELECT
-                mc.concern_id,
-                mc.student_id,
-                mc.student_name,
-                mc.student_email,
-                mc.academic_year,
-                mc.submission_id,
-                mc.concern_message,
-                mc.priority_level,
-                mc.concern_status,
-                mc.created_at,
-                mc.last_modified,
-                mc.revised_by,
-                mc.revised_on,
-                mc.lecturer_comment,
+                mc.*,
                 a.assessment_title as assignment,
                 fm.total_marks_awarded as originalMark,
                 sub.subject_name,
-                sub.subject_code
+                sub.subject_code,
+                CONCAT(ISNULL(u.first_name, ''), ' ', ISNULL(u.last_name, '')) AS fallback_student_name,
+                u.email AS fallback_student_email
             FROM mark_concern mc
             LEFT JOIN submission s ON mc.submission_id = s.submission_id
             LEFT JOIN assessment a ON s.assessment_id = a.assessment_id
             LEFT JOIN final_mark fm ON mc.submission_id = fm.submission_id
             LEFT JOIN subject_offering so ON a.offering_id = so.offering_id
             LEFT JOIN subject sub ON so.subject_id = sub.subject_id
+            LEFT JOIN users u ON mc.student_id = u.user_id
             ORDER BY mc.created_at DESC
         `);
 
-        res.json(result.recordset);
+        res.json(result.recordset.map(normalizeConcernRow));
     } catch (err) {
         console.error('Error fetching concerns:', err);
         next(err);
@@ -91,36 +97,26 @@ exports.getConcernsForSpecificStudent = async (req, res, next) => {
             .input('student_id', sql.BigInt, student_id)
             .query(`
                 SELECT
-                    mc.concern_id,
-                    mc.student_id,
-                    mc.student_name,
-                    mc.student_email,
-                    mc.academic_year,
-                    mc.submission_id,
-                    mc.concern_message,
-                    mc.priority_level,
-                    mc.concern_status,
-                    mc.created_at,
-                    mc.last_modified,
-                    mc.revised_by,
-                    mc.revised_on,
-                    mc.lecturer_comment,
+                    mc.*,
                     a.assessment_title as assignment,
                     sub.subject_name,
                     sub.subject_code,
                     fm.total_marks_awarded as original_mark,
-                    fm.published_at
+                    fm.published_at,
+                    CONCAT(ISNULL(u.first_name, ''), ' ', ISNULL(u.last_name, '')) AS fallback_student_name,
+                    u.email AS fallback_student_email
                 FROM mark_concern mc
                 LEFT JOIN submission s ON mc.submission_id = s.submission_id
                 LEFT JOIN assessment a ON s.assessment_id = a.assessment_id
                 LEFT JOIN subject_offering so ON a.offering_id = so.offering_id
                 LEFT JOIN subject sub ON so.subject_id = sub.subject_id
                 LEFT JOIN final_mark fm ON mc.submission_id = fm.submission_id
+                LEFT JOIN users u ON mc.student_id = u.user_id
                 WHERE mc.student_id = @student_id
                 ORDER BY mc.created_at DESC
             `);
 
-        res.json(result.recordset);
+        res.json(result.recordset.map(normalizeConcernRow));
     } catch (err) {
         console.error('Error fetching student concerns:', err);
         next(err);

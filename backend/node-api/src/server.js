@@ -3,6 +3,7 @@ require("dotenv").config();
 const app = require("./app");
 const { poolConnect } = require("./config/db");
 const { startConcernWindowScheduler } = require("./modules/concern/concernWindowAutomation");
+const { getSqlConnectionHint } = require("./utils/sqlConnectionHint");
 
 const PORT = process.env.PORT || 5000;
 
@@ -16,4 +17,5 @@ poolConnect
     })
     .catch((err) => {
         console.error("Database connection failed:", err);
+        console.error(getSqlConnectionHint(err));
     });

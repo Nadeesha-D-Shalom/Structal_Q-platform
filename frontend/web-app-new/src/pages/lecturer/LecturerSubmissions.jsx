@@ -3,67 +3,515 @@ import LecturerNavbar from "./LecturerNavbar";
 import { useNavigate } from "react-router-dom";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import axios from "axios";
+
 const API_BASE = process.env.REACT_APP_API_URL || "";
 
-//  Evaluation pipeline steps
 const EVAL_STEPS = [
-  "Loading submissions",
-  "Running similarity",
-  "ML analysis",
-  "Risk scoring",
-  "Saving results",
+  { label: "Loading", icon: "fa-solid fa-inbox" },
+  { label: "Similarity", icon: "fa-solid fa-code-compare" },
+  { label: "ML Analysis", icon: "fa-solid fa-brain" },
+  { label: "Risk Scoring", icon: "fa-solid fa-shield-halved" },
+  { label: "Saving", icon: "fa-solid fa-floppy-disk" },
 ];
 
-// Success Popup Component
+/* ─────────────────────────── Inline Styles ─────────────────────────── */
+const styles = `
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  .ls-root {
+    font-family: 'DM Sans', sans-serif;
+    background: #f0f2f7;
+    min-height: 100vh;
+  }
+
+  .ls-page { padding: 32px 36px; max-width: 1600px; margin: 0 auto; }
+
+  /* Header */
+  .ls-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 28px;
+  }
+  .ls-title { font-size: 26px; font-weight: 600; color: #0f172a; letter-spacing: -0.5px; line-height: 1.2; }
+  .ls-subtitle { font-size: 13px; color: #64748b; margin-top: 4px; }
+  .ls-btn-row { display: flex; gap: 10px; align-items: center; }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px; font-weight: 500;
+    padding: 9px 18px; border-radius: 10px;
+    border: none; cursor: pointer; transition: all 0.18s ease;
+    white-space: nowrap; letter-spacing: 0.1px;
+  }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-ghost {
+    background: #fff; color: #334155;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .btn-ghost:hover:not(:disabled) { background: #f8fafc; border-color: #cbd5e1; }
+  .btn-primary {
+    background: #3b5bdb; color: #fff;
+    box-shadow: 0 2px 8px rgba(59,91,219,0.28);
+  }
+  .btn-primary:hover:not(:disabled) { background: #3451c7; box-shadow: 0 4px 14px rgba(59,91,219,0.35); }
+  .btn-success {
+    background: #12b981; color: #fff;
+    box-shadow: 0 2px 8px rgba(16,185,129,0.28);
+  }
+  .btn-success:hover:not(:disabled) { background: #0ea571; }
+  .btn-danger { background: #ef4444; color: #fff; }
+  .btn-danger:hover:not(:disabled) { background: #dc2626; }
+
+  /* Icon buttons in table */
+  .icon-btn {
+    width: 36px; height: 36px; border-radius: 9px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: none; cursor: pointer; transition: all 0.15s; font-size: 13px;
+  }
+  .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .icon-btn-teal   { background: #e6faf5; color: #0f9e75; }
+  .icon-btn-teal:hover:not(:disabled)   { background: #ccf5ea; }
+  .icon-btn-sky    { background: #e0f2fe; color: #0369a1; }
+  .icon-btn-sky:hover:not(:disabled)    { background: #bae6fd; }
+  .icon-btn-purple { background: #ede9fe; color: #6d28d9; }
+  .icon-btn-purple:hover:not(:disabled) { background: #ddd6fe; }
+  .icon-btn-blue   { background: #dbeafe; color: #1d4ed8; }
+  .icon-btn-blue:hover:not(:disabled)   { background: #bfdbfe; }
+  .icon-btn-gray   { background: #f1f5f9; color: #475569; }
+  .icon-btn-gray:hover:not(:disabled)   { background: #e2e8f0; }
+  .icon-btn-red    { background: #fee2e2; color: #dc2626; }
+  .icon-btn-red:hover:not(:disabled)    { background: #fecaca; }
+
+  /* Cards */
+  .card {
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid #e8edf4;
+    overflow: hidden;
+  }
+  .card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 24px 16px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .card-title { font-size: 15px; font-weight: 600; color: #0f172a; }
+  .card-sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+
+  /* Table */
+  .tbl { width: 100%; border-collapse: collapse; }
+  .tbl-head { background: #f8fafc; }
+  .tbl-head th {
+    padding: 11px 16px; font-size: 10px; letter-spacing: 0.8px;
+    text-transform: uppercase; font-weight: 600; color: #94a3b8;
+    text-align: left; white-space: nowrap;
+  }
+  .tbl-head th:last-child { text-align: right; }
+  .tbl-row td { padding: 13px 16px; font-size: 13px; color: #334155; border-top: 1px solid #f1f5f9; vertical-align: middle; }
+  .tbl-row:hover td { background: #fafbfd; }
+
+  /* Badges */
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 500; white-space: nowrap;
+  }
+  .badge-green { background: #dcfce7; color: #15803d; }
+  .badge-yellow { background: #fef9c3; color: #854d0e; }
+  .badge-red { background: #fee2e2; color: #b91c1c; }
+  .badge-gray { background: #f1f5f9; color: #64748b; }
+  .badge-blue { background: #dbeafe; color: #1e40af; }
+  .badge-purple { background: #ede9fe; color: #5b21b6; }
+  .badge-teal { background: #ccfbf1; color: #0f766e; }
+  .badge-dot::before {
+    content: ''; display: block;
+    width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+  }
+
+  /* Avatar circle */
+  .avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; flex-shrink: 0;
+    font-family: 'Space Mono', monospace;
+  }
+  .avatar-1 { background: #dbeafe; color: #1e40af; }
+  .avatar-2 { background: #ede9fe; color: #5b21b6; }
+  .avatar-3 { background: #dcfce7; color: #15803d; }
+  .avatar-4 { background: #fef3c7; color: #92400e; }
+  .avatar-5 { background: #fce7f3; color: #9d174d; }
+
+  /* Step progress */
+  .step-wrap {
+    background: #fff; border-radius: 14px; border: 1px solid #e8edf4;
+    padding: 20px 28px; margin-bottom: 24px;
+    animation: slideDown 0.3s ease;
+  }
+  @keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  .step-track { display: flex; align-items: center; gap: 0; }
+  .step-node { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 0 0 auto; }
+  .step-circle {
+    width: 40px; height: 40px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; transition: all 0.3s ease; position: relative;
+  }
+  .step-circle.done { background: #12b981; color: #fff; }
+  .step-circle.active { background: #eff6ff; color: #3b5bdb; border: 2px solid #3b5bdb; }
+  .step-circle.idle { background: #f8fafc; color: #cbd5e1; border: 2px solid #e2e8f0; }
+  .step-circle.active::after {
+    content: ''; position: absolute; inset: -4px; border-radius: 50%;
+    border: 2px solid transparent; border-top-color: #3b5bdb;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .step-label { font-size: 11px; color: #94a3b8; font-weight: 500; }
+  .step-label.active { color: #3b5bdb; }
+  .step-label.done { color: #12b981; }
+  .step-line { flex: 1; height: 2px; background: #f1f5f9; transition: background 0.4s; margin-bottom: 20px; }
+  .step-line.done { background: #12b981; }
+  .step-footer { margin-top: 14px; font-size: 12px; color: #94a3b8; }
+  .step-footer.done { color: #12b981; font-weight: 500; }
+
+  /* Stats bar */
+  .stats-bar {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px;
+  }
+  .stat-card {
+    background: #fff; border-radius: 14px; border: 1px solid #e8edf4;
+    padding: 16px 20px;
+  }
+  .stat-label { font-size: 11px; color: #94a3b8; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; }
+  .stat-value { font-size: 28px; font-weight: 600; color: #0f172a; margin-top: 4px; font-family: 'Space Mono', monospace; line-height: 1; }
+  .stat-sub { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+
+  /* Manual mark input */
+  .mark-input {
+    width: 72px; padding: 5px 9px; border-radius: 7px;
+    border: 1.5px solid #e2e8f0; font-size: 13px; font-family: 'Space Mono', monospace;
+    color: #0f172a; background: #f8fafc; outline: none; transition: border 0.15s;
+  }
+  .mark-input:focus { border-color: #3b5bdb; background: #fff; }
+  .mark-input:disabled { opacity: 0.6; }
+
+  /* File link */
+  .file-link {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12px; font-weight: 600; color: #3b5bdb; text-decoration: none;
+    padding: 4px 8px; border-radius: 6px; background: #eff6ff;
+    transition: background 0.15s;
+  }
+  .file-link:hover { background: #dbeafe; }
+
+  /* Score button */
+  .score-btn {
+    background: none; border: none; cursor: pointer; padding: 0;
+    font-family: 'Space Mono', monospace; font-size: 15px; font-weight: 700;
+    color: #3b5bdb; text-decoration: underline; text-decoration-style: dotted;
+    text-underline-offset: 3px;
+  }
+  .score-btn:hover { color: #1e3a8a; }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,0.5);
+    backdrop-filter: blur(6px); z-index: 200;
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+    animation: fadeIn 0.2s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .modal-box {
+    background: #fff; border-radius: 20px; max-width: 520px; width: 100%;
+    max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.18);
+    animation: popUp 0.25s cubic-bezier(0.34,1.3,0.64,1);
+  }
+  @keyframes popUp { from { opacity: 0; transform: scale(0.93) translateY(12px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+  .modal-head { padding: 24px 24px 0; }
+  .modal-title { font-size: 17px; font-weight: 600; color: #0f172a; }
+  .modal-desc { font-size: 13px; color: #64748b; margin-top: 5px; line-height: 1.5; }
+  .modal-body { padding: 20px 24px; }
+  .modal-foot { padding: 16px 24px; border-top: 1px solid #f1f5f9; display: flex; justify-content: flex-end; gap: 10px; }
+
+  /* Form elements inside modal */
+  .field-label { font-size: 11px; font-weight: 600; color: #64748b; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 6px; display: block; }
+  .field-select {
+    width: 100%; padding: 9px 12px; border-radius: 9px; border: 1.5px solid #e2e8f0;
+    font-size: 13px; font-family: 'DM Sans', sans-serif; color: #0f172a;
+    background: #f8fafc; outline: none; transition: border 0.15s; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 12px center;
+    padding-right: 32px;
+  }
+  .field-select:focus { border-color: #3b5bdb; background-color: #fff; }
+  .field-select:disabled { opacity: 0.5; }
+  .field-gap { margin-bottom: 16px; }
+  .submission-list { border: 1.5px solid #e8edf4; border-radius: 10px; max-height: 160px; overflow-y: auto; }
+  .submission-list-empty { padding: 14px 16px; font-size: 13px; color: #94a3b8; }
+  .submission-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+    font-size: 13px; cursor: pointer; transition: background 0.12s;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .submission-item:last-child { border-bottom: none; }
+  .submission-item:hover { background: #f8fafc; }
+  .submission-item input[type=checkbox] { accent-color: #3b5bdb; width: 15px; height: 15px; }
+  .sel-controls { display: flex; gap: 12px; margin-bottom: 8px; }
+  .sel-link { font-size: 12px; color: #3b5bdb; cursor: pointer; background: none; border: none; padding: 0; font-family: 'DM Sans', sans-serif; }
+  .sel-link:hover { text-decoration: underline; }
+
+  /* Success popup */
+  .popup-overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,0.55);
+    backdrop-filter: blur(8px); z-index: 300;
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .popup-box {
+    background: #fff; border-radius: 24px; max-width: 400px; width: 100%;
+    padding: 36px 32px; text-align: center;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.2);
+    animation: popUp 0.35s cubic-bezier(0.34,1.3,0.64,1);
+  }
+  .popup-icon-wrap {
+    width: 72px; height: 72px; border-radius: 50%;
+    background: linear-gradient(135deg, #12b981, #059669);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 20px; font-size: 28px; color: #fff;
+    box-shadow: 0 8px 24px rgba(16,185,129,0.35);
+  }
+  .popup-title { font-size: 20px; font-weight: 600; color: #0f172a; margin: 0 0 8px; }
+  .popup-msg { font-size: 14px; color: #64748b; line-height: 1.6; margin: 0 0 20px; }
+  .popup-details { background: #f8fafc; border-radius: 12px; padding: 14px 18px; margin-bottom: 22px; text-align: left; }
+  .popup-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
+  .popup-row:last-child { border-bottom: none; }
+  .popup-key { color: #64748b; }
+  .popup-val { font-weight: 600; color: #0f172a; font-family: 'Space Mono', monospace; font-size: 12px; }
+
+  /* Empty state */
+  .empty-state { padding: 48px 24px; text-align: center; color: #94a3b8; }
+  .empty-icon { font-size: 32px; margin-bottom: 12px; opacity: 0.5; }
+  .empty-text { font-size: 14px; }
+
+  /* Loading skeleton shimmer */
+  .skeleton { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200%; animation: shimmer 1.4s infinite; border-radius: 6px; }
+  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+  /* Monospace numbers */
+  .mono { font-family: 'Space Mono', monospace; font-size: 13px; }
+
+  /* Spinner inline */
+  .spin-inline {
+    display: inline-block; width: 13px; height: 13px;
+    border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff;
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+  }
+
+  /* Tooltip-style title enhancements handled by native title */
+
+  /* Divider */
+  .section-gap { margin-bottom: 24px; }
+
+  /* Responsive action row */
+  .action-row { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+`;
+
+/* ─────────────────────────── Helpers ─────────────────────────── */
+const avatarClass = (i) => ["avatar-1","avatar-2","avatar-3","avatar-4","avatar-5"][i % 5];
+
+const getSimilarity = (val) => {
+  if (!val) return { text: "0% Low", cls: "badge-green" };
+  const pct = Math.round(val * 100);
+  if (pct < 30) return { text: `${pct}% Low`, cls: "badge-green" };
+  if (pct < 70) return { text: `${pct}% Medium`, cls: "badge-yellow" };
+  return { text: `${pct}% High`, cls: "badge-red" };
+};
+
+const getRisk = (score) => {
+  if (!score) return { text: "PASSED", cls: "badge-green" };
+  if (score > 0.8) return { text: "CRITICAL", cls: "badge-red" };
+  if (score > 0.5) return { text: "REVIEW", cls: "badge-yellow" };
+  return { text: "PASSED", cls: "badge-green" };
+};
+
+/* ─────────────────────────── SuccessPopup ─────────────────────────── */
 const SuccessPopup = ({ isVisible, onClose, message, title, details }) => {
   useEffect(() => {
-    if (isVisible) {
-      const timer = setTimeout(() => {
-        onClose();
-      }, 4000);
-      return () => clearTimeout(timer);
-    }
+    if (!isVisible) return;
+    const t = setTimeout(onClose, 4500);
+    return () => clearTimeout(t);
   }, [isVisible, onClose]);
 
   if (!isVisible) return null;
-
   return (
-    <div style={popupOverlayStyle} onClick={onClose}>
-      <div style={popupContainerStyle} onClick={(e) => e.stopPropagation()}>
-        <div style={popupAnimationStyle}>
-          <div style={successIconContainerStyle}>
-            <div style={successIconStyle}>
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M20 6L9 17L4 12" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
+    <div className="popup-overlay" onClick={onClose}>
+      <div className="popup-box" onClick={e => e.stopPropagation()}>
+        <div className="popup-icon-wrap">
+          <i className="fa-solid fa-check" />
+        </div>
+        <h2 className="popup-title">{title || "Success!"}</h2>
+        <p className="popup-msg">{message}</p>
+        {details && Object.keys(details).length > 0 && (
+          <div className="popup-details">
+            {Object.entries(details).map(([k,v]) => (
+              <div key={k} className="popup-row">
+                <span className="popup-key">{k}</span>
+                <span className="popup-val">{v}</span>
+              </div>
+            ))}
           </div>
-          
-          <h2 style={popupTitleStyle}>{title || "✓ Success!"}</h2>
-          <p style={popupMessageStyle}>{message}</p>
-          
-          {details && Object.keys(details).length > 0 && (
-            <div style={popupDetailsStyle}>
-              {Object.entries(details).map(([key, value]) => (
-                <div key={key} style={detailRowStyle}>
-                  <span style={detailLabelStyle}>{key}:</span>
-                  <span style={detailValueStyle}>{value}</span>
+        )}
+        <button className="btn btn-primary" onClick={onClose} style={{ width: "100%", justifyContent: "center", padding: "11px 0", fontSize: 14 }}>
+          Continue
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────────────────── StepProgress ─────────────────────────── */
+const StepProgress = ({ currentStep }) => {
+  const allDone = currentStep === EVAL_STEPS.length;
+  return (
+    <div className="step-wrap">
+      <div className="step-track">
+        {EVAL_STEPS.map((s, i) => {
+          const done = currentStep > i;
+          const active = currentStep === i;
+          return (
+            <div key={i} style={{ display: "flex", alignItems: "flex-start", flex: i < EVAL_STEPS.length - 1 ? "1" : "0 0 auto" }}>
+              <div className="step-node">
+                <div className={`step-circle ${done ? "done" : active ? "active" : "idle"}`}>
+                  {done
+                    ? <i className="fa-solid fa-check" style={{ fontSize: 13 }} />
+                    : <i className={s.icon} style={{ fontSize: 13 }} />}
                 </div>
-              ))}
+                <span className={`step-label ${done ? "done" : active ? "active" : ""}`}>{s.label}</span>
+              </div>
+              {i < EVAL_STEPS.length - 1 && (
+                <div className={`step-line ${done ? "done" : ""}`} style={{ marginTop: 19 }} />
+              )}
             </div>
-          )}
-          
-          <div style={popupFooterStyle}>
-            <button onClick={onClose} style={popupButtonStyle}>
-              Continue
-            </button>
+          );
+        })}
+      </div>
+      <p className={`step-footer ${allDone ? "done" : ""}`}>
+        {allDone
+          ? `✓ All ${EVAL_STEPS.length} steps complete — results ready`
+          : currentStep >= 0
+            ? `Step ${currentStep + 1} / ${EVAL_STEPS.length}: ${EVAL_STEPS[currentStep].label}…`
+            : ""}
+      </p>
+    </div>
+  );
+};
+
+/* ─────────────────────────── BatchModal ─────────────────────────── */
+const BatchModal = ({
+  onClose, onStart,
+  subjectOptions, batchSubjectId, setBatchSubjectId,
+  assessmentOptions, batchAssessmentId, setBatchAssessmentId,
+  guidesForAssessment, batchMarkingGuideId, setBatchMarkingGuideId,
+  submissionRows, batchSelectedSubmissionIds, setBatchSelectedSubmissionIds,
+}) => {
+  const allSelected = submissionRows.length > 0 && batchSelectedSubmissionIds.length === submissionRows.length;
+  const toggle = (sid) => {
+    const n = Number(sid);
+    setBatchSelectedSubmissionIds(prev =>
+      prev.includes(n) ? prev.filter(x => x !== n) : [...prev, n]
+    );
+  };
+  const canStart = batchAssessmentId && batchMarkingGuideId && batchSelectedSubmissionIds.length > 0;
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={e => e.stopPropagation()}>
+        <div className="modal-head">
+          <p className="modal-title">
+            <i className="fa-solid fa-wand-magic-sparkles" style={{ color: "#3b5bdb", marginRight: 8 }} />
+            Batch AI Evaluation
+          </p>
+          <p className="modal-desc">Select subject, assignment and marking guide. The same guide applies to every chosen submission.</p>
+        </div>
+        <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+          <div className="field-gap">
+            <label className="field-label">Subject</label>
+            <select className="field-select" value={batchSubjectId} onChange={e => setBatchSubjectId(e.target.value)}>
+              <option value="">All subjects</option>
+              {subjectOptions.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
+            </select>
           </div>
+          <div className="field-gap">
+            <label className="field-label">Assignment</label>
+            <select className="field-select" value={batchAssessmentId} onChange={e => setBatchAssessmentId(e.target.value)}>
+              {assessmentOptions.length === 0
+                ? <option value="">No assessments in filter</option>
+                : assessmentOptions.map(a => <option key={a.id} value={String(a.id)}>{a.title}</option>)}
+            </select>
+          </div>
+          <div className="field-gap">
+            <label className="field-label">Marking guide <span style={{ color: "#ef4444" }}>*</span></label>
+            <select
+              className="field-select"
+              value={batchMarkingGuideId}
+              onChange={e => setBatchMarkingGuideId(e.target.value)}
+              disabled={!batchAssessmentId || guidesForAssessment.length === 0}
+            >
+              {!batchAssessmentId || guidesForAssessment.length === 0
+                ? <option value="">{batchAssessmentId ? "No guide — upload one under Marking Guide" : "Select an assignment first"}</option>
+                : guidesForAssessment.map(g => {
+                    const gid = g.marking_guide_id ?? g.guide_id;
+                    return <option key={gid} value={String(gid)}>{g.title || g.guide_name || `Guide #${gid}`}</option>;
+                  })}
+            </select>
+          </div>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <label className="field-label" style={{ margin: 0 }}>Submissions to evaluate</label>
+              <div className="sel-controls">
+                <button className="sel-link" onClick={() => setBatchSelectedSubmissionIds(submissionRows.map(r => Number(r.submission_id)))}>Select all</button>
+                <button className="sel-link" style={{ color: "#94a3b8" }} onClick={() => setBatchSelectedSubmissionIds([])}>Clear</button>
+              </div>
+            </div>
+            <div className="submission-list">
+              {submissionRows.length === 0
+                ? <div className="submission-list-empty">No submissions for this assignment</div>
+                : submissionRows.map(r => {
+                    const sid = Number(r.submission_id);
+                    const checked = batchSelectedSubmissionIds.includes(sid);
+                    return (
+                      <label key={sid} className="submission-item">
+                        <input type="checkbox" checked={checked} onChange={() => toggle(sid)} />
+                        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <span style={{ fontFamily: "Space Mono, monospace", fontSize: 11, color: "#94a3b8", marginRight: 6 }}>#{sid}</span>
+                          {r.original_file_name || "file"}
+                        </span>
+                      </label>
+                    );
+                  })}
+            </div>
+            {batchSelectedSubmissionIds.length > 0 && (
+              <p style={{ fontSize: 12, color: "#3b5bdb", marginTop: 6 }}>
+                {batchSelectedSubmissionIds.length} submission{batchSelectedSubmissionIds.length > 1 ? "s" : ""} selected
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="modal-foot">
+          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" disabled={!canStart} onClick={onStart}>
+            <i className="fa-solid fa-play" style={{ fontSize: 11 }} />
+            Start evaluation
+          </button>
         </div>
       </div>
     </div>
   );
 };
 
+/* ─────────────────────────── Main Component ─────────────────────────── */
 const LecturerSubmissions = () => {
   const navigate = useNavigate();
   const getAuthHeaders = useCallback(() => {
@@ -77,11 +525,8 @@ const LecturerSubmissions = () => {
   const [evaluatedResults, setEvaluatedResults] = useState([]);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
-
-  //  Step tracker: -1 = idle, 0..N = active step, N+1 = all done
+  const [fileActionKey, setFileActionKey] = useState("");
   const [currentStep, setCurrentStep] = useState(-1);
-
-  // State for manual marks and final marks
   const [manualMarks, setManualMarks] = useState({});
   const [finalMarks, setFinalMarks] = useState({});
   const [saving, setSaving] = useState(false);
@@ -90,28 +535,22 @@ const LecturerSubmissions = () => {
   const [popupTitle, setPopupTitle] = useState("");
   const [popupDetails, setPopupDetails] = useState({});
   const [savedResults, setSavedResults] = useState([]);
-
-  /** Batch "Evaluate all" — subject/assessment filter + marking guide + submission multiselect */
   const [showBatchModal, setShowBatchModal] = useState(false);
-  /** Loaded on mount so assignment/guide dropdowns are ready when the modal opens */
   const [allMarkingGuides, setAllMarkingGuides] = useState([]);
   const [batchSubjectId, setBatchSubjectId] = useState("");
   const [batchAssessmentId, setBatchAssessmentId] = useState("");
   const [batchMarkingGuideId, setBatchMarkingGuideId] = useState("");
   const [batchSelectedSubmissionIds, setBatchSelectedSubmissionIds] = useState([]);
-  /** Full subject catalog (DB) + marking guides — fills dropdown when submission rows lack subject fields */
   const [catalogSubjects, setCatalogSubjects] = useState([]);
 
+  /* ── data fetching ── */
   useEffect(() => {
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/api/subjects`, { headers: getAuthHeaders() });
         const json = await res.json();
         setCatalogSubjects(Array.isArray(json) ? json : json?.data ?? []);
-      } catch (e) {
-        console.error(e);
-        setCatalogSubjects([]);
-      }
+      } catch { setCatalogSubjects([]); }
     })();
   }, [getAuthHeaders]);
 
@@ -121,493 +560,232 @@ const LecturerSubmissions = () => {
       try {
         const res = await fetch(`${API_BASE}/api/marking-guides`, { headers: getAuthHeaders() });
         const json = await res.json();
-        const list =
-          json?.success && Array.isArray(json.data)
-            ? json.data
-            : Array.isArray(json)
-              ? json
-              : json?.data && Array.isArray(json.data)
-                ? json.data
-                : [];
+        const list = json?.success && Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : json?.data && Array.isArray(json.data) ? json.data : [];
         if (!cancelled) setAllMarkingGuides(list);
-      } catch (e) {
-        console.error(e);
-        if (!cancelled) setAllMarkingGuides([]);
-      }
+      } catch { if (!cancelled) setAllMarkingGuides([]); }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [getAuthHeaders]);
 
   const subjectOptions = useMemo(() => {
     const m = new Map();
-    const add = (id, name) => {
-      if (id == null || id === "") return;
-      const key = String(id);
-      if (!m.has(key)) m.set(key, { id, name });
-    };
-    data.forEach((r) => {
-      add(r.subject_id, r.subject_name || r.subject_code || `Subject ${r.subject_id}`);
-    });
-    catalogSubjects.forEach((s) => {
-      add(s.subject_id, s.subject_name || s.subject_code || `Subject ${s.subject_id}`);
-    });
-    allMarkingGuides.forEach((g) => {
-      add(g.subject_id, g.subject_name || `Subject ${g.subject_id}`);
-    });
+    const add = (id, name) => { if (id == null || id === "") return; const k = String(id); if (!m.has(k)) m.set(k, { id, name }); };
+    data.forEach(r => add(r.subject_id, r.subject_name || r.subject_code || `Subject ${r.subject_id}`));
+    catalogSubjects.forEach(s => add(s.subject_id, s.subject_name || s.subject_code || `Subject ${s.subject_id}`));
+    allMarkingGuides.forEach(g => add(g.subject_id, g.subject_name || `Subject ${g.subject_id}`));
     const list = [...m.values()].sort((a, b) => String(a.name).localeCompare(String(b.name)));
-    const hasMissing = data.some((r) => r.subject_id == null);
-    if (hasMissing) {
-      return [{ id: "__uncat__", name: "No subject linked (see assessment)" }, ...list];
-    }
-    return list;
+    const hasMissing = data.some(r => r.subject_id == null);
+    return hasMissing ? [{ id: "__uncat__", name: "No subject linked" }, ...list] : list;
   }, [data, catalogSubjects, allMarkingGuides]);
 
   const rowsForSubject = useMemo(() => {
     if (!batchSubjectId) return data;
-    if (batchSubjectId === "__uncat__") {
-      return data.filter((r) => r.subject_id == null || r.subject_id === undefined);
-    }
-    return data.filter((r) => String(r.subject_id) === String(batchSubjectId));
+    if (batchSubjectId === "__uncat__") return data.filter(r => r.subject_id == null);
+    return data.filter(r => String(r.subject_id) === String(batchSubjectId));
   }, [data, batchSubjectId]);
 
   const assessmentOptions = useMemo(() => {
     const m = new Map();
-    const addAss = (id, title) => {
-      if (id == null || id === "") return;
-      const key = String(id);
-      if (!m.has(key)) {
-        m.set(key, { id, title: title || `Assignment ${id}` });
-      }
-    };
-
-    rowsForSubject.forEach((r) => addAss(r.assessment_id, r.assessment_title));
-
-    if (m.size === 0 && batchSubjectId && batchSubjectId !== "__uncat__") {
-      allMarkingGuides.forEach((g) => {
-        if (g.assessment_id == null) return;
-        if (String(g.subject_id) !== String(batchSubjectId)) return;
-        addAss(g.assessment_id, g.assessment_title);
-      });
-    }
-
-    if (m.size === 0) {
-      data.forEach((r) => addAss(r.assessment_id, r.assessment_title));
-    }
-
-    if (m.size === 0) {
-      allMarkingGuides.forEach((g) => addAss(g.assessment_id, g.assessment_title));
-    }
-
+    const addAss = (id, title) => { if (id == null || id === "") return; const k = String(id); if (!m.has(k)) m.set(k, { id, title: title || `Assignment ${id}` }); };
+    rowsForSubject.forEach(r => addAss(r.assessment_id, r.assessment_title));
+    if (m.size === 0 && batchSubjectId && batchSubjectId !== "__uncat__") allMarkingGuides.forEach(g => { if (String(g.subject_id) !== String(batchSubjectId)) return; addAss(g.assessment_id, g.assessment_title); });
+    if (m.size === 0) data.forEach(r => addAss(r.assessment_id, r.assessment_title));
+    if (m.size === 0) allMarkingGuides.forEach(g => addAss(g.assessment_id, g.assessment_title));
     return [...m.values()].sort((a, b) => String(a.title).localeCompare(String(b.title)));
   }, [rowsForSubject, batchSubjectId, allMarkingGuides, data]);
 
   const submissionRows = useMemo(() => {
     if (!batchAssessmentId) return [];
     const pool = rowsForSubject.length > 0 ? rowsForSubject : data;
-    return pool.filter((r) => String(r.assessment_id) === String(batchAssessmentId));
+    return pool.filter(r => String(r.assessment_id) === String(batchAssessmentId));
   }, [rowsForSubject, batchAssessmentId, data]);
 
   const guidesForAssessment = useMemo(() => {
     if (!batchAssessmentId) return [];
-    const aid = String(batchAssessmentId);
-    return allMarkingGuides.filter(
-      (g) => g.assessment_id != null && String(g.assessment_id) === aid
-    );
+    return allMarkingGuides.filter(g => g.assessment_id != null && String(g.assessment_id) === String(batchAssessmentId));
   }, [allMarkingGuides, batchAssessmentId]);
 
   useEffect(() => {
     if (!showBatchModal) return;
-    setBatchSelectedSubmissionIds(submissionRows.map((r) => Number(r.submission_id)));
+    setBatchSelectedSubmissionIds(submissionRows.map(r => Number(r.submission_id)));
   }, [showBatchModal, batchSubjectId, batchAssessmentId, submissionRows]);
 
   useEffect(() => {
     if (!showBatchModal) return;
-    const opts = assessmentOptions;
-    if (opts.length === 0) {
-      if (batchAssessmentId) setBatchAssessmentId("");
-      return;
-    }
-    if (!opts.some((o) => String(o.id) === String(batchAssessmentId))) {
-      setBatchAssessmentId(String(opts[0].id));
-    }
+    if (assessmentOptions.length === 0) { if (batchAssessmentId) setBatchAssessmentId(""); return; }
+    if (!assessmentOptions.some(o => String(o.id) === String(batchAssessmentId))) setBatchAssessmentId(String(assessmentOptions[0].id));
   }, [showBatchModal, assessmentOptions, batchAssessmentId]);
 
   useEffect(() => {
     if (!showBatchModal || !batchAssessmentId) return;
-    const g = guidesForAssessment;
-    const gid = (x) => x.marking_guide_id ?? x.guide_id;
-    if (g.length && !g.some((x) => String(gid(x)) === String(batchMarkingGuideId))) {
-      setBatchMarkingGuideId(String(gid(g[0])));
-    }
-    if (!g.length) setBatchMarkingGuideId("");
+    const gid = x => x.marking_guide_id ?? x.guide_id;
+    if (guidesForAssessment.length && !guidesForAssessment.some(x => String(gid(x)) === String(batchMarkingGuideId))) setBatchMarkingGuideId(String(gid(guidesForAssessment[0])));
+    if (!guidesForAssessment.length) setBatchMarkingGuideId("");
   }, [showBatchModal, batchAssessmentId, guidesForAssessment, batchMarkingGuideId]);
+
+  const fetchSubmissions = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/submissions/lecturer/all`, { headers: getAuthHeaders() });
+      const result = await res.json();
+      setData(Array.isArray(result) ? result : result.success && Array.isArray(result.data) ? result.data : []);
+    } catch { setData([]); } finally { setLoading(false); }
+  }, [getAuthHeaders]);
+
+  const fetchEvaluatedResults = useCallback(async () => {
+    try {
+      setResultsLoading(true);
+      const res = await axios.get(`${API_BASE}/api/ai-analysis/results/all`, { headers: getAuthHeaders() });
+      const rows = Array.isArray(res.data?.data) ? res.data.data : Array.isArray(res.data) ? res.data : null;
+      if (rows) {
+        setEvaluatedResults(rows);
+        const im = {}; const fi = {};
+        rows.forEach(r => {
+          const rid = r.analysis_result_id ?? r.Analysis_Result_Id;
+          if (rid == null) return;
+          im[rid] = "";
+          fi[rid] = Number(r.final_score ?? r.Final_Score ?? 0) || 0;
+        });
+        setManualMarks(im); setFinalMarks(fi);
+      } else { setEvaluatedResults([]); }
+    } catch { setEvaluatedResults([]); } finally { setResultsLoading(false); }
+  }, [getAuthHeaders]);
+
+  useEffect(() => { fetchSubmissions(); fetchEvaluatedResults(); }, [fetchSubmissions, fetchEvaluatedResults]);
+
+  /* ── stats ── */
+  const stats = useMemo(() => {
+    const total = data.length;
+    const highRisk = data.filter(r => (r.risk_score || 0) > 0.8).length;
+    const evaluated = evaluatedResults.length;
+    const avgScore = evaluatedResults.length
+      ? (evaluatedResults.reduce((s, r) => s + Number(r.final_score ?? r.Final_Score ?? 0), 0) / evaluatedResults.length).toFixed(1)
+      : "–";
+    return { total, highRisk, evaluated, avgScore };
+  }, [data, evaluatedResults]);
+
+  /* ── handlers ── */
+  const handleManualMarkChange = (arId, aiScore, maxMark = 100) => (e) => {
+    const v = e.target.value;
+    if (v === "") { setManualMarks(p => ({ ...p, [arId]: "" })); setFinalMarks(p => ({ ...p, [arId]: aiScore || 0 })); return; }
+    let n = parseFloat(v);
+    if (isNaN(n)) return;
+    n = Math.min(maxMark, Math.max(0, Math.round(n * 100) / 100));
+    setManualMarks(p => ({ ...p, [arId]: n }));
+    const final = Math.round(Math.min(100, Math.max(0, ((aiScore || 0) + n) / 2)) * 100) / 100;
+    setFinalMarks(p => ({ ...p, [arId]: final }));
+  };
+
+  const handleSaveAllResults = async () => {
+    const toSave = evaluatedResults.map(r => {
+      const arId = r.analysis_result_id ?? r.Analysis_Result_Id;
+      return {
+        analysis_result_id: arId,
+        submission_id: r.submission_id ?? r.Submission_Id,
+        ai_marks: r.final_score ?? r.Final_Score ?? 0,
+        diagram_marks: manualMarks[arId] || 0,
+        final_mark: finalMarks[arId] || r.final_score || r.Final_Score || 0,
+      };
+    }).filter(r => r.diagram_marks > 0 && r.diagram_marks !== "" && r.diagram_marks !== null);
+
+    if (!toSave.length) { alert("No manual marks entered. Please enter marks first."); return; }
+    setSaving(true);
+    try {
+      const response = await axios.post(`${API_BASE}/api/marks/evaluated-results/save`, { results: toSave });
+      if (response.data.success) {
+        setSavedResults(prev => [...prev, ...toSave.map(r => r.submission_id)]);
+        setPopupTitle("Results Saved Successfully");
+        setPopupMessage(`${response.data.saved.length} evaluated result${response.data.saved.length > 1 ? "s" : ""} have been saved.`);
+        setPopupDetails({ "Total Saved": response.data.saved.length, "AI Processed": evaluatedResults.length, "Manual Entries": toSave.length, "Status": "Completed" });
+        setShowSuccessPopup(true);
+        await fetchEvaluatedResults();
+      } else { alert(response.data.message || "Failed to save results"); }
+    } catch { alert("Failed to save evaluated results"); } finally { setSaving(false); }
+  };
 
   const openBatchEvaluateModal = () => {
     const first = data[0];
-    const defaultSubject =
-      first?.subject_id != null
-        ? String(first.subject_id)
-        : data.some((r) => r.subject_id == null)
-          ? "__uncat__"
-          : "";
-    setBatchSubjectId(defaultSubject);
+    setBatchSubjectId(first?.subject_id != null ? String(first.subject_id) : data.some(r => r.subject_id == null) ? "__uncat__" : "");
     setBatchAssessmentId(first?.assessment_id != null ? String(first.assessment_id) : "");
     setBatchMarkingGuideId("");
     setShowBatchModal(true);
   };
 
-  const fetchSubmissions = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/submissions/lecturer/all`, {
-        headers: getAuthHeaders(),
-      });
-      const result = await res.json();
-      if (Array.isArray(result)) {
-        setData(result);
-      } else if (result.success && Array.isArray(result.data)) {
-        setData(result.data);
-      } else {
-        setData([]);
-      }
-    } catch (err) {
-      console.error("Fetch error:", err);
-      setData([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [getAuthHeaders]);
-
-  // ── STEP 3.1 ── fetch evaluated results
-  const fetchEvaluatedResults = useCallback(async () => {
-    try {
-      setResultsLoading(true);
-
-      const res = await axios.get(`${API_BASE}/api/ai-analysis/results/all`, {
-        headers: getAuthHeaders(),
-      });
-
-      const rows = Array.isArray(res.data?.data)
-        ? res.data.data
-        : Array.isArray(res.data)
-          ? res.data
-          : null;
-      if (rows) {
-        setEvaluatedResults(rows);
-        const initialManualMarks = {};
-        const initialFinalMarks = {};
-        rows.forEach((result) => {
-          const rid = result.analysis_result_id ?? result.Analysis_Result_Id;
-          if (rid == null) return;
-          initialManualMarks[rid] = "";
-          initialFinalMarks[rid] = Number(result.final_score ?? result.Final_Score ?? 0) || 0;
-        });
-        setManualMarks(initialManualMarks);
-        setFinalMarks(initialFinalMarks);
-      } else {
-        console.error("Invalid response structure:", res.data);
-        setEvaluatedResults([]);
-      }
-    } catch (err) {
-      console.error("Error fetching evaluated results:", err);
-      setEvaluatedResults([]);
-    } finally {
-      setResultsLoading(false);
-    }
-  }, [getAuthHeaders]);
-
-  useEffect(() => {
-    fetchSubmissions();
-    fetchEvaluatedResults();
-  }, [fetchSubmissions, fetchEvaluatedResults]);
-
-  // Handle manual mark change with validation
-  const handleManualMarkChange = (analysisResultId, aiScore, maxMark = 100) => {
-    return (e) => {
-      let value = e.target.value;
-      
-      // Allow empty string
-      if (value === "") {
-        setManualMarks(prev => ({ ...prev, [analysisResultId]: "" }));
-        setFinalMarks(prev => ({ ...prev, [analysisResultId]: aiScore || 0 }));
-        return;
-      }
-      
-      let numValue = parseFloat(value);
-      
-      // Validate if it's a valid number
-      if (isNaN(numValue)) {
-        return;
-      }
-      
-      // Clamp between 0 and maxMark (100)
-      if (numValue < 0) numValue = 0;
-      if (numValue > maxMark) numValue = maxMark;
-      
-      // Round to 2 decimal places
-      numValue = Math.round(numValue * 100) / 100;
-      
-      setManualMarks(prev => ({ ...prev, [analysisResultId]: numValue }));
-      
-      // Calculate final mark: (AI score + manual mark) / 2 (capped at 100)
-      let finalMark = ((aiScore || 0) + numValue) / 2;
-      if (finalMark > 100) finalMark = 100;
-      if (finalMark < 0) finalMark = 0;
-      finalMark = Math.round(finalMark * 100) / 100;
-      
-      setFinalMarks(prev => ({ ...prev, [analysisResultId]: finalMark }));
-    };
-  };
-
-  // Save all evaluated results (only those with manual marks entered)
-  const handleSaveAllResults = async () => {
-    // Filter only results that have manual marks entered
-    const resultsToSave = evaluatedResults
-      .map((result) => {
-        const arId = result.analysis_result_id ?? result.Analysis_Result_Id;
-        return {
-          analysis_result_id: arId,
-          submission_id: result.submission_id ?? result.Submission_Id,
-          ai_marks: result.final_score ?? result.Final_Score ?? 0,
-          diagram_marks: manualMarks[arId] || 0,
-          final_mark: finalMarks[arId] || result.final_score || result.Final_Score || 0,
-        };
-      })
-      .filter(r => r.diagram_marks > 0 && r.diagram_marks !== "" && r.diagram_marks !== null);
-    
-    if (resultsToSave.length === 0) {
-      alert("No manual marks entered to save. Please enter manual marks for diagrams first.");
-      return;
-    }
-    
-    setSaving(true);
-    try {
-      const response = await axios.post(`${API_BASE}/api/marks/evaluated-results/save`, {
-        results: resultsToSave
-      });
-      
-      if (response.data.success) {
-        setSavedResults(prev => [...prev, ...resultsToSave.map(r => r.submission_id)]);
-        setPopupTitle("✓ Results Saved Successfully");
-        setPopupMessage(`${response.data.saved.length} evaluated results have been saved.`);
-        setPopupDetails({
-          "Total Saved": response.data.saved.length,
-          "AI Processed": evaluatedResults.length,
-          "Manual Entries": resultsToSave.length,
-          "Status": "Completed"
-        });
-        setShowSuccessPopup(true);
-        
-        // Refresh the evaluated results to show saved state
-        await fetchEvaluatedResults();
-      } else {
-        alert(response.data.message || "Failed to save results");
-      }
-    } catch (err) {
-      console.error("Error saving results:", err);
-      alert("Failed to save evaluated results");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // ===================== ACTIONS =====================
   const runBatchEvaluation = async () => {
-    if (!batchAssessmentId || !batchMarkingGuideId) {
-      alert("Please select an assessment and a marking guide.");
-      return;
-    }
-    if (!batchSelectedSubmissionIds.length) {
-      alert("Select at least one submission to evaluate.");
-      return;
-    }
-
+    if (!batchAssessmentId || !batchMarkingGuideId) { alert("Please select an assessment and a marking guide."); return; }
+    if (!batchSelectedSubmissionIds.length) { alert("Select at least one submission."); return; }
     setShowBatchModal(false);
-
     try {
-      setIsEvaluating(true);
-      setCurrentStep(0);
-
-      const stepInterval = setInterval(() => {
-        setCurrentStep((prev) => {
-          if (prev < EVAL_STEPS.length - 1) return prev + 1;
-          clearInterval(stepInterval);
-          return prev;
-        });
+      setIsEvaluating(true); setCurrentStep(0);
+      const iv = setInterval(() => {
+        setCurrentStep(p => { if (p < EVAL_STEPS.length - 1) return p + 1; clearInterval(iv); return p; });
       }, 900);
-
-      const res = await fetch(
-        `${API_BASE}/api/ai-analysis/evaluate-all/${batchAssessmentId}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...getAuthHeaders(),
-          },
-          body: JSON.stringify({
-            marking_guide_id: Number(batchMarkingGuideId),
-            submission_ids: batchSelectedSubmissionIds,
-          }),
-        }
-      );
-
+      const res = await fetch(`${API_BASE}/api/ai-analysis/evaluate-all/${batchAssessmentId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ marking_guide_id: Number(batchMarkingGuideId), submission_ids: batchSelectedSubmissionIds }),
+      });
       const result = await res.json();
-
-      if (!res.ok) {
-        clearInterval(stepInterval);
-        throw new Error(result.error || result.message || "Evaluation failed");
-      }
-
-      clearInterval(stepInterval);
-      setCurrentStep(EVAL_STEPS.length);
-
-      setTimeout(() => {
-        fetchSubmissions();
-        fetchEvaluatedResults();
-        setTimeout(() => setCurrentStep(-1), 2000);
-      }, 1000);
-    } catch (err) {
-      console.error("REAL ERROR:", err);
-      alert(err.message);
-      setCurrentStep(-1);
-    } finally {
-      setIsEvaluating(false);
-    }
+      if (!res.ok) { clearInterval(iv); throw new Error(result.error || result.message || "Evaluation failed"); }
+      clearInterval(iv); setCurrentStep(EVAL_STEPS.length);
+      setTimeout(() => { fetchSubmissions(); fetchEvaluatedResults(); setTimeout(() => setCurrentStep(-1), 2000); }, 1000);
+    } catch (err) { alert(err.message); setCurrentStep(-1); } finally { setIsEvaluating(false); }
   };
-
-  /* ===================== HELPERS ===================== */
-
-  const getSimilarity = (val) => {
-    if (!val) return { text: "0%", color: "bg-gray-100 text-gray-500" };
-    const percent = Math.round(val * 100);
-    if (percent < 30) return { text: `${percent}% Low`, color: "bg-green-100 text-green-600" };
-    if (percent < 70) return { text: `${percent}% Medium`, color: "bg-yellow-100 text-yellow-600" };
-    return { text: `${percent}% High`, color: "bg-red-100 text-red-600" };
-  };
-
-  const getRisk = (score) => {
-    if (!score) return { text: "PASSED", color: "bg-green-500" };
-    if (score > 0.8) return { text: "CRITICAL", color: "bg-red-500" };
-    if (score > 0.5) return { text: "REVIEW", color: "bg-yellow-500" };
-    return { text: "PASSED", color: "bg-green-500" };
-  };
-
-  /* ===================== NAVIGATION ===================== */
 
   const handleView = (id) => navigate(`/lecturer/submissions/${id}`);
-
-  const handleAnalyze = (row) =>
-    navigate("/lecturer/ml-analysis", {
-      state: {
-        submission_id: row.submission_id,
-        marking_guide_id: row.marking_guide_id || 1,
-        submission_path: row.storage_path,
-        guide_file: row.guide_path || "",
-      },
-    });
-
-  const handleCompare = (row) =>
-    navigate(`/analysis/${row.submission_id}`, {
-      state: {
-        submission_id: row.submission_id,
-        file_id: row.file_id,
-        file_name: row.original_file_name,
-        storage_path: row.storage_path,
-      },
-    });
+  const handleAnalyze = (row) => navigate("/lecturer/ml-analysis", { state: { submission_id: row.submission_id, marking_guide_id: row.marking_guide_id || 1, submission_path: row.storage_path, guide_file: row.guide_path || "" } });
+  const handleCompare = (row) => navigate(`/analysis/${row.submission_id}`, { state: { submission_id: row.submission_id, file_id: row.file_id, file_name: row.original_file_name, storage_path: row.storage_path } });
 
   const handleDeleteSubmission = async (submissionId) => {
     const sid = Number(submissionId);
-    if (!sid) return;
-    if (!window.confirm(`Delete submission #${sid}?`)) return;
-
+    if (!sid || !window.confirm(`Delete submission #${sid}?`)) return;
     try {
       setDeletingId(sid);
-      const res = await fetch(`${API_BASE}/api/submissions/${sid}`, {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-      });
-
+      const res = await fetch(`${API_BASE}/api/submissions/${sid}`, { method: "DELETE", headers: getAuthHeaders() });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(payload?.message || "Delete failed");
-
-      // Refresh tables
-      await fetchSubmissions();
-      await fetchEvaluatedResults();
-
-      setData((prev) => prev.filter((x) => Number(x.submission_id) !== sid));
-    } catch (err) {
-      console.error("Delete error:", err);
-      alert(err?.message || "Delete failed");
-    } finally {
-      setDeletingId(null);
-    }
+      await fetchSubmissions(); await fetchEvaluatedResults();
+      setData(p => p.filter(x => Number(x.submission_id) !== sid));
+    } catch (err) { alert(err?.message || "Delete failed"); } finally { setDeletingId(null); }
   };
 
-  /* ===================== STEP CIRCLE COMPONENT ===================== */
-
-  const StepCircle = ({ index, label }) => {
-    const isDone = currentStep > index;
-    const isActive = currentStep === index;
-
-    return (
-      <div className="flex flex-col items-center">
-        <div
-          className={`
-            w-8 h-8 rounded-full border-2 flex items-center justify-center
-            text-xs font-medium transition-all duration-300 relative
-            ${isDone
-              ? "border-green-500 bg-green-500 text-white"
-              : isActive
-                ? "border-blue-500 text-blue-500"
-                : "border-gray-300 text-gray-400"
-            }
-          `}
-        >
-          {isDone ? (
-            <svg
-              className="animate-[popIn_0.35s_ease_forwards]"
-              width="14" height="14" viewBox="0 0 14 14" fill="none"
-            >
-              <path
-                d="M3.5 7l2.5 2.5 4.5-4.5"
-                stroke="white"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          ) : isActive ? (
-            <>
-              <span>{index + 1}</span>
-              <span
-                className="absolute inset-[-3px] rounded-full border-2 border-transparent border-t-blue-500 animate-spin"
-              />
-            </>
-          ) : (
-            <span>{index + 1}</span>
-          )}
-        </div>
-        <span
-          className={`
-            text-[10px] mt-1 text-center leading-tight max-w-[60px]
-            ${isDone ? "text-green-600 font-medium" : "text-gray-400"}
-          `}
-        >
-          {label}
-        </span>
-      </div>
-    );
+  const fetchFileBlob = async (fileId) => {
+    const id = Number(fileId);
+    if (!id) throw new Error("Submission file is not available.");
+    const res = await fetch(`${API_BASE}/api/submissions/file/${id}`, { headers: getAuthHeaders() });
+    if (!res.ok) { const t = await res.text().catch(() => ""); throw new Error(t || "Unable to access submission document"); }
+    return res.blob();
   };
 
-  const allDone = currentStep === EVAL_STEPS.length;
+  const previewSubmissionDocument = async (row) => {
+    const key = `preview-${row.submission_id}`;
+    try {
+      setFileActionKey(key);
+      const blob = await fetchFileBlob(row?.file_id);
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+    } catch (err) { alert(err?.message || "Preview failed"); } finally { setFileActionKey(""); }
+  };
 
+  const downloadSubmissionDocument = async (row) => {
+    const key = `download-${row.submission_id}`;
+    try {
+      setFileActionKey(key);
+      const blob = await fetchFileBlob(row?.file_id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url;
+      a.download = row?.original_file_name || `submission-${row.submission_id}`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => window.URL.revokeObjectURL(url), 30000);
+    } catch (err) { alert(err?.message || "Download failed"); } finally { setFileActionKey(""); }
+  };
+
+  /* ─────────────────────────── Render ─────────────────────────── */
   return (
-    <div className="bg-[#f6f8fb] min-h-screen">
+    <div className="ls-root">
+      <style>{styles}</style>
       <LecturerNavbar activePage="Submissions" />
 
-      {/* Success Popup */}
       <SuccessPopup
         isVisible={showSuccessPopup}
         onClose={() => setShowSuccessPopup(false)}
@@ -617,647 +795,273 @@ const LecturerSubmissions = () => {
       />
 
       {showBatchModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => setShowBatchModal(false)}
-          role="presentation"
-        >
-          <div
-            className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 border border-gray-100"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-lg font-semibold text-gray-800 mb-1">Batch AI evaluation</h2>
-            <p className="text-sm text-gray-500 mb-4">
-              Choose subject, assignment, marking guide, and which submissions to include. The same guide is used for every selected row.
-            </p>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Subject</label>
-                <select
-                  value={batchSubjectId}
-                  onChange={(e) => setBatchSubjectId(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                >
-                  <option value="">All subjects</option>
-                  {subjectOptions.map((s) => (
-                    <option key={s.id} value={String(s.id)}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Assignment</label>
-                <select
-                  value={batchAssessmentId}
-                  onChange={(e) => setBatchAssessmentId(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                >
-                  {assessmentOptions.length === 0 ? (
-                    <option value="">No assessments in this filter</option>
-                  ) : (
-                    assessmentOptions.map((a) => (
-                      <option key={a.id} value={String(a.id)}>
-                        {a.title}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Marking guide (required)</label>
-                <select
-                  value={batchMarkingGuideId}
-                  onChange={(e) => setBatchMarkingGuideId(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                  disabled={!batchAssessmentId || guidesForAssessment.length === 0}
-                >
-                  {!batchAssessmentId || guidesForAssessment.length === 0 ? (
-                    <option value="">
-                      {batchAssessmentId ? "No guide for this assignment — upload one under Marking Guide" : "Select an assignment first"}
-                    </option>
-                  ) : (
-                    guidesForAssessment.map((g) => {
-                      const gid = g.marking_guide_id ?? g.guide_id;
-                      return (
-                        <option key={gid} value={String(gid)}>
-                          {g.title || g.guide_name || `Guide #${gid}`}
-                        </option>
-                      );
-                    })
-                  )}
-                </select>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-gray-500">Submissions to evaluate</span>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      className="text-xs text-blue-600 hover:underline"
-                      onClick={() =>
-                        setBatchSelectedSubmissionIds(submissionRows.map((r) => Number(r.submission_id)))
-                      }
-                    >
-                      Select all
-                    </button>
-                    <button
-                      type="button"
-                      className="text-xs text-gray-500 hover:underline"
-                      onClick={() => setBatchSelectedSubmissionIds([])}
-                    >
-                      Clear
-                    </button>
-                  </div>
-                </div>
-                <div className="border border-gray-100 rounded-lg max-h-40 overflow-y-auto divide-y divide-gray-50">
-                  {submissionRows.length === 0 ? (
-                    <p className="p-3 text-sm text-gray-400">No submissions for this assignment.</p>
-                  ) : (
-                    submissionRows.map((r) => {
-                      const sid = Number(r.submission_id);
-                      const checked = batchSelectedSubmissionIds.includes(sid);
-                      return (
-                        <label
-                          key={sid}
-                          className="flex items-center gap-3 px-3 py-2 text-sm cursor-pointer hover:bg-gray-50"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => {
-                              setBatchSelectedSubmissionIds((prev) =>
-                                checked ? prev.filter((id) => id !== sid) : [...prev, sid]
-                              );
-                            }}
-                          />
-                          <span className="truncate">
-                            #{sid} — {r.original_file_name || "file"}
-                          </span>
-                        </label>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 mt-6">
-              <button
-                type="button"
-                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100"
-                onClick={() => setShowBatchModal(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
-                disabled={!batchAssessmentId || !batchMarkingGuideId || batchSelectedSubmissionIds.length === 0}
-                onClick={runBatchEvaluation}
-              >
-                Start evaluation
-              </button>
-            </div>
-          </div>
-        </div>
+        <BatchModal
+          onClose={() => setShowBatchModal(false)}
+          onStart={runBatchEvaluation}
+          subjectOptions={subjectOptions}
+          batchSubjectId={batchSubjectId} setBatchSubjectId={setBatchSubjectId}
+          assessmentOptions={assessmentOptions}
+          batchAssessmentId={batchAssessmentId} setBatchAssessmentId={setBatchAssessmentId}
+          guidesForAssessment={guidesForAssessment}
+          batchMarkingGuideId={batchMarkingGuideId} setBatchMarkingGuideId={setBatchMarkingGuideId}
+          submissionRows={submissionRows}
+          batchSelectedSubmissionIds={batchSelectedSubmissionIds} setBatchSelectedSubmissionIds={setBatchSelectedSubmissionIds}
+        />
       )}
 
-      <div className="p-8">
+      <div className="ls-page">
 
-        {/* HEADER ROW — title left, buttons right */}
-        <div className="flex items-start justify-between mb-6">
+        {/* ── HEADER ── */}
+        <div className="ls-header">
           <div>
-            <h1 className="text-[24px] font-bold text-[#1f2d3d]">
-              ML-Enhanced Submissions
-            </h1>
-            <p className="text-gray-500 text-sm">
-              AI-powered evaluation, similarity detection, and risk analysis
-            </p>
+            <h1 className="ls-title">ML-Enhanced Submissions</h1>
+            <p className="ls-subtitle">AI-powered evaluation · Similarity detection · Risk analysis</p>
           </div>
-
-          {/* BUTTONS — right side */}
-          <div className="flex items-center gap-3">
-            {/* ── STEP 3.1 ── Load Evaluated Results button */}
-            <button
-              onClick={fetchEvaluatedResults}
-              disabled={resultsLoading}
-              className="flex items-center gap-2 bg-slate-700 text-white px-5 py-2.5 rounded-lg
-                         hover:bg-slate-800 disabled:opacity-50 transition font-medium text-sm
-                         shadow-sm whitespace-nowrap"
-            >
-              {resultsLoading ? (
-                <>
-                  <svg className="animate-spin" width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <circle cx="7" cy="7" r="5.5" stroke="white" strokeWidth="1.5"
-                      strokeDasharray="20 10" strokeLinecap="round" />
-                  </svg>
-                  Loading Results...
-                </>
-              ) : (
-                <>
-                  <i className="fa-solid fa-table-list text-xs" />
-                  Load Evaluated Results
-                </>
-              )}
+          <div className="ls-btn-row">
+            <button onClick={fetchEvaluatedResults} disabled={resultsLoading} className="btn btn-ghost">
+              {resultsLoading ? <><span className="spin-inline" style={{ borderTopColor: "#3b5bdb", borderColor: "rgba(59,91,219,0.2)" }} />Loading…</> : <><i className="fa-solid fa-table-list" />Load Results</>}
             </button>
-
-            {/* Evaluate All button */}
-            <button
-              onClick={openBatchEvaluateModal}
-              disabled={isEvaluating || data.length === 0}
-              className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg
-                         hover:bg-blue-700 disabled:opacity-50 transition font-medium text-sm
-                         shadow-sm whitespace-nowrap"
-            >
-              {isEvaluating ? (
-                <>
-                  <svg className="animate-spin" width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <circle cx="7" cy="7" r="5.5" stroke="white" strokeWidth="1.5"
-                      strokeDasharray="20 10" strokeLinecap="round" />
-                  </svg>
-                  Evaluating...
-                </>
-              ) : (
-                <>
-                  <i className="fa-solid fa-rotate-right text-xs" />
-                  Evaluate All
-                </>
-              )}
+            <button onClick={openBatchEvaluateModal} disabled={isEvaluating || data.length === 0} className="btn btn-primary">
+              {isEvaluating ? <><span className="spin-inline" />Evaluating…</> : <><i className="fa-solid fa-wand-magic-sparkles" />Evaluate All</>}
             </button>
           </div>
         </div>
 
-        {/* STEP PROGRESS BAR — appears only while evaluating or done */}
-        {currentStep >= 0 && (
-          <div className="bg-white rounded-xl border px-6 py-4 mb-5 shadow-sm">
-            <div className="flex items-center">
-              {EVAL_STEPS.map((label, i) => (
-                <div key={i} className="flex items-center flex-1 last:flex-none">
-                  <StepCircle index={i} label={label} />
-                  {i < EVAL_STEPS.length - 1 && (
-                    <div
-                      className={`flex-1 h-[2px] mx-1 mb-4 transition-colors duration-500
-                        ${currentStep > i ? "bg-green-500" : "bg-gray-200"}`}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <p className={`text-xs mt-1 ${allDone ? "text-green-600 font-medium" : "text-gray-400"}`}>
-              {allDone
-                ? `✓ All ${EVAL_STEPS.length} steps complete`
-                : `Step ${currentStep + 1} of ${EVAL_STEPS.length}: ${EVAL_STEPS[currentStep]}...`}
-            </p>
+        {/* ── STATS BAR ── */}
+        <div className="stats-bar">
+          <div className="stat-card">
+            <div className="stat-label">Total Submissions</div>
+            <div className="stat-value">{loading ? "–" : stats.total}</div>
+            <div className="stat-sub">All groups</div>
           </div>
-        )}
-
-        {/* ── EXISTING SUBMISSIONS TABLE ── */}
-        <div className="bg-white rounded-2xl shadow border overflow-hidden">
-
-          {/* TABLE HEADER */}
-          <div className="grid grid-cols-7 px-6 py-4 text-xs text-gray-400 border-b font-semibold">
-            <div>GROUP</div>
-            <div>SUBMISSION</div>
-            <div>VERSION</div>
-            <div>STATUS</div>
-            <div>SIMILARITY</div>
-            <div>ML RISK</div>
-            <div className="text-right">ACTIONS</div>
+          <div className="stat-card">
+            <div className="stat-label">Evaluated</div>
+            <div className="stat-value" style={{ color: "#3b5bdb" }}>{stats.evaluated}</div>
+            <div className="stat-sub">AI processed</div>
           </div>
-
-          {/* TABLE BODY */}
-          {loading ? (
-            <div className="p-6 text-gray-400">Loading...</div>
-          ) : data.length === 0 ? (
-            <div className="p-6 text-gray-400">No submissions found</div>
-          ) : (
-            data.map((row, index) => {
-              const sim = getSimilarity(row.similarity_avg);
-              const risk = getRisk(row.risk_score);
-              return (
-                <div
-                  key={row.submission_id}
-                  className="grid grid-cols-7 px-6 py-4 items-center text-sm border-b hover:bg-gray-50 transition"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">
-                      G{index + 1}
-                    </div>
-                    <div>
-                      <div className="font-semibold text-gray-700">Group {index + 1}</div>
-                      <div className="text-xs text-gray-400">Submission #{row.submission_id}</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 text-gray-700">
-                    <i className="fa-regular fa-file text-gray-400"></i>
-                    {row.original_file_name}
-                  </div>
-                  <div>
-                    <span className="px-3 py-1 text-xs bg-gray-100 rounded-full text-gray-600">
-                      v{row.attempt_no || 1}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-green-600 font-medium">
-                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                    On-Time
-                  </div>
-                  <div>
-                    <span className={`px-3 py-1 text-xs rounded-full ${sim.color}`}>
-                      {sim.text}
-                    </span>
-                  </div>
-                  <div>
-                    <span className={`px-3 py-1 text-xs text-white rounded-full ${risk.color}`}>
-                      {risk.text}
-                    </span>
-                  </div>
-                  <div className="flex justify-end gap-3">
-                    <button
-                      onClick={() => handleView(row.submission_id)}
-                      title="View"
-                      className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center hover:bg-purple-600 transition"
-                    >
-                      <i className="fa-solid fa-wand-magic-sparkles text-white"></i>
-                    </button>
-                    <button
-                      onClick={() => handleAnalyze(row)}
-                      title="AI Analysis"
-                      className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center hover:bg-blue-600 transition"
-                    >
-                      <i className="fa-solid fa-code-compare text-white"></i>
-                    </button>
-                    <button
-                      onClick={() => handleCompare(row)}
-                      title="Compare"
-                      className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition"
-                    >
-                      <i className="fa-regular fa-eye text-gray-600"></i>
-                    </button>
-                    <button
-                      title="Delete submission"
-                      onClick={() => handleDeleteSubmission(row.submission_id)}
-                      disabled={deletingId === row.submission_id}
-                      className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition disabled:opacity-60"
-                    >
-                      <i className="fa-solid fa-ellipsis-vertical text-gray-600"></i>
-                    </button>
-                  </div>
-                </div>
-              );
-            })
-          )}
+          <div className="stat-card">
+            <div className="stat-label">High Risk</div>
+            <div className="stat-value" style={{ color: stats.highRisk > 0 ? "#ef4444" : "#0f172a" }}>{loading ? "–" : stats.highRisk}</div>
+            <div className="stat-sub">Needs review</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Avg Score</div>
+            <div className="stat-value" style={{ color: "#12b981" }}>{stats.avgScore}</div>
+            <div className="stat-sub">AI scores</div>
+          </div>
         </div>
 
-        {/* ── STEP 3.2 ── EVALUATED RESULTS TABLE */}
-        <div className="mt-8 bg-white rounded-2xl shadow border overflow-hidden">
+        {/* ── STEP PROGRESS ── */}
+        {currentStep >= 0 && <StepProgress currentStep={currentStep} />}
 
-          {/* HEADER with Save Button */}
-          <div className="px-6 py-4 border-b flex items-center justify-between">
+        {/* ── SUBMISSIONS TABLE ── */}
+        <div className="card section-gap">
+          <div className="card-header">
             <div>
-              <h2 className="text-lg font-semibold text-gray-700">
-                Evaluated Results
-              </h2>
-              <p className="text-sm text-gray-400">
-                AI scores + manual evaluation (diagrams)
-              </p>
+              <div className="card-title">
+                <i className="fa-solid fa-inbox" style={{ color: "#3b5bdb", marginRight: 8, fontSize: 14 }} />
+                Submissions
+              </div>
+              <div className="card-sub">{data.length} submission{data.length !== 1 ? "s" : ""} found</div>
             </div>
-            
-            {/* Save All Button - Top Right Corner */}
-            {evaluatedResults.length > 0 && !resultsLoading && (
-              <button
-                onClick={handleSaveAllResults}
-                disabled={saving}
-                className="flex items-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-lg
-                           hover:bg-green-700 disabled:opacity-50 transition font-medium text-sm
-                           shadow-sm whitespace-nowrap"
-              >
-                {saving ? (
-                  <>
-                    <svg className="animate-spin" width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <circle cx="7" cy="7" r="5.5" stroke="white" strokeWidth="1.5"
-                        strokeDasharray="20 10" strokeLinecap="round" />
-                    </svg>
-                    Saving...
-                  </>
+          </div>
+
+          <div style={{ overflowX: "auto" }}>
+            <table className="tbl">
+              <thead className="tbl-head">
+                <tr>
+                  <th>Group</th>
+                  <th>File</th>
+                  <th>Version</th>
+                  <th>Status</th>
+                  <th>Similarity</th>
+                  <th>ML Risk</th>
+                  <th style={{ textAlign: "right" }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  [1,2,3].map(i => (
+                    <tr key={i} className="tbl-row">
+                      {[...Array(7)].map((_, j) => (
+                        <td key={j}><div className="skeleton" style={{ height: 20, width: j === 6 ? 160 : "80%" }} /></td>
+                      ))}
+                    </tr>
+                  ))
+                ) : data.length === 0 ? (
+                  <tr><td colSpan={7}><div className="empty-state"><div className="empty-icon"><i className="fa-regular fa-folder-open" /></div><div className="empty-text">No submissions found</div></div></td></tr>
                 ) : (
-                  <>
-                    <i className="fa-solid fa-save text-xs" />
-                    Save All Results
-                  </>
+                  data.map((row, i) => {
+                    const sim = getSimilarity(row.similarity_avg);
+                    const risk = getRisk(row.risk_score);
+                    return (
+                      <tr key={row.submission_id} className="tbl-row">
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <div className={`avatar ${avatarClass(i)}`}>G{i + 1}</div>
+                            <div>
+                              <div style={{ fontWeight: 600, fontSize: 13, color: "#0f172a" }}>Group {i + 1}</div>
+                              <div className="mono" style={{ fontSize: 11, color: "#94a3b8" }}>#{row.submission_id}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                            <i className="fa-regular fa-file-pdf" style={{ color: "#ef4444", fontSize: 13 }} />
+                            <span style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13 }}>{row.original_file_name}</span>
+                          </div>
+                        </td>
+                        <td><span className="badge badge-gray">v{row.attempt_no || 1}</span></td>
+                        <td><span className="badge badge-green badge-dot">On-Time</span></td>
+                        <td><span className={`badge ${sim.cls}`}>{sim.text}</span></td>
+                        <td><span className={`badge ${risk.cls}`}>{risk.text}</span></td>
+                        <td>
+                          <div className="action-row">
+                            <button onClick={() => previewSubmissionDocument(row)} title="Preview" disabled={fileActionKey === `preview-${row.submission_id}`} className="icon-btn icon-btn-teal"><i className="fa-regular fa-file-lines" /></button>
+                            <button onClick={() => downloadSubmissionDocument(row)} title="Download" disabled={fileActionKey === `download-${row.submission_id}`} className="icon-btn icon-btn-sky"><i className="fa-solid fa-download" /></button>
+                            <button onClick={() => handleView(row.submission_id)} title="Open workspace" className="icon-btn icon-btn-purple"><i className="fa-solid fa-wand-magic-sparkles" /></button>
+                            <button onClick={() => handleAnalyze(row)} title="AI Analysis" className="icon-btn icon-btn-blue"><i className="fa-solid fa-code-compare" /></button>
+                            <button onClick={() => handleCompare(row)} title="Compare" className="icon-btn icon-btn-gray"><i className="fa-regular fa-eye" /></button>
+                            <button onClick={() => handleDeleteSubmission(row.submission_id)} title="Delete" disabled={deletingId === row.submission_id} className="icon-btn icon-btn-red">
+                              {deletingId === row.submission_id ? <span className="spin-inline" style={{ borderTopColor: "#dc2626", borderColor: "rgba(220,38,38,0.2)", width: 11, height: 11 }} /> : <i className="fa-solid fa-trash" />}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ── EVALUATED RESULTS TABLE ── */}
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <div className="card-title">
+                <i className="fa-solid fa-chart-bar" style={{ color: "#12b981", marginRight: 8, fontSize: 14 }} />
+                Evaluated Results
+              </div>
+              <div className="card-sub">AI scores + manual marks for diagrams</div>
+            </div>
+            {evaluatedResults.length > 0 && !resultsLoading && (
+              <button onClick={handleSaveAllResults} disabled={saving} className="btn btn-success">
+                {saving ? <><span className="spin-inline" />Saving…</> : <><i className="fa-solid fa-floppy-disk" />Save All Results</>}
               </button>
             )}
           </div>
 
-          {/* TABLE HEADER */}
-          <div className="grid grid-cols-9 px-6 py-4 text-xs text-gray-400 border-b font-semibold">
-            <div>GROUP</div>
-            <div>STUDENT FILE</div>
-            <div>GUIDE</div>
-            <div>ASSIGNMENT</div>
-            <div>AI SCORE</div>
-            <div>MANUAL</div>
-            <div>FINAL</div>
-            <div>RISK</div>
-            <div className="text-center">STATUS</div>
+          <div style={{ overflowX: "auto" }}>
+            <table className="tbl">
+              <thead className="tbl-head">
+                <tr>
+                  <th>Group</th>
+                  <th>Student File</th>
+                  <th>Guide</th>
+                  <th>Assignment</th>
+                  <th>AI Score</th>
+                  <th>Manual Mark</th>
+                  <th>Final</th>
+                  <th>Risk</th>
+                  <th style={{ textAlign: "center" }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resultsLoading ? (
+                  [1,2,3].map(i => (
+                    <tr key={i} className="tbl-row">
+                      {[...Array(9)].map((_, j) => (
+                        <td key={j}><div className="skeleton" style={{ height: 18, width: "75%" }} /></td>
+                      ))}
+                    </tr>
+                  ))
+                ) : evaluatedResults.length === 0 ? (
+                  <tr><td colSpan={9}>
+                    <div className="empty-state">
+                      <div className="empty-icon"><i className="fa-solid fa-chart-bar" /></div>
+                      <div className="empty-text">No evaluated results yet — click "Load Results" to fetch</div>
+                    </div>
+                  </td></tr>
+                ) : (
+                  evaluatedResults.map((row, i) => {
+                    const arId = row.analysis_result_id ?? row.Analysis_Result_Id;
+                    const submissionId = row.submission_id ?? row.Submission_Id;
+                    const studentFid = row.student_file_id ?? row.Student_File_Id;
+                    const guideFid = row.guide_file_id ?? row.Guide_File_Id;
+                    const isSaved = savedResults.some(s => s === submissionId);
+                    const hasManualMark = manualMarks[arId] !== "" && manualMarks[arId] !== undefined && manualMarks[arId] !== null;
+                    const riskLevel = row.risk_level ?? "LOW";
+                    const riskCls = riskLevel === "HIGH" ? "badge-red" : riskLevel === "MEDIUM" ? "badge-yellow" : "badge-green";
+                    return (
+                      <tr key={String(arId ?? submissionId ?? i)} className="tbl-row">
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div className={`avatar ${avatarClass(i)}`} style={{ width: 30, height: 30, fontSize: 10 }}>G{i+1}</div>
+                            <span className="mono" style={{ fontSize: 12, color: "#64748b" }}>#{submissionId}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <a href={`${API_BASE}/api/marks/pdf/${studentFid}`} target="_blank" rel="noopener noreferrer" className="file-link">
+                            <i className="fa-solid fa-file-pdf" style={{ fontSize: 11 }} />
+                            Submission
+                          </a>
+                        </td>
+                        <td>
+                          <a href={`${API_BASE}/api/marks/pdf/${guideFid}`} target="_blank" rel="noopener noreferrer" className="file-link" style={{ background: "#f0fdf4", color: "#15803d" }}>
+                            <i className="fa-solid fa-file-lines" style={{ fontSize: 11 }} />
+                            Guide
+                          </a>
+                        </td>
+                        <td style={{ maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12, color: "#475569" }}>
+                          {row.assessment_name ?? row.Assessment_Name ?? "N/A"}
+                        </td>
+                        <td>
+                          <button
+                            className="score-btn"
+                            onClick={() => { if (arId == null) return; navigate(`/lecturer/analysis/${arId}`, { state: row }); }}
+                            title="Open ML analysis report"
+                          >
+                            {(row.final_score ?? row.Final_Score ?? 0).toFixed ? Number(row.final_score ?? row.Final_Score ?? 0).toFixed(1) : (row.final_score ?? row.Final_Score ?? 0)}
+                          </button>
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            className="mark-input"
+                            placeholder="0.00"
+                            value={manualMarks[arId] !== undefined ? manualMarks[arId] : ""}
+                            onChange={handleManualMarkChange(arId, row.final_score ?? row.Final_Score, 100)}
+                            disabled={isSaved}
+                            step="0.01" min="0" max="100"
+                          />
+                        </td>
+                        <td>
+                          <span style={{ fontFamily: "Space Mono, monospace", fontWeight: 700, fontSize: 14, color: "#12b981" }}>
+                            {finalMarks[arId] !== undefined ? finalMarks[arId].toFixed(2) : (row.final_score ?? row.Final_Score ?? 0)}
+                          </span>
+                        </td>
+                        <td><span className={`badge ${riskCls}`}>{riskLevel}</span></td>
+                        <td style={{ textAlign: "center" }}>
+                          {isSaved
+                            ? <span className="badge badge-teal"><i className="fa-solid fa-check" style={{ fontSize: 10 }} />Saved</span>
+                            : hasManualMark
+                              ? <span className="badge badge-blue">Ready</span>
+                              : <span className="badge badge-gray">Pending</span>}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
-
-          {/* TABLE BODY */}
-          {resultsLoading ? (
-            <div className="p-6 text-gray-400">Loading results...</div>
-          ) : evaluatedResults.length === 0 ? (
-            <div className="p-6">
-              <div className="text-gray-400 mb-2">
-                No evaluated results — click "Load Evaluated Results" to fetch
-              </div>
-              <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded">
-                <div>Debug Info:</div>
-                <div>API Endpoint: {API_BASE}/api/ai-analysis/results/all</div>
-                <div>Check browser console for API response</div>
-                <button 
-                  onClick={async () => {
-                    const res = await fetch(`${API_BASE}/api/ai-analysis/results/all`);
-                    const data = await res.json();
-                    console.log("Manual fetch:", data);
-                  }}
-                  className="mt-2 text-blue-500 underline"
-                >
-                  Test API in Console
-                </button>
-              </div>
-            </div>
-          ) : (
-            evaluatedResults.map((row, index) => {
-              const arId = row.analysis_result_id ?? row.Analysis_Result_Id;
-              const submissionId = row.submission_id ?? row.Submission_Id;
-              const studentFid = row.student_file_id ?? row.Student_File_Id;
-              const guideFid = row.guide_file_id ?? row.Guide_File_Id;
-              const isSaved = savedResults.some(s => s === row.submission_id);
-              const hasManualMark = manualMarks[arId] && manualMarks[arId] !== "";
-              return (
-                <div
-                  key={String(arId ?? submissionId ?? index)}
-                  className="grid grid-cols-9 px-6 py-4 items-center text-sm border-b hover:bg-gray-50 transition"
-                >
-                  <div className="font-medium text-gray-700">G{index + 1}</div>
-
-                  {/* STUDENT FILE */}
-                  <a 
-                    href={`${API_BASE}/api/marks/pdf/${studentFid}`} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-xs font-bold text-blue-600 hover:text-blue-800 no-underline"
-                  >
-                    <i className="fas fa-file-pdf"></i>
-                    <span>Submission File</span>
-                  </a>
-                
-                  {/* MARKING GUIDE */}
-                  <a 
-                    href={`${API_BASE}/api/marks/pdf/${guideFid}`} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-xs font-bold text-blue-600 hover:text-blue-800 no-underline"
-                  >
-                    <i className="fas fa-file-pdf"></i>
-                    <span>Marking Guide</span>
-                  </a>
-                  
-                  <div className="text-gray-600 truncate">{row.assessment_name ?? row.Assessment_Name ?? "N/A"}</div>
-
-                  {/* AI SCORE — opens ML analysis page for this result */}
-                  <div className="font-semibold text-blue-600">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (arId == null || arId === "") {
-                          console.warn("Missing analysis_result_id for evaluated row", row);
-                          return;
-                        }
-                        navigate(`/lecturer/analysis/${arId}`, { state: row });
-                      }}
-                      className="underline decoration-blue-300 hover:decoration-blue-600 underline-offset-2 bg-transparent border-0 cursor-pointer font-semibold text-blue-600 p-0"
-                      title="Open ML analysis report"
-                    >
-                      {row.final_score ?? row.Final_Score ?? 0}
-                    </button>
-                  </div>
-
-                  {/* MANUAL INPUT */}
-                  <div>
-                    <input
-                      type="number"
-                      placeholder="0"
-                      value={manualMarks[arId] !== undefined ? manualMarks[arId] : ""}
-                      onChange={handleManualMarkChange(arId, row.final_score ?? row.Final_Score, 100)}
-                      disabled={isSaved}
-                      className={`w-20 px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-300
-                        ${isSaved ? "bg-gray-100 text-gray-500" : ""}`}
-                      step="0.01"
-                      min="0"
-                      max="100"
-                    />
-                  </div>
-
-                  {/* FINAL SCORE */}
-                  <div className="font-semibold text-green-600">
-                    {finalMarks[arId]?.toFixed(2) ?? row.final_score ?? row.Final_Score ?? 0}
-                  </div>
-
-                  {/* RISK */}
-                  <div>
-                    <span className={`px-2 py-1 text-xs rounded-full ${row.risk_level === "HIGH"
-                      ? "bg-red-100 text-red-600"
-                      : row.risk_level === "MEDIUM"
-                        ? "bg-yellow-100 text-yellow-600"
-                        : "bg-green-100 text-green-600"
-                      }`}>
-                      {row.risk_level ?? "LOW"}
-                    </span>
-                  </div>
-
-                  {/* STATUS */}
-                  <div className="text-center">
-                    {isSaved ? (
-                      <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-600">
-                        ✓ Saved
-                      </span>
-                    ) : hasManualMark ? (
-                      <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-600">
-                        Ready
-                      </span>
-                    ) : (
-                      <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-600">
-                        Pending
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          )}
         </div>
 
       </div>
     </div>
   );
-};
-
-// Popup Styles
-const popupOverlayStyle = {
-  position: "fixed",
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  backgroundColor: "rgba(0, 0, 0, 0.5)",
-  backdropFilter: "blur(4px)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  zIndex: 1000,
-  animation: "fadeIn 0.3s ease-out"
-};
-
-const popupContainerStyle = {
-  position: "relative",
-  maxWidth: "450px",
-  width: "90%",
-  margin: "20px"
-};
-
-const popupAnimationStyle = {
-  backgroundColor: "#fff",
-  borderRadius: "20px",
-  boxShadow: "0 20px 40px rgba(0, 0, 0, 0.15)",
-  overflow: "hidden",
-  animation: "slideUp 0.4s cubic-bezier(0.34, 1.2, 0.64, 1)"
-};
-
-const successIconContainerStyle = {
-  display: "flex",
-  justifyContent: "center",
-  marginTop: "30px",
-  marginBottom: "20px"
-};
-
-const successIconStyle = {
-  width: "80px",
-  height: "80px",
-  backgroundColor: "#52c41a",
-  borderRadius: "50%",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  boxShadow: "0 4px 12px rgba(82, 196, 26, 0.3)",
-  animation: "scaleIn 0.5s ease-out"
-};
-
-const popupTitleStyle = {
-  fontSize: "24px",
-  fontWeight: "bold",
-  textAlign: "center",
-  color: "#2e3b52",
-  margin: "0 0 12px 0"
-};
-
-const popupMessageStyle = {
-  fontSize: "14px",
-  textAlign: "center",
-  color: "#64748b",
-  margin: "0 24px 16px 24px",
-  lineHeight: "1.5"
-};
-
-const popupDetailsStyle = {
-  backgroundColor: "#f8f9fa",
-  margin: "0 24px 24px 24px",
-  padding: "16px",
-  borderRadius: "12px",
-  border: "1px solid #e9ecef"
-};
-
-const detailRowStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  padding: "6px 0",
-  borderBottom: "1px solid #e9ecef"
-};
-
-const detailLabelStyle = {
-  fontSize: "12px",
-  color: "#74839a",
-  fontWeight: "500"
-};
-
-const detailValueStyle = {
-  fontSize: "12px",
-  color: "#2e3b52",
-  fontWeight: "600"
-};
-
-const popupFooterStyle = {
-  padding: "0 24px 24px 24px",
-  display: "flex",
-  justifyContent: "center"
-};
-
-const popupButtonStyle = {
-  backgroundColor: "#3d6df2",
-  color: "#fff",
-  border: "none",
-  padding: "10px 32px",
-  borderRadius: "10px",
-  fontWeight: "bold",
-  fontSize: "14px",
-  cursor: "pointer",
-  transition: "all 0.2s"
 };
 
 export default LecturerSubmissions;

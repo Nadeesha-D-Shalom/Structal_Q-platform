@@ -2,6 +2,27 @@ const { pool, poolConnect, sql } = require('../../config/db');
 const fs = require('fs');
 const path = require("path");
 
+function createBadRequest(message) {
+    const error = new Error(message);
+    error.statusCode = 400;
+    return error;
+}
+
+function parseNumericId(value, fieldName) {
+    if (value === undefined || value === null || String(value).trim() === "") {
+        throw createBadRequest(`${fieldName} is required`);
+    }
+
+    const parsed = Number(String(value).trim());
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+        throw createBadRequest(
+            `${fieldName} must be a positive integer (received: ${value})`
+        );
+    }
+
+    return parsed;
+}
+
 
 // =====================================================
 // UPLOAD SUBMISSION
@@ -12,12 +33,11 @@ exports.upload = async (req) => {
 
         if (!req.file) throw new Error("File required");
 
-        const assessment_id = req.body.assessment_id || req.body.assessmentId;
-        const student_id = req.user?.user_id || req.body.student_id || req.body.studentId;
+        const rawAssessmentId = req.body.assessment_id ?? req.body.assessmentId;
+        const rawStudentId = req.user?.user_id ?? req.body.student_id ?? req.body.studentId;
 
-        if (!assessment_id || !student_id) {
-            throw new Error("assessment_id and student_id are required");
-        }
+        const assessment_id = parseNumericId(rawAssessmentId, "assessment_id");
+        const student_id = parseNumericId(rawStudentId, "student_id");
 
         // ================= FILE VALIDATION =================
         const allowedTypes = [

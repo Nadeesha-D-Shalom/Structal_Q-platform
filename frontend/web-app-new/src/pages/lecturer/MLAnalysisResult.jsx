@@ -12,6 +12,7 @@ import {
   normalizeAnalysisPayload,
   unwrapAnalysisApiData,
 } from "../../utils/analysisPayload";
+import { normalizeRouteId } from "../../utils/routeHelpers";
 
 const API_BASE = getApiBaseUrl();
 
@@ -255,12 +256,6 @@ const CustomRadarTooltip = ({ active, payload }) => {
 /* ─────────────────────────────────────────
    MAIN COMPONENT
 ───────────────────────────────────────── */
-/** Normalize :id from the router (handles trailing slash in path, e.g. /analysis/10/) */
-function normalizeRouteId(param) {
-  if (param == null || param === "") return "";
-  return String(param).replace(/\/+$/, "").trim();
-}
-
 const MLAnalysisResult = () => {
   const location = useLocation();
   const { id: rawId } = useParams();

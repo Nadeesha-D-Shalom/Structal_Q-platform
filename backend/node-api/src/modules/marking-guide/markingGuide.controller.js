@@ -3,6 +3,39 @@ const path = require("path");
 const fs = require("fs");
 const mime = require("mime-types");
 
+function createBadRequest(message) {
+    const error = new Error(message);
+    error.statusCode = 400;
+    return error;
+}
+
+function parsePositiveInt(value, fieldName) {
+    if (value === undefined || value === null || String(value).trim() === "") {
+        throw createBadRequest(`${fieldName} is required`);
+    }
+
+    const parsed = Number(String(value).trim());
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+        throw createBadRequest(`${fieldName} must be a positive integer`);
+    }
+
+    return parsed;
+}
+
+async function ensureAssessmentExists(assessmentId) {
+    const result = await pool.request()
+        .input("assessment_id", sql.Int, assessmentId)
+        .query(`
+            SELECT TOP 1 assessment_id
+            FROM assessment
+            WHERE assessment_id = @assessment_id
+        `);
+
+    if (!result.recordset.length) {
+        throw createBadRequest(`Assessment not found for assessment_id=${assessmentId}`);
+    }
+}
+
 function parseDiagramTypes(raw) {
     if (raw == null) return null;
     if (Array.isArray(raw)) return JSON.stringify(raw);
@@ -167,11 +200,14 @@ exports.createGuide = async (req, res) => {
     try {
         await poolConnect;
 
+        const normalizedAssessmentId = parsePositiveInt(assessment_id, "assessment_id");
+        await ensureAssessmentExists(normalizedAssessmentId);
+
         const createdBy = req.user?.user_id || req.body.created_by || 1;
-        const finalVersionNo = version_no || await getNextVersionNo(assessment_id, title);
+        const finalVersionNo = version_no || await getNextVersionNo(normalizedAssessmentId, title);
 
         const inserted = await pool.request()
-            .input('assessment_id', sql.Int, assessment_id)
+            .input('assessment_id', sql.Int, normalizedAssessmentId)
             .input('version_no', sql.Int, finalVersionNo)
             .input('title', sql.NVarChar(255), title)
             .input('description', sql.NVarChar(sql.MAX), description || null)
@@ -223,7 +259,8 @@ exports.createGuide = async (req, res) => {
 
     } catch (err) {
         console.error("Create Guide Error:", err);
-        res.status(500).json({
+        const status = Number(err.statusCode) || 500;
+        res.status(status).json({
             success: false,
             error: err.message
         });
@@ -253,12 +290,15 @@ exports.uploadGuide = async (req, res) => {
             });
         }
 
+        const normalizedAssessmentId = parsePositiveInt(assessment_id, "assessment_id");
+        await ensureAssessmentExists(normalizedAssessmentId);
+
         const createdBy = req.user?.user_id || 1;
         const fileId = await insertGuideFile(req, createdBy);
-        const finalVersionNo = version_no || await getNextVersionNo(assessment_id, title);
+        const finalVersionNo = version_no || await getNextVersionNo(normalizedAssessmentId, title);
 
         const inserted = await pool.request()
-            .input('assessment_id', sql.Int, assessment_id)
+            .input('assessment_id', sql.Int, normalizedAssessmentId)
             .input('version_no', sql.Int, finalVersionNo)
             .input('title', sql.NVarChar(255), title)
             .input('description', sql.NVarChar(sql.MAX), description || null)
@@ -309,7 +349,8 @@ exports.uploadGuide = async (req, res) => {
         });
     } catch (err) {
         console.error("Upload Guide Error:", err);
-        res.status(500).json({
+        const status = Number(err.statusCode) || 500;
+        res.status(status).json({
             success: false,
             error: err.message
         });

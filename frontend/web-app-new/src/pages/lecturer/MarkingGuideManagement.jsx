@@ -85,12 +85,17 @@ export default function MarkingGuideManagement() {
       setError("Assessment, title, and guide file are required.");
       return;
     }
+    const assessmentId = Number(String(form.assessment_id).trim());
+    if (!Number.isInteger(assessmentId) || assessmentId <= 0) {
+      setError("Please select a valid assessment.");
+      return;
+    }
     try {
       setSubmitting(true);
       setError("");
       setMessage("");
       const payload = new FormData();
-      payload.append("assessment_id", form.assessment_id);
+      payload.append("assessment_id", String(assessmentId));
       payload.append("title", form.title);
       payload.append("version_no", form.version_no || "");
       payload.append("description", form.description);
@@ -222,13 +227,19 @@ export default function MarkingGuideManagement() {
             <div className="grid grid-cols-[1fr_120px] gap-3 mb-3">
               <div>
                 <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Assessment</label>
-                <input
+                <select
                   value={form.assessment_id}
                   onChange={(e) => updateForm("assessment_id", e.target.value)}
-                  placeholder="Enter assessment ID (e.g. 3)"
-                  inputMode="numeric"
                   className="w-full text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition"
-                />
+                >
+                  <option value="">Select assessment</option>
+                  {assessments.map((a) => (
+                    <option key={a.assessment_id} value={a.assessment_id}>
+                      {a.assessment_id} - {a.assessment_title}
+                      {a.subject_name ? ` (${a.subject_name})` : ""}
+                    </option>
+                  ))}
+                </select>
                 {selectedAssessment && (
                   <p className="text-[11px] text-gray-400 mt-1 truncate">
                     Found: {selectedAssessment.assessment_title}{selectedAssessment.subject_name ? ` — ${selectedAssessment.subject_name}` : ""}

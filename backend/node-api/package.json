@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node src/server.js",
-    "test": "jest"
+    "test": "jest",
+    "test:unit": "jest tests/unit",
+    "encrypt:db-password": "node src/utils/secretCrypto.js"
   },
   "author": "",
   "license": "ISC",

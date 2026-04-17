@@ -4,6 +4,29 @@ import LecturerNavbar from "./LecturerNavbar";
 
 const BASE    = "/api/evaluation-scheduling";
 const USER_ID = 1;
+let authInterceptorAttached = false;
+
+const getAuthToken = () => {
+    try {
+        return typeof localStorage !== "undefined"
+            ? localStorage.getItem("auth_token")
+            : null;
+    } catch {
+        return null;
+    }
+};
+
+if (!authInterceptorAttached) {
+    axios.interceptors.request.use((config) => {
+        const token = getAuthToken();
+        if (token) {
+            config.headers = config.headers || {};
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    });
+    authInterceptorAttached = true;
+}
 
 // ── CSS tokens ───────────────────────────────────────────────────────
 const T = {

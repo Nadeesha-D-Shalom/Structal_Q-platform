@@ -1,9 +1,10 @@
 const sql = require("mssql");
 require("dotenv").config();
+const { resolveDbPassword } = require("../utils/secretCrypto");
 
 const config = {
     user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
+    password: resolveDbPassword(),
     server: process.env.DB_SERVER,
     port: Number(process.env.DB_PORT) || 1433,
     database: process.env.DB_NAME,

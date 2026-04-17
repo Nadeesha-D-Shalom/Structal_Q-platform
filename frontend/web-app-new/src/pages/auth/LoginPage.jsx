@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import bg from "../../assets/login/bg2.jpg";
 import logo from "../../assets/login/logo.png";
+import { getDashboardPathForRole, validateLoginEmail } from "../../utils/authValidation";
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -10,18 +11,13 @@ const LoginPage = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  // Email validation regex
-  const validateEmail = (value) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-  };
-
   const handleLogin = async () => {
     if (!email || !password) {
       setError("All fields are required");
       return;
     }
 
-    if (!validateEmail(email)) {
+    if (!validateLoginEmail(email)) {
       setError("Invalid email format");
       return;
     }
@@ -52,12 +48,8 @@ const LoginPage = () => {
         localStorage.setItem("auth_user", JSON.stringify(data.user));
       }
 
-      const role = (data?.user?.role || data?.users?.role || "").toLowerCase().trim();
-      if (role === "lecturer" || role === "admin") {
-        navigate("/lecturer");
-      } else {
-        navigate("/student");
-      }
+      const role = data?.user?.role || data?.users?.role || "";
+      navigate(getDashboardPathForRole(role));
     } catch (err) {
       setError("Unable to complete login");
     }

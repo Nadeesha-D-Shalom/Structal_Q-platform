@@ -8,7 +8,8 @@ exports.uploadSubmission = async (req, res) => {
         res.json(result);
     } catch (err) {
         console.error("UPLOAD ERROR:", err);
-        res.status(500).json({ success: false, error: err.message });
+        const status = Number(err.statusCode) || 500;
+        res.status(status).json({ success: false, error: err.message });
     }
 };
 
@@ -103,6 +104,7 @@ exports.getSubmissionById = async (req, res) => {
             .query(`
                 SELECT 
                     s.submission_id,
+                    s.file_id,
                     s.attempt_no,
                     fs.original_file_name,
                     fs.storage_path

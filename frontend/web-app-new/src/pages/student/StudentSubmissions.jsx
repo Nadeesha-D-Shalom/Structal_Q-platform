@@ -53,12 +53,17 @@ export default function StudentSubmissions() {
       setError("Choose an assessment and a PDF or DOCX file.");
       return;
     }
+    const assessmentId = Number(String(form.assessment_id).trim());
+    if (!Number.isInteger(assessmentId) || assessmentId <= 0) {
+      setError("Please select a valid assessment.");
+      return;
+    }
     setUploading(true);
     setError("");
     setMessage("");
     try {
       const fd = new FormData();
-      fd.append("assessment_id", form.assessment_id);
+      fd.append("assessment_id", String(assessmentId));
       fd.append("file", form.file);
       const res = await fetch(api("/api/submissions/upload"), {
         method: "POST",
