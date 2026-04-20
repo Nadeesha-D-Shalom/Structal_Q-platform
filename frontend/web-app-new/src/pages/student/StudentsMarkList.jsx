@@ -3,7 +3,7 @@ import StudentNavbar from "./StudentNavbar";
 import { useNavigate } from "react-router-dom";
 
 const PER_PAGE = 5;
-const API_BASE = process.env.REACT_APP_API_URL || "";
+const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 export default function StudentMarksList() {
   const navigate = useNavigate();
@@ -37,24 +37,35 @@ export default function StudentMarksList() {
 
   // ── Fetch session ────────────────────────────────────────────────────────
   useEffect(() => {
-    fetch("/api/auth/session", { credentials: "include" })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { 
-        setSession(data); 
-        setSessionLoading(false); 
-      })
-      .catch(() => setSessionLoading(false));
+    const fetchSession = async () => {
+      try {
+        const token = localStorage.getItem("auth_token");
+        const res = await fetch(`${API_BASE}/api/auth/session`, {
+          credentials: "include",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setSession(data);
+          setSessionLoading(false); 
+        }
+      } catch (err) {
+        console.error("Error fetching session:", err);
+        
+      }
+    };
+    fetchSession();
   }, []);
 
   // ── Fetch submissions from backend ───────────────────────────────────────
   useEffect(() => {
-    //if (!session?.student_id) return;
+    if (!session?.student_id || !session?.user_id) return;
     
     const fetchMarks = async () => {
       setSubmissionsLoading(true);
       setFetchError(false);
       try {
-        const response = await fetch(`/api/student/marks/2`, { 
+        const response = await fetch(`${API_BASE}/api/student/marks/${session?.student_id}`, { 
           credentials: "include" 
         });
         if (!response.ok) throw new Error("Failed to fetch");
@@ -82,7 +93,7 @@ export default function StudentMarksList() {
     };
     
     fetchMarks();
-  }, []);
+  }, [session]);
 
   // ── Filter + Search + Sort ────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -117,7 +128,7 @@ export default function StudentMarksList() {
     console.log("Raising concern for submission:", submission);
     try {
       // Fetch detailed submission data for the concern form
-      const response = await fetch(`/api/student/marks/details?submission_id=${submission.submission_id}`, {
+      const response = await fetch(`${API_BASE}/api/student/marks/details/${submission.submission_id}`, {
         credentials: "include"
       });
       
@@ -147,7 +158,7 @@ export default function StudentMarksList() {
     
     setExporting(true);
     try {
-      const response = await fetch('/api/student/marks/export-pdf', {
+      const response = await fetch(`${API_BASE}/api/student/marks/export-pdf`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -68,6 +68,10 @@ const ViewDetailsModal = ({ isOpen, onClose, concern }) => {
               <span style={infoLabelStyle}>Original Mark:</span>
               <span style={markValueStyle}>{concern?.original_mark}/100</span>
             </div>
+            <div style={infoRowStyle}>
+              <span style={infoLabelStyle}>Revised Mark:</span>
+              <span style={markValueStyle}>{concern?.revised_mark != null ? `${concern.revised_mark}/100` : "N/A"}</span>
+            </div>
           </div>
 
           {/* Student Message */}

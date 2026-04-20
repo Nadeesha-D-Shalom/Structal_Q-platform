@@ -1,22 +1,14 @@
 import { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import StudentNavbar from "./StudentNavbar";
 
-/**
- * RaiseConcernForm — Standalone Create Concern Page
- *
- * Data sources:
- *   FROM SESSION  (GET /api/auth/session):
- *     student_id, student_name, student_email, academic_year → auto-filled, read-only
- *
- *   FROM PROP (submission):
- *     submission.submission_id   → sent to backend
- *     submission.assignment_name → shown read-only
- *     submission.subject_name    → shown read-only
- *
- *   USER INPUT:
- *     concern_message → textarea
- */
-export default function RaiseConcernForm({ submission, onBack, onSubmitted }) {
+const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
+export default function RaiseConcernForm({ onBack, onSubmitted }) {
+
+  const location = useLocation();
+  const navigate = useNavigate();
+  const submission = location.state?.submission;
 
   // ── Session ──────────────────────────────────────────────────────────────
   const [session, setSession] = useState(null);
@@ -34,27 +26,41 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted }) {
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState({});
 
+  useEffect(() => {
+    if (submitted) {
+      const timer = setTimeout(() => {
+        navigate("/student/marks");
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [submitted, navigate]);
+
   // ── Fetch session on mount ───────────────────────────────────────────────
   useEffect(() => {
     const fetchSession = async () => {
       try {
-        const res = await fetch("/api/auth/session", { credentials: "include" });
-        if (!res.ok) throw new Error("Not authenticated");
-        const data = await res.json();
-        setSession(data);
+        const token = localStorage.getItem("auth_token");
+        const res = await fetch(`${API_BASE_URL}/api/auth/session`, {
+          credentials: "include",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setSession(data);
+          setSessionLoading(false);
+        }
       } catch (err) {
-        console.error("Session fetch failed:", err);
-        setSession(null);
-      } finally {
-        setSessionLoading(false);
+        console.error("Error fetching session:", err);
       }
     };
     fetchSession();
   }, []);
 
-  // ── Fetch submission details from backend ────────────────────────────────
+  // ── Fetch submission details ─────────────────────────────────────────────
   useEffect(() => {
     const submissionId = submission?.submission_id;
+
     if (!submissionId) {
       setSubmissionLoading(false);
       setWindowCheckLoading(false);
@@ -66,18 +72,23 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted }) {
       setSubmissionError(null);
 
       try {
-        const res = await fetch(`/api/marks/details/${submissionId}`, {
-          credentials: "include"
-        });
+        const res = await fetch(
+          `${API_BASE_URL}/api/student/marks/details/${submissionId}`,
+          { credentials: "include" }
+        );
         const data = await res.json();
 
         if (data.success) {
-          setConcernWindowOpen(data.data.concern_window_open === 1 || data.data.concern_window_open === true);
+          setConcernWindowOpen(
+            data.data.concern_window_open === 1 ||
+            data.data.concern_window_open === true
+          );
         } else {
-          setSubmissionError(data.message || "Failed to fetch submission details");
+          setSubmissionError(
+            data.message || "Failed to fetch submission details"
+          );
         }
       } catch (err) {
-        console.error("Error fetching submission details:", err);
         setSubmissionError("Failed to connect to server");
       } finally {
         setSubmissionLoading(false);
@@ -122,7 +133,7 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted }) {
 
     try {
       const token = localStorage.getItem("auth_token");
-      const res = await fetch("/api/concerns", {
+      const res = await fetch(`${API_BASE_URL}/api/concerns`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -141,8 +152,7 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted }) {
         setErrors({ submit: responseData.message || "Failed to submit concern" });
       }
     } catch (err) {
-      console.error("Submission failed:", err);
-      setErrors({ submit: "Failed to submit concern. Please check your connection and try again." });
+      setErrors({ submit: "Failed to submit concern. Please try again." });
     } finally {
       setSubmitting(false);
     }
@@ -194,7 +204,7 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted }) {
           <p style={{ color: "#94a3b8", fontSize: 13, margin: "0 0 28px" }}>
             Concerns can only be raised within 48 hours of mark publication.
           </p>
-          <button onClick={onBack} style={btnSecondary}>← Back to Submissions</button>
+          <button onClick={() => navigate("/student/marks")} style={btnSecondary}>← Back to Submissions</button>
         </div>
       </div>
     );
@@ -213,7 +223,7 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted }) {
           <p style={{ color: "#64748b", fontSize: 15, margin: "0 0 6px" }}>
             Your concern has been received and will be reviewed by the lecturer.
           </p>
-          <button onClick={onBack} style={btnPrimary}>← Back to Submissions</button>
+          <button onClick={() => navigate("/student/marks")} style={btnPrimary}>← Back to Submissions</button>
         </div>
       </div>
     );
@@ -230,7 +240,7 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted }) {
             Submission Not Found
           </h2>
           <p style={{ color: "#64748b", fontSize: 15, margin: "0 0 28px" }}>{submissionError}</p>
-          <button onClick={onBack} style={btnPrimary}>← Back to Submissions</button>
+          <button onClick={() => navigate("/student/marks")} style={btnPrimary}>← Back to Submissions</button>
         </div>
       </div>
     );
@@ -249,7 +259,7 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted }) {
           <p style={{ color: "#64748b", fontSize: 15, margin: "0 0 28px" }}>
             Please select a submission to raise a concern.
           </p>
-          <button onClick={onBack} style={btnPrimary}>← Back to Submissions</button>
+          <button onClick={() => navigate("/student/marks")} style={btnPrimary}>← Back to Submissions</button>
         </div>
       </div>
     );
@@ -262,7 +272,7 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted }) {
 
       <main style={{ maxWidth: 860, margin: "0 auto", padding: "40px 24px" }}>
         {onBack && (
-          <button onClick={onBack} style={backBtnStyle}>← Back to Submissions</button>
+          <button onClick={() => navigate("/student/marks")} style={backBtnStyle}>← Back to Submissions</button>
         )}
 
         <div style={cardStyle}>
@@ -339,7 +349,7 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted }) {
 
           {/* Action Buttons */}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-            <button onClick={onBack} style={btnSecondary} disabled={submitting}>
+            <button onClick={() => navigate("/student/marks")} style={btnSecondary} disabled={submitting}>
               Cancel
             </button>
             <button

@@ -148,7 +148,7 @@ exports.getAllSubjects = async (req, res) => {
 
 exports.getDetailsForConcernForm = async (req, res) => {
     try {
-        const { submission_id } = req.query;
+        const { submission_id } = req.params;
 
         //validation
         if (!submission_id || isNaN(submission_id)) {

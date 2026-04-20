@@ -68,21 +68,45 @@ export default function PublishMarksConfig() {
   const [assessmentStats, setAssessmentStats] = useState(null);
   const [bulkPublishing, setBulkPublishing] = useState(false);
   const [exportingCSV, setExportingCSV] = useState(false);
+  const [session, setSession] = useState(null);
+  
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  // Fetch session to get lecturer info
+  useEffect(() => {
+    const fetchSession = async () => {
+      try {
+        const token = localStorage.getItem("auth_token");
+        const res = await fetch(`${API_BASE_URL}/api/auth/session`, {
+          credentials: "include",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setSession(data);
+        }
+      } catch (err) {
+        console.error("Error fetching session:", err);
+      }
+    };
+    fetchSession();
+  }, []);
+
   // Fetch Assessments
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/marks/assessments`)
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          setAssessments(data);
-        }
-      })
-      .catch(err => console.error("Error fetching assessments:", err));
+    const fetchAssessments = async () => {
+      const res = await fetch(`${API_BASE_URL}/api/marks/assessments`, {
+        credentials: "include"
+      });
+
+      const data = await res.json();
+      setAssessments(data);
+    };
+
+    fetchAssessments();
   }, []);
 
   // Handle Assessment Selection
@@ -101,7 +125,9 @@ export default function PublishMarksConfig() {
 
     setIsLoadingSubmissions(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/marks/pending-submissions?assessment_id=${aid}`);
+      const res = await fetch(`${API_BASE_URL}/api/marks/pending-submissions?assessment_id=${aid}`, {
+        credentials: "include"
+      });
       const data = await res.json();
       
       if (data.success) {
@@ -148,8 +174,7 @@ export default function PublishMarksConfig() {
     return !hasErrors;
   };
 
-  // Bulk publish all pending submissions
-  // Bulk publish all pending submissions - Using bulk endpoint
+// Bulk publish all pending submissions
 const handleBulkPublish = async () => {
     if (!validateAllMarks()) {
         alert("Please fix the errors before publishing.");
@@ -184,7 +209,8 @@ const handleBulkPublish = async () => {
             headers: { 
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ submissions: submissionsToPublish })
+            credentials: "include",
+            body: JSON.stringify({ submissions: submissionsToPublish, published_by: session?.name })
         });
         
         const result = await response.json();
@@ -231,6 +257,7 @@ const handleExportCSV = async () => {
     try {
         const response = await fetch(`${API_BASE_URL}/api/marks/export-csv/${selectedAssessmentId}`, {
             method: 'GET',
+            credentials: "include",
             headers: {
                 'Accept': 'text/csv'
             }
@@ -304,7 +331,7 @@ const handleExportCSV = async () => {
           <div style={{ padding: "24px 32px" }}>
             {/* Assessment Selection */}
             <div style={{ marginBottom: 28 }}>
-              <label style={imageLabelStyle}>Subject / Assessment *</label>
+              <label style={imageLabelStyle}>Assessment *</label>
               <select 
                 style={{
                   ...imageSelectStyle,

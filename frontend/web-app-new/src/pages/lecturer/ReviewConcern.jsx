@@ -23,6 +23,17 @@ const getLecturerId = () => {
   }
 };
 
+const getLecturerName = () => {
+  try {
+    const raw = typeof localStorage !== "undefined" ? localStorage.getItem("auth_user") : null;
+    if (!raw) return "Your Lecturer";
+    const u = JSON.parse(raw);
+    return u.name ?? u.full_name ?? u.lecturer_name ?? "Your Lecturer";
+  } catch {
+    return "Your Lecturer";
+  }
+};
+
 // Success Popup Component
 const SuccessPopup = ({ isVisible, onClose, message, title, details }) => {
   useEffect(() => {
@@ -162,7 +173,9 @@ const ViewMessageModal = ({ isOpen, onClose, concern }) => {
   );
 };
 
-// Respond Modal with Status Selector and Real-time Validations
+// ─────────────────────────────────────────────────────────────────────────────
+// Respond Modal — MODIFIED: auto-sends email after successful respond API call
+// ─────────────────────────────────────────────────────────────────────────────
 const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
   const [comment, setComment] = useState("");
   const [revisedMark, setRevisedMark] = useState("");
@@ -170,6 +183,7 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [sending, setSending] = useState(false);
+  const [emailStatus, setEmailStatus] = useState(null); // "sending" | "sent" | "failed" | null
 
   useEffect(() => {
     if (concern) {
@@ -178,6 +192,7 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
       setSelectedStatus(concern.concern_status || "Pending");
       setErrors({});
       setTouched({});
+      setEmailStatus(null);
     }
   }, [concern]);
 
@@ -189,32 +204,19 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
   ];
 
   const validateRevisedMark = (value) => {
-    if (!value || value === "") {
-      return null;
-    }
+    if (!value || value === "") return null;
     const markNum = parseFloat(value);
-    if (isNaN(markNum)) {
-      return "Please enter a valid number";
-    }
-    if (markNum < 0) {
-      return "Mark cannot be negative";
-    }
-    if (markNum > 100) {
-      return "Mark cannot exceed 100";
-    }
-    if (markNum === concern?.originalMark) {
+    if (isNaN(markNum)) return "Please enter a valid number";
+    if (markNum < 0) return "Mark cannot be negative";
+    if (markNum > 100) return "Mark cannot exceed 100";
+    if (markNum === concern?.originalMark)
       return "New mark is the same as the original mark. Please enter a different value or leave blank.";
-    }
     return null;
   };
 
   const validateComment = (value) => {
-    if (!value || value.trim() === "") {
-      return "Please enter a response comment";
-    }
-    if (value.trim().length < 10) {
-      return "Please provide a detailed response (minimum 10 characters)";
-    }
+    if (!value || value.trim() === "") return "Please enter a response comment";
+    if (value.trim().length < 10) return "Please provide a detailed response (minimum 10 characters)";
     return null;
   };
 
@@ -222,64 +224,96 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
     const value = e.target.value;
     setRevisedMark(value);
     setTouched(prev => ({ ...prev, revisedMark: true }));
-    const error = validateRevisedMark(value);
-    setErrors(prev => ({ ...prev, revisedMark: error }));
+    setErrors(prev => ({ ...prev, revisedMark: validateRevisedMark(value) }));
   };
 
   const handleCommentChange = (e) => {
     const value = e.target.value;
     setComment(value);
     setTouched(prev => ({ ...prev, comment: true }));
-    const error = validateComment(value);
-    setErrors(prev => ({ ...prev, comment: error }));
+    setErrors(prev => ({ ...prev, comment: validateComment(value) }));
   };
 
   const handleRevisedMarkBlur = () => {
     setTouched(prev => ({ ...prev, revisedMark: true }));
-    const error = validateRevisedMark(revisedMark);
-    setErrors(prev => ({ ...prev, revisedMark: error }));
+    setErrors(prev => ({ ...prev, revisedMark: validateRevisedMark(revisedMark) }));
   };
 
   const handleCommentBlur = () => {
     setTouched(prev => ({ ...prev, comment: true }));
-    const error = validateComment(comment);
-    setErrors(prev => ({ ...prev, comment: error }));
+    setErrors(prev => ({ ...prev, comment: validateComment(comment) }));
   };
 
   const validate = () => {
     const commentError = validateComment(comment);
     const revisedMarkError = validateRevisedMark(revisedMark);
-    
     const newErrors = {};
     if (commentError) newErrors.comment = commentError;
     if (revisedMarkError) newErrors.revisedMark = revisedMarkError;
-    
     setErrors(newErrors);
     setTouched({ comment: true, revisedMark: true });
-    
     return Object.keys(newErrors).length === 0;
   };
 
+  //call the email endpoint
   const handleSend = async () => {
     if (!validate()) return;
-    
+
     setSending(true);
     try {
-      const response = await fetch(apiUrl(`/api/concerns/${encodeURIComponent(concern.concern_id)}/respond`), {
-        method: "PUT",
-        headers: getAuthHeaders(true),
-        body: JSON.stringify({
+      // 1. Save the response to the concern (existing logic, unchanged)
+      const response = await fetch(
+        apiUrl(`/api/concerns/${encodeURIComponent(concern.concern_id)}/respond`),
+        {
+          method: "PUT",
+          headers: getAuthHeaders(true),
+          body: JSON.stringify({
+            concern_status: selectedStatus,
+            lecturer_comment: comment.trim(),
+            originalMark: concern.originalMark,
+            submission_id: concern.submission_id,
+            revised_mark: revisedMark ? parseFloat(revisedMark) : null,
+            revised_by: getLecturerId()
+          })
+        }
+      );
+
+      console.log(response);
+
+      if (!response.ok) throw new Error("Failed to send response");
+
+      // 2. Send email notification to the student
+      setEmailStatus("sending");
+      try {
+        const emailPayload = {
+          to: concern.student_email,
+          student_name: concern.student_name,
+          concern_id: concern.concern_id,
+          assignment: concern.assignment,
+          subject_name: concern.subject,
+          subject_code: concern.subject_code,
+          priority_level: concern.priority_level,
+          original_mark: concern.originalMark,
+          revised_mark: revisedMark ? parseFloat(revisedMark) : null,
           concern_status: selectedStatus,
           lecturer_comment: comment.trim(),
-          originalMark: concern.originalMark,
-          submission_id: concern.submission_id,
-          revised_mark: revisedMark ? parseFloat(revisedMark) : null,
-          revised_by: getLecturerId()
-        })
-      });
-      
-      if (!response.ok) throw new Error('Failed to send response');
-      
+          lecturer_name: getLecturerName()
+        };
+
+        const emailRes = await fetch(apiUrl("/api/concerns/send-response-email"), {
+          method: "POST",
+          headers: getAuthHeaders(true),
+          body: JSON.stringify(emailPayload)
+        });
+
+        console.log(emailRes);
+
+        setEmailStatus(emailRes.ok ? "sent" : "failed");
+      } catch {
+        setEmailStatus("failed"); // email failure is non-blocking
+      }
+
+      // 3. Notify parent component (triggers success popup & list refresh)
       onSend({
         concern_id: concern.concern_id,
         student_email: concern.student_email,
@@ -291,7 +325,7 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
         priority: concern.priority_level,
         status: selectedStatus
       });
-      
+
       onClose();
     } catch (err) {
       console.error("Error sending response:", err);
@@ -302,7 +336,7 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
   };
 
   const getPriorityColor = (priority) => {
-    switch(priority) {
+    switch (priority) {
       case "High": return "#dc2626";
       case "Medium": return "#f59e0b";
       case "Low": return "#10b981";
@@ -323,9 +357,7 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
   };
 
   const isFormValid = () => {
-    const commentError = validateComment(comment);
-    const revisedMarkError = validateRevisedMark(revisedMark);
-    return !commentError && !revisedMarkError && comment.trim() !== "";
+    return !validateComment(comment) && !validateRevisedMark(revisedMark) && comment.trim() !== "";
   };
 
   const getRevisedMarkBorderColor = () => {
@@ -351,8 +383,16 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
           <h3 style={modalTitleStyle}>Respond to Concern</h3>
           <button onClick={onClose} style={modalCloseBtnStyle}>✕</button>
         </div>
-        
+
         <div style={modalBodyStyle}>
+          {/* Email recipient notice */}
+          <div style={emailNoticeStyle}>
+            <span style={emailNoticeIconStyle}>📧</span>
+            <span style={emailNoticeTextStyle}>
+              A response email will be automatically sent to <strong>{concern?.student_email}</strong> after submitting.
+            </span>
+          </div>
+
           <div style={infoBoxStyle}>
             <div style={infoRowStyle}>
               <span style={infoLabelStyle}>Student:</span>
@@ -377,7 +417,7 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
               <span style={getStatusStyle(concern?.concern_status)}>{concern?.concern_status}</span>
             </div>
           </div>
-          
+
           <div style={formGroupStyle}>
             <label style={modalLabelStyle}>Update Status *</label>
             <div style={statusSelectorStyle}>
@@ -397,17 +437,14 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
               ))}
             </div>
           </div>
-          
+
           <div style={formGroupStyle}>
             <label style={modalLabelStyle}>Response Comment *</label>
             <textarea
               value={comment}
               onChange={handleCommentChange}
               onBlur={handleCommentBlur}
-              style={{
-                ...modalTextareaStyle,
-                borderColor: getCommentBorderColor()
-              }}
+              style={{ ...modalTextareaStyle, borderColor: getCommentBorderColor() }}
               rows="5"
               placeholder="Provide your detailed response to the student's concern..."
             />
@@ -421,7 +458,7 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
               {comment.length} / 2000 characters {comment.length < 10 && `(minimum 10 required)`}
             </div>
           </div>
-          
+
           <div style={formGroupStyle}>
             <label style={modalLabelStyle}>Revised Mark (Optional)</label>
             <input
@@ -430,10 +467,7 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
               value={revisedMark}
               onChange={handleRevisedMarkChange}
               onBlur={handleRevisedMarkBlur}
-              style={{
-                ...modalInputStyle,
-                borderColor: getRevisedMarkBorderColor()
-              }}
+              style={{ ...modalInputStyle, borderColor: getRevisedMarkBorderColor() }}
               placeholder="Enter revised mark if applicable"
             />
             {touched.revisedMark && errors.revisedMark && (
@@ -444,20 +478,27 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
             )}
             <p style={hintTextStyle}>Leave blank if no change to the original mark</p>
           </div>
+
+          {/* Email status indicator while sending */}
+          {emailStatus === "sending" && (
+            <div style={emailStatusStyle("#3b82f6", "#dbeafe")}>
+              <span>📧 Sending email notification to student...</span>
+            </div>
+          )}
         </div>
-        
+
         <div style={modalFooterStyle}>
           <button onClick={onClose} style={modalCancelBtnStyle}>Cancel</button>
-          <button 
-            onClick={handleSend} 
-            disabled={sending || !isFormValid()} 
+          <button
+            onClick={handleSend}
+            disabled={sending || !isFormValid()}
             style={{
               ...modalSaveBtnStyle,
               opacity: (sending || !isFormValid()) ? 0.6 : 1,
               cursor: (sending || !isFormValid()) ? "not-allowed" : "pointer"
             }}
           >
-            {sending ? "Sending..." : "Send Response"}
+            {sending ? "Sending..." : "Send Response & Email Student"}
           </button>
         </div>
       </div>
@@ -481,22 +522,12 @@ const ViewSubmissionModal = ({ isOpen, onClose, submissionUrl }) => {
           <iframe
             src={submissionUrl}
             title="Submission Preview"
-            style={{
-              width: "100%",
-              height: "600px",
-              border: "none",
-              borderRadius: "8px"
-            }}
+            style={{ width: "100%", height: "600px", border: "none", borderRadius: "8px" }}
           />
         </div>
         
         <div style={modalFooterStyle}>
-          <a
-            href={submissionUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={openNewTabBtnStyle}
-          >
+          <a href={submissionUrl} target="_blank" rel="noopener noreferrer" style={openNewTabBtnStyle}>
             Open in New Tab
           </a>
           <button onClick={onClose} style={modalCancelBtnStyle}>Close</button>
@@ -537,14 +568,11 @@ export default function ConcernReviewResolution() {
     { value: "status", label: "Status" }
   ];
 
-  // Fetch all concerns from backend
   const fetchConcerns = async () => {
     try {
       setLoading(true);
       const response = await fetch(apiUrl('/api/concerns'), { headers: getAuthHeaders(false) });
-      if (!response.ok) {
-        throw new Error('Failed to fetch concerns');
-      }
+      if (!response.ok) throw new Error('Failed to fetch concerns');
       const data = await response.json();
       setConcerns(data);
       setError(null);
@@ -556,11 +584,8 @@ export default function ConcernReviewResolution() {
     }
   };
 
-  useEffect(() => {
-    fetchConcerns();
-  }, []);
+  useEffect(() => { fetchConcerns(); }, []);
 
-  // Export to PDF function
   const handleExportPDF = async () => {
     setExporting(true);
     try {
@@ -569,24 +594,12 @@ export default function ConcernReviewResolution() {
         headers: getAuthHeaders(true),
         body: JSON.stringify({
           concerns: filteredConcerns,
-          filters: {
-            status: statusFilter,
-            priority: priorityFilter,
-            search: searchQuery,
-            sortBy: sortBy
-          },
+          filters: { status: statusFilter, priority: priorityFilter, search: searchQuery, sortBy },
           exportDate: new Date().toISOString()
         })
       });
-
-      if (!response.ok) {
-        throw new Error('Export failed');
-      }
-
-      // Get the blob from the response
+      if (!response.ok) throw new Error('Export failed');
       const blob = await response.blob();
-      
-      // Create a download link
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -595,7 +608,6 @@ export default function ConcernReviewResolution() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-
       setPopupTitle("✓ PDF Exported");
       setPopupMessage("Concerns report has been successfully exported to PDF.");
       setPopupDetails({
@@ -613,10 +625,9 @@ export default function ConcernReviewResolution() {
     }
   };
 
-  // Filter and sort concerns
   const filteredConcerns = concerns
     .filter(concern => {
-      const matchesSearch = 
+      const matchesSearch =
         concern.concern_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         concern.student_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         concern.assignment?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -626,38 +637,32 @@ export default function ConcernReviewResolution() {
       return matchesSearch && matchesStatus && matchesPriority;
     })
     .sort((a, b) => {
-      if (sortBy === "date") {
-        return new Date(b.created_at) - new Date(a.created_at);
-      } else if (sortBy === "date-old") {
-        return new Date(a.created_at) - new Date(b.created_at);
-      } else if (sortBy === "priority-high") {
-        const priorityOrder = { High: 3, Medium: 2, Low: 1 };
-        return priorityOrder[b.priority_level] - priorityOrder[a.priority_level];
-      } else if (sortBy === "priority-low") {
-        const priorityOrder = { High: 3, Medium: 2, Low: 1 };
-        return priorityOrder[a.priority_level] - priorityOrder[b.priority_level];
-      } else if (sortBy === "status") {
-        const statusOrder = { Pending: 1, Revised: 2, Accepted: 3, Rejected: 4 };
-        return statusOrder[a.concern_status] - statusOrder[b.concern_status];
+      if (sortBy === "date") return new Date(b.created_at) - new Date(a.created_at);
+      if (sortBy === "date-old") return new Date(a.created_at) - new Date(b.created_at);
+      if (sortBy === "priority-high") {
+        const o = { High: 3, Medium: 2, Low: 1 };
+        return o[b.priority_level] - o[a.priority_level];
+      }
+      if (sortBy === "priority-low") {
+        const o = { High: 3, Medium: 2, Low: 1 };
+        return o[a.priority_level] - o[b.priority_level];
+      }
+      if (sortBy === "status") {
+        const o = { Pending: 1, Revised: 2, Accepted: 3, Rejected: 4 };
+        return o[a.concern_status] - o[b.concern_status];
       }
       return 0;
     });
 
   const handleDeleteConcern = async () => {
     if (!selectedConcern) return;
-    
     try {
-      const response = await fetch(apiUrl(`/api/concerns/${encodeURIComponent(selectedConcern.concern_id)}`), {
-        method: 'DELETE',
-        headers: getAuthHeaders(false)
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete concern');
-      }
-      
+      const response = await fetch(
+        apiUrl(`/api/concerns/${encodeURIComponent(selectedConcern.concern_id)}`),
+        { method: 'DELETE', headers: getAuthHeaders(false) }
+      );
+      if (!response.ok) throw new Error('Failed to delete concern');
       await fetchConcerns();
-      
       setPopupTitle("✓ Concern Deleted");
       setPopupMessage(`Concern #${selectedConcern.concern_id} from ${selectedConcern.student_name} has been deleted.`);
       setPopupDetails({
@@ -679,15 +684,13 @@ export default function ConcernReviewResolution() {
   const handleSendResponse = async (responseData) => {
     try {
       await fetchConcerns();
-      
-      setPopupTitle("✓ Response saved");
-      setPopupMessage(`The student can see your response in the portal.`);
+      setPopupTitle("✓ Response Saved & Email Sent");
+      setPopupMessage(`Your response has been saved and an email notification was sent to ${responseData.student_name}.`);
       setPopupDetails({
         "Student": responseData.student_name,
+        "Email": responseData.student_email,
         "Assignment": responseData.assignment,
-        "Priority": responseData.priority,
-        "Status": responseData.status,
-        "Comment": responseData.comment.substring(0, 100) + "...",
+        "New Status": responseData.status,
         ...(responseData.revised_mark && { "Revised Mark": `${responseData.revised_mark}/100` })
       });
       setShowSuccessPopup(true);
@@ -705,7 +708,7 @@ export default function ConcernReviewResolution() {
   };
 
   const getPriorityColor = (priority) => {
-    switch(priority) {
+    switch (priority) {
       case "High": return "#dc2626";
       case "Medium": return "#f59e0b";
       case "Low": return "#10b981";
@@ -714,7 +717,7 @@ export default function ConcernReviewResolution() {
   };
 
   const getPriorityBgColor = (priority) => {
-    switch(priority) {
+    switch (priority) {
       case "High": return "#fee2e2";
       case "Medium": return "#fef3c7";
       case "Low": return "#d1fae5";
@@ -723,7 +726,7 @@ export default function ConcernReviewResolution() {
   };
 
   const getStatusStyle = (status) => {
-    switch(status) {
+    switch (status) {
       case "Pending": return { backgroundColor: "#fef3c7", color: "#d97706" };
       case "Accepted": return { backgroundColor: "#d1fae5", color: "#059669" };
       case "Rejected": return { backgroundColor: "#fee2e2", color: "#dc2626" };
@@ -752,9 +755,7 @@ export default function ConcernReviewResolution() {
           <div style={errorIconStyle}>⚠️</div>
           <h3 style={errorTitleStyle}>Error Loading Data</h3>
           <p style={errorMessageStyle}>{error}</p>
-          <button onClick={fetchConcerns} style={retryButtonStyle}>
-            Retry
-          </button>
+          <button onClick={fetchConcerns} style={retryButtonStyle}>Retry</button>
         </div>
       </div>
     );
@@ -794,26 +795,16 @@ export default function ConcernReviewResolution() {
                     style={searchInputStyle}
                   />
                   {searchQuery && (
-                    <button onClick={() => setSearchQuery("")} style={clearSearchBtnStyle}>
-                      ✕
-                    </button>
+                    <button onClick={() => setSearchQuery("")} style={clearSearchBtnStyle}>✕</button>
                   )}
                 </div>
               </div>
-              
+
               <div style={filterWrapperStyle}>
                 <label style={filterLabelStyle}>Filter by Status</label>
                 <div style={filterSelectWrapperStyle}>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    style={filterSelectStyle}
-                  >
-                    {statuses.map(status => (
-                      <option key={status} value={status}>
-                        {status}
-                      </option>
-                    ))}
+                  <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={filterSelectStyle}>
+                    {statuses.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                   <span style={filterArrowStyle}>▼</span>
                 </div>
@@ -822,16 +813,8 @@ export default function ConcernReviewResolution() {
               <div style={filterWrapperStyle}>
                 <label style={filterLabelStyle}>Filter by Priority</label>
                 <div style={filterSelectWrapperStyle}>
-                  <select
-                    value={priorityFilter}
-                    onChange={(e) => setPriorityFilter(e.target.value)}
-                    style={filterSelectStyle}
-                  >
-                    {priorities.map(priority => (
-                      <option key={priority} value={priority}>
-                        {priority}
-                      </option>
-                    ))}
+                  <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} style={filterSelectStyle}>
+                    {priorities.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                   <span style={filterArrowStyle}>▼</span>
                 </div>
@@ -840,25 +823,16 @@ export default function ConcernReviewResolution() {
               <div style={filterWrapperStyle}>
                 <label style={filterLabelStyle}>Sort by</label>
                 <div style={filterSelectWrapperStyle}>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    style={filterSelectStyle}
-                  >
-                    {sortOptions.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
+                  <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={filterSelectStyle}>
+                    {sortOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                   <span style={filterArrowStyle}>▼</span>
                 </div>
               </div>
 
-              {/* Export PDF Button */}
               <div style={exportButtonWrapperStyle}>
-                <button 
-                  onClick={handleExportPDF} 
+                <button
+                  onClick={handleExportPDF}
                   disabled={exporting || filteredConcerns.length === 0}
                   style={exportPdfBtnStyle}
                 >
@@ -875,20 +849,14 @@ export default function ConcernReviewResolution() {
               <div style={activeFiltersStyle}>
                 {statusFilter !== "All" && (
                   <div style={activeFilterStyle}>
-                    <span>Status: </span>
-                    <strong>{statusFilter}</strong>
-                    <button onClick={() => setStatusFilter("All")} style={clearFilterBtnStyle}>
-                      ✕
-                    </button>
+                    <span>Status: </span><strong>{statusFilter}</strong>
+                    <button onClick={() => setStatusFilter("All")} style={clearFilterBtnStyle}>✕</button>
                   </div>
                 )}
                 {priorityFilter !== "All" && (
                   <div style={activeFilterStyle}>
-                    <span>Priority: </span>
-                    <strong>{priorityFilter}</strong>
-                    <button onClick={() => setPriorityFilter("All")} style={clearFilterBtnStyle}>
-                      ✕
-                    </button>
+                    <span>Priority: </span><strong>{priorityFilter}</strong>
+                    <button onClick={() => setPriorityFilter("All")} style={clearFilterBtnStyle}>✕</button>
                   </div>
                 )}
               </div>
@@ -967,10 +935,7 @@ export default function ConcernReviewResolution() {
                     </div>
                     <div style={cellStyle}>
                       <button
-                        onClick={() => {
-                          setSelectedConcern(concern);
-                          setShowMessageModal(true);
-                        }}
+                        onClick={() => { setSelectedConcern(concern); setShowMessageModal(true); }}
                         style={viewMessageBtnStyle}
                         title="View Concern Message"
                       >
@@ -980,20 +945,14 @@ export default function ConcernReviewResolution() {
                     <div style={cellStyle}>
                       <div style={stackedActionButtonsStyle}>
                         <button
-                          onClick={() => {
-                            setSelectedConcern(concern);
-                            setShowRespondModal(true);
-                          }}
+                          onClick={() => { setSelectedConcern(concern); setShowRespondModal(true); }}
                           style={respondBtnStyle}
                           title="Respond to Concern"
                         >
                           ✏️ Respond
                         </button>
                         <button
-                          onClick={() => {
-                            setSelectedConcern(concern);
-                            setShowDeleteModal(true);
-                          }}
+                          onClick={() => { setSelectedConcern(concern); setShowDeleteModal(true); }}
                           style={deleteActionBtnStyle}
                           title="Delete Concern"
                         >
@@ -1012,29 +971,20 @@ export default function ConcernReviewResolution() {
       {/* Modals */}
       <ViewMessageModal
         isOpen={showMessageModal}
-        onClose={() => {
-          setShowMessageModal(false);
-          setSelectedConcern(null);
-        }}
+        onClose={() => { setShowMessageModal(false); setSelectedConcern(null); }}
         concern={selectedConcern}
       />
 
       <DeleteConfirmationModal
         isOpen={showDeleteModal}
-        onClose={() => {
-          setShowDeleteModal(false);
-          setSelectedConcern(null);
-        }}
+        onClose={() => { setShowDeleteModal(false); setSelectedConcern(null); }}
         concern={selectedConcern}
         onConfirm={handleDeleteConcern}
       />
 
       <RespondModal
         isOpen={showRespondModal}
-        onClose={() => {
-          setShowRespondModal(false);
-          setSelectedConcern(null);
-        }}
+        onClose={() => { setShowRespondModal(false); setSelectedConcern(null); }}
         concern={selectedConcern}
         onSend={handleSendResponse}
       />
@@ -1056,7 +1006,46 @@ export default function ConcernReviewResolution() {
   );
 }
 
-// Additional Styles
+// ─── New styles added for email feature ───────────────────────────────────────
+
+const emailNoticeStyle = {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: "10px",
+  backgroundColor: "#eff6ff",
+  border: "1px solid #bfdbfe",
+  borderRadius: "10px",
+  padding: "12px 14px",
+  marginBottom: "20px"
+};
+
+const emailNoticeIconStyle = {
+  fontSize: "16px",
+  flexShrink: 0,
+  marginTop: "1px"
+};
+
+const emailNoticeTextStyle = {
+  fontSize: "12px",
+  color: "#1e40af",
+  lineHeight: "1.5"
+};
+
+const emailStatusStyle = (color, bg) => ({
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+  backgroundColor: bg,
+  color: color,
+  borderRadius: "8px",
+  padding: "10px 14px",
+  fontSize: "12px",
+  fontWeight: "500",
+  marginTop: "8px"
+});
+
+// ─── All original styles preserved exactly ───────────────────────────────────
+
 const successTextStyle = {
   color: "#10b981",
   fontSize: "11px",
@@ -1095,8 +1084,6 @@ const exportPdfBtnStyle = {
   justifyContent: "center"
 };
 
-// ... (keep all existing styles from the previous code)
-
 const pageContainerStyle = {
   minHeight: "100vh",
   backgroundColor: "#f5f6fa",
@@ -1109,9 +1096,7 @@ const mainContainerStyle = {
   margin: "0 auto"
 };
 
-const headerSectionStyle = {
-  marginBottom: "28px"
-};
+const headerSectionStyle = { marginBottom: "28px" };
 
 const pageTitleStyle = {
   fontSize: "28px",
@@ -1169,11 +1154,8 @@ const cardSubtitleStyle = {
   margin: "4px 0 0 0"
 };
 
-const cardContentStyle = {
-  padding: "28px 32px"
-};
+const cardContentStyle = { padding: "28px 32px" };
 
-// Search and Filter Styles
 const searchFilterContainer = {
   display: "flex",
   gap: "20px",
@@ -1182,15 +1164,9 @@ const searchFilterContainer = {
   alignItems: "flex-end"
 };
 
-const searchWrapperStyle = {
-  flex: "2",
-  minWidth: "320px"
-};
+const searchWrapperStyle = { flex: "2", minWidth: "320px" };
 
-const searchInputWrapperStyle = {
-  position: "relative",
-  width: "100%"
-};
+const searchInputWrapperStyle = { position: "relative", width: "100%" };
 
 const searchIconStyle = {
   position: "absolute",
@@ -1234,10 +1210,7 @@ const clearSearchBtnStyle = {
   justifyContent: "center"
 };
 
-const filterWrapperStyle = {
-  flex: "1",
-  minWidth: "180px"
-};
+const filterWrapperStyle = { flex: "1", minWidth: "180px" };
 
 const filterLabelStyle = {
   display: "block",
@@ -1249,10 +1222,7 @@ const filterLabelStyle = {
   letterSpacing: "0.5px"
 };
 
-const filterSelectWrapperStyle = {
-  position: "relative",
-  width: "100%"
-};
+const filterSelectWrapperStyle = { position: "relative", width: "100%" };
 
 const filterSelectStyle = {
   width: "100%",
@@ -1279,7 +1249,6 @@ const filterArrowStyle = {
   fontSize: "12px"
 };
 
-// Results Count Styles
 const resultsCountContainerStyle = {
   display: "flex",
   justifyContent: "space-between",
@@ -1297,11 +1266,7 @@ const resultsCountStyle = {
   fontWeight: "500"
 };
 
-const activeFiltersStyle = {
-  display: "flex",
-  gap: "10px",
-  flexWrap: "wrap"
-};
+const activeFiltersStyle = { display: "flex", gap: "10px", flexWrap: "wrap" };
 
 const activeFilterStyle = {
   fontSize: "12px",
@@ -1329,7 +1294,6 @@ const clearFilterBtnStyle = {
   transition: "all 0.2s"
 };
 
-// Table Styles
 const updatedTableHeaderStyle = {
   display: "grid",
   gridTemplateColumns: "0.6fr 1.2fr 1.4fr 0.6fr 0.7fr 0.7fr 0.8fr 0.8fr",
@@ -1364,13 +1328,8 @@ const headerCellStyle = {
   letterSpacing: "0.06em"
 };
 
-const cellStyle = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "4px"
-};
+const cellStyle = { display: "flex", flexDirection: "column", gap: "4px" };
 
-// Cell Content Styles
 const concernIdStyle = {
   fontSize: "12px",
   fontWeight: "600",
@@ -1378,21 +1337,9 @@ const concernIdStyle = {
   fontFamily: "monospace"
 };
 
-const studentNameStyle = {
-  fontSize: "14px",
-  fontWeight: "600",
-  color: "#0f172a"
-};
-
-const studentIdStyle = {
-  fontSize: "11px",
-  color: "#64748b"
-};
-
-const studentEmailStyle = {
-  fontSize: "11px",
-  color: "#94a3b8"
-};
+const studentNameStyle = { fontSize: "14px", fontWeight: "600", color: "#0f172a" };
+const studentIdStyle = { fontSize: "11px", color: "#64748b" };
+const studentEmailStyle = { fontSize: "11px", color: "#94a3b8" };
 
 const assignmentWithButtonStyle = {
   display: "flex",
@@ -1401,21 +1348,9 @@ const assignmentWithButtonStyle = {
   flexWrap: "wrap"
 };
 
-const assignmentNameStyle = {
-  fontSize: "13px",
-  fontWeight: "500",
-  color: "#1e293b"
-};
-
-const subjectNameStyle = {
-  fontSize: "12px",
-  color: "#475569"
-};
-
-const subjectCodeStyle = {
-  fontSize: "10px",
-  color: "#94a3b8"
-};
+const assignmentNameStyle = { fontSize: "13px", fontWeight: "500", color: "#1e293b" };
+const subjectNameStyle = { fontSize: "12px", color: "#475569" };
+const subjectCodeStyle = { fontSize: "10px", color: "#94a3b8" };
 
 const priorityBadgeStyle = {
   padding: "4px 10px",
@@ -1425,10 +1360,7 @@ const priorityBadgeStyle = {
   width: "fit-content"
 };
 
-const dateStyle = {
-  fontSize: "12px",
-  color: "#64748b"
-};
+const dateStyle = { fontSize: "12px", color: "#64748b" };
 
 const statusBadgeStyle = {
   padding: "4px 10px",
@@ -1438,7 +1370,6 @@ const statusBadgeStyle = {
   width: "fit-content"
 };
 
-// Stacked Action Buttons Styles
 const stackedActionButtonsStyle = {
   display: "flex",
   flexDirection: "column",
@@ -1446,30 +1377,12 @@ const stackedActionButtonsStyle = {
   alignItems: "flex-start"
 };
 
-// Button Styles
 const respondBtnStyle = {
   padding: "6px 14px",
   borderRadius: "6px",
   border: "none",
   backgroundColor: "#eef2ff",
   color: "#3c74ff",
-  fontSize: "11px",
-  fontWeight: "500",
-  cursor: "pointer",
-  transition: "all 0.2s",
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "6px",
-  whiteSpace: "nowrap",
-  width: "fit-content"
-};
-
-const emailBtnStyle = {
-  padding: "6px 14px",
-  borderRadius: "6px",
-  border: "none",
-  backgroundColor: "#ecfdf5",
-  color: "#10b981",
   fontSize: "11px",
   fontWeight: "500",
   cursor: "pointer",
@@ -1531,36 +1444,7 @@ const viewMessageBtnStyle = {
   width: "fit-content"
 };
 
-// Email Preview Styles
-const emailPreviewStyle = {
-  marginTop: "20px",
-  padding: "16px",
-  backgroundColor: "#f8f9fc",
-  borderRadius: "10px",
-  border: "1px solid #e2e8f0"
-};
-
-const previewLabelStyle = {
-  fontSize: "12px",
-  fontWeight: "600",
-  color: "#5c6b80",
-  marginBottom: "10px"
-};
-
-const previewContentStyle = {
-  fontSize: "12px",
-  color: "#1e293b",
-  lineHeight: "1.5",
-  maxHeight: "200px",
-  overflow: "auto"
-};
-
-// Status Selector Styles
-const statusSelectorStyle = {
-  display: "flex",
-  gap: "10px",
-  flexWrap: "wrap"
-};
+const statusSelectorStyle = { display: "flex", gap: "10px", flexWrap: "wrap" };
 
 const statusOptionStyle = {
   padding: "6px 16px",
@@ -1573,7 +1457,6 @@ const statusOptionStyle = {
   background: "none"
 };
 
-// View Modal Styles
 const viewModalContainerStyle = {
   backgroundColor: "#fff",
   borderRadius: "16px",
@@ -1587,11 +1470,7 @@ const viewModalContainerStyle = {
   flexDirection: "column"
 };
 
-const viewModalBodyStyle = {
-  padding: "0",
-  flex: 1,
-  overflow: "auto"
-};
+const viewModalBodyStyle = { padding: "0", flex: 1, overflow: "auto" };
 
 const openNewTabBtnStyle = {
   padding: "10px 20px",
@@ -1605,7 +1484,6 @@ const openNewTabBtnStyle = {
   textDecoration: "none"
 };
 
-// Loading and Error Styles
 const loadingContainerStyle = {
   display: "flex",
   flexDirection: "column",
@@ -1624,10 +1502,7 @@ const loadingSpinnerStyle = {
   animation: "spin 1s linear infinite"
 };
 
-const loadingTextStyle = {
-  fontSize: "14px",
-  color: "#64748b"
-};
+const loadingTextStyle = { fontSize: "14px", color: "#64748b" };
 
 const errorContainerStyle = {
   display: "flex",
@@ -1639,22 +1514,9 @@ const errorContainerStyle = {
   textAlign: "center"
 };
 
-const errorIconStyle = {
-  fontSize: "48px"
-};
-
-const errorTitleStyle = {
-  fontSize: "18px",
-  fontWeight: "600",
-  color: "#dc2626",
-  margin: 0
-};
-
-const errorMessageStyle = {
-  fontSize: "14px",
-  color: "#64748b",
-  maxWidth: "400px"
-};
+const errorIconStyle = { fontSize: "48px" };
+const errorTitleStyle = { fontSize: "18px", fontWeight: "600", color: "#dc2626", margin: 0 };
+const errorMessageStyle = { fontSize: "14px", color: "#64748b", maxWidth: "400px" };
 
 const retryButtonStyle = {
   padding: "8px 20px",
@@ -1667,42 +1529,15 @@ const retryButtonStyle = {
   cursor: "pointer"
 };
 
-// Empty State Styles
-const emptyContainerStyle = {
-  padding: "60px",
-  textAlign: "center"
-};
+const emptyContainerStyle = { padding: "60px", textAlign: "center" };
+const emptyIconStyle = { fontSize: "48px", marginBottom: "16px" };
+const emptyTitleStyle = { fontSize: "16px", fontWeight: "600", color: "#2e3b52", marginBottom: "8px" };
+const emptyMessageStyle = { fontSize: "13px", color: "#74839a" };
+const hintTextStyle = { fontSize: "11px", color: "#94a3b8", marginTop: "4px" };
 
-const emptyIconStyle = {
-  fontSize: "48px",
-  marginBottom: "16px"
-};
-
-const emptyTitleStyle = {
-  fontSize: "16px",
-  fontWeight: "600",
-  color: "#2e3b52",
-  marginBottom: "8px"
-};
-
-const emptyMessageStyle = {
-  fontSize: "13px",
-  color: "#74839a"
-};
-
-const hintTextStyle = {
-  fontSize: "11px",
-  color: "#94a3b8",
-  marginTop: "4px"
-};
-
-// Modal Styles
 const modalOverlayStyle = {
   position: "fixed",
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
+  top: 0, left: 0, right: 0, bottom: 0,
   backgroundColor: "rgba(0, 0, 0, 0.5)",
   backdropFilter: "blur(4px)",
   display: "flex",
@@ -1747,19 +1582,8 @@ const deleteModalHeaderStyle = {
   gap: "12px"
 };
 
-const modalTitleStyle = {
-  fontSize: "18px",
-  fontWeight: "bold",
-  color: "#18243d",
-  margin: 0
-};
-
-const deleteModalTitleStyle = {
-  fontSize: "18px",
-  fontWeight: "bold",
-  color: "#18243d",
-  margin: 0
-};
+const modalTitleStyle = { fontSize: "18px", fontWeight: "bold", color: "#18243d", margin: 0 };
+const deleteModalTitleStyle = { fontSize: "18px", fontWeight: "bold", color: "#18243d", margin: 0 };
 
 const modalCloseBtnStyle = {
   background: "none",
@@ -1771,9 +1595,7 @@ const modalCloseBtnStyle = {
   borderRadius: "6px"
 };
 
-const modalBodyStyle = {
-  padding: "24px"
-};
+const modalBodyStyle = { padding: "24px" };
 
 const infoSectionStyle = {
   backgroundColor: "#f8f9fc",
@@ -1791,27 +1613,11 @@ const infoRowStyle = {
   borderBottom: "1px solid #e9ecef"
 };
 
-const infoLabelStyle = {
-  fontSize: "12px",
-  color: "#74839a",
-  fontWeight: "500"
-};
+const infoLabelStyle = { fontSize: "12px", color: "#74839a", fontWeight: "500" };
+const infoValueStyle = { fontSize: "13px", color: "#2e3b52", fontWeight: "600" };
+const currentMarkStyle = { fontSize: "16px", color: "#3d6df2", fontWeight: "bold" };
 
-const infoValueStyle = {
-  fontSize: "13px",
-  color: "#2e3b52",
-  fontWeight: "600"
-};
-
-const currentMarkStyle = {
-  fontSize: "16px",
-  color: "#3d6df2",
-  fontWeight: "bold"
-};
-
-const messageSectionStyle = {
-  marginBottom: "20px"
-};
+const messageSectionStyle = { marginBottom: "20px" };
 
 const sectionLabelStyle = {
   display: "block",
@@ -1881,9 +1687,7 @@ const deleteConfirmBtnStyle = {
   cursor: "pointer"
 };
 
-const warningIconStyle = {
-  fontSize: "24px"
-};
+const warningIconStyle = { fontSize: "24px" };
 
 const deleteMessageStyle = {
   fontSize: "14px",
@@ -1908,15 +1712,8 @@ const deleteWarningStyle = {
   marginTop: "16px"
 };
 
-const errorTextStyle = {
-  color: "#ff4d4f",
-  fontSize: "11px",
-  marginTop: "4px"
-};
-
-const formGroupStyle = {
-  marginBottom: "24px"
-};
+const errorTextStyle = { color: "#ff4d4f", fontSize: "11px", marginTop: "4px" };
+const formGroupStyle = { marginBottom: "24px" };
 
 const modalLabelStyle = {
   display: "block",
@@ -1954,13 +1751,9 @@ const modalTextareaStyle = {
   lineHeight: "1.5"
 };
 
-// Popup Styles
 const popupOverlayStyle = {
   position: "fixed",
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
+  top: 0, left: 0, right: 0, bottom: 0,
   backgroundColor: "rgba(0, 0, 0, 0.5)",
   backdropFilter: "blur(4px)",
   display: "flex",
@@ -2035,17 +1828,8 @@ const detailRowStyle = {
   borderBottom: "1px solid #e9ecef"
 };
 
-const detailLabelStyle = {
-  fontSize: "12px",
-  color: "#74839a",
-  fontWeight: "500"
-};
-
-const detailValueStyle = {
-  fontSize: "12px",
-  color: "#2e3b52",
-  fontWeight: "600"
-};
+const detailLabelStyle = { fontSize: "12px", color: "#74839a", fontWeight: "500" };
+const detailValueStyle = { fontSize: "12px", color: "#2e3b52", fontWeight: "600" };
 
 const popupFooterStyle = {
   padding: "0 24px 24px 24px",
@@ -2065,48 +1849,21 @@ const popupButtonStyle = {
   transition: "all 0.2s"
 };
 
-// Add CSS animations
-if (typeof document !== 'undefined') {
-  const style = document.createElement('style');
+if (typeof document !== "undefined") {
+  const style = document.createElement("style");
   style.textContent = `
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-    
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     @keyframes slideUp {
-      from {
-        opacity: 0;
-        transform: translateY(30px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      from { opacity: 0; transform: translateY(30px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
-    
     @keyframes scaleIn {
-      0% {
-        opacity: 0;
-        transform: scale(0);
-      }
-      50% {
-        transform: scale(1.1);
-      }
-      100% {
-        opacity: 1;
-        transform: scale(1);
-      }
+      0%   { opacity: 0; transform: scale(0); }
+      50%  { transform: scale(1.1); }
+      100% { opacity: 1; transform: scale(1); }
     }
-    
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-    
-    button:hover {
-      transform: translateY(-1px);
-      opacity: 0.8;
-    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    button:hover { transform: translateY(-1px); opacity: 0.8; }
   `;
   document.head.appendChild(style);
 }

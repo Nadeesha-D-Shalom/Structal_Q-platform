@@ -139,7 +139,7 @@ exports.updateConcern = async (req, res, next) => {
         const resolvedRevisedBy = revised_by ?? req.user?.user_id;
         const resolvedOriginalMark = originalMark ?? original_mark;
 
-        const lecturer_name = "Dr Robert Fox";
+        const lecturer_name = req.session?.user?.name ?? req.user?.name ?? "Unknown";
 
         await pool.request()
             .input('concern_status', sql.VarChar, concern_status)
