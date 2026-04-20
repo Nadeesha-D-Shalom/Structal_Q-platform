@@ -355,19 +355,21 @@ BEGIN TRY
     final_mark decimal(10,2) NULL DEFAULT 0.00,
     created_at datetime NULL
   );
+  
+  --New Table
+  IF OBJECT_ID('dbo.student_notifications', 'U') IS NULL
+  CREATE TABLE student_notifications (
+    notification_id    BIGINT IDENTITY(1,1)  PRIMARY KEY,
+    student_id         BIGINT                NOT NULL,
+    notification_type  VARCHAR(50)           NOT NULL, 
+    title              NVARCHAR(255)         NOT NULL,
+    message            NVARCHAR(1000)        NOT NULL,  
+    is_read            BIT                   NOT NULL DEFAULT 0,
+    read_at            DATETIMEOFFSET        NULL,
+    created_at         DATETIMEOFFSET        NOT NULL DEFAULT SYSDATETIMEOFFSET(),
+  )
 
-  IF OBJECT_ID('dbo.mark_alert','U') IS NULL
-  CREATE TABLE dbo.mark_alert (
-    alert_id bigint IDENTITY(1,1) PRIMARY KEY,
-    submission_id bigint NOT NULL,
-    alert_type nvarchar(50) NULL, -- DEVIATION / HIGH_SIMILARITY / LOW_CONFIDENCE
-    severity nvarchar(50) NULL, -- LOW / MEDIUM / HIGH
-    message nvarchar(max) NULL,
-    acknowledged bit NULL,
-    acknowledged_by bigint NULL,
-    created_at datetime NULL
-  );
-
+  
   IF OBJECT_ID('dbo.mark_concern','U') IS NOT NULL DROP TABLE dbo.mark_concern;
   CREATE TABLE dbo.mark_concern (
     id INT IDENTITY(1,1) PRIMARY KEY,

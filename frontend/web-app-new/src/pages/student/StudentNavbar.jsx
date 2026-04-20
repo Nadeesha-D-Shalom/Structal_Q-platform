@@ -2,6 +2,7 @@ import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import logo from "../../assets/logo.png";
 import { useEffect, useState } from "react";
+import NotificationPanel from "./NotificationPanel";
 
 const NAV_ITEMS = [
   { name: "Dashboard", path: "/student", icon: "fas fa-border-all" },
@@ -96,9 +97,7 @@ const StudentNavbar = ({ activePage = "Dashboard" }) => {
         </div>
 
         {/* NOTIFICATION */}
-        <div className="w-[34px] h-[34px] border rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-50">
-          <i className="fas fa-bell text-gray-500 text-[12px]"></i>
-        </div>
+        <NotificationPanel />
 
         {/* USER */}
         <div className="flex items-center gap-3">

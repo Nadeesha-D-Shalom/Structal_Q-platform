@@ -15,6 +15,7 @@ const evaluationSchedulingRoutes = require('../modules/evaluation-scheduling/eva
 const submissionRoutes = require('../modules/submission/submission.routes');
 const markComparisonRoutes = require('../modules/mark-comparison/markComparison.routes');
 const dashboardRoutes = require('../modules/dashboard/dashboard.routes');
+const notificationRoutes = require('../modules/notification/notification.routes');
 
 
 router.use('/subjects', verifyToken, subjectRoutes);
@@ -30,5 +31,6 @@ router.use('/submissions', verifyToken, submissionRoutes);
 router.use('/ai-analysis', verifyToken, aiAnalysisRoutes);
 router.use('/mark-comparison', verifyToken, markComparisonRoutes);
 router.use('/dashboard', verifyToken, dashboardRoutes);
+router.use('/notifications', verifyToken, notificationRoutes);
 
 module.exports = router;

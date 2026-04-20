@@ -3,6 +3,8 @@ const path = require("path");
 const mime = require('mime-types');
 const fs = require("fs");
 const { Parser } = require('json2csv');
+const notificationHandler = require('../notification/notification.controller');
+const { default: Null } = require("tedious/lib/data-types/null");
 
 exports.getAllAssessments = async (req, res, next) => {
     try {
@@ -324,6 +326,9 @@ exports.bulkPublishMarks = async (req, res, next) => {
                     `);
                 
                 results.push({ submission_id, final_mark, status: "published" });
+
+                const message = `Your marks for "Submission - ${submission_id}" have been published. Your final mark is "${final_mark}/100".`;
+                await notificationHandler.createNotification(student_id, "mark_published", "Marks Published", message);
                 
             } catch (err) {
                 errors.push({ submission_id: sub.submission_id, reason: err.message });
