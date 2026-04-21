@@ -1,0 +1,5 @@
+This folder is a legacy CRA prototype. The supported StructaL Q web application is:
+
+  frontend/web-app-new/
+
+Use that project for all lecturer/student features. Do not add new routes or pages here.

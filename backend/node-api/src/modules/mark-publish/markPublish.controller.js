@@ -1,4 +1,6 @@
 const { pool, sql } = require("../../config/db");
+const notificationService = require("../notification/notification.service");
+const { assertActiveConcernWindow } = require("../concern/concernEligibility");
 const path = require("path");
 const mime = require('mime-types');
 const fs = require("fs");
@@ -379,6 +381,14 @@ exports.raiseConcern = async (req, res, next) => {
         if (!student_id || !submission_id || !concern_message) {
             return res.status(400).json({ success: false, message: 'Missing required fields' });
         }
+        const sessionUid = req.user?.user_id;
+        if (sessionUid != null && Number(student_id) !== Number(sessionUid)) {
+            return res.status(403).json({ success: false, message: 'You can only submit concerns for your own account.' });
+        }
+        const win = await assertActiveConcernWindow(pool, submission_id, student_id);
+        if (!win.ok) {
+            return res.status(403).json({ success: false, message: win.message });
+        }
         await pool.request()
             .input('student_id', sql.BigInt, student_id)
             .input('submission_id', sql.BigInt, submission_id)
@@ -426,10 +436,35 @@ exports.resolveConcern = async (req, res, next) => {
 };
 
 
+async function ensureConcernWindowForPublishedAssessment(assessmentId) {
+    const open = new Date();
+    const until = new Date(open.getTime() + 48 * 60 * 60 * 1000);
+    const exists = await pool
+        .request()
+        .input("aid", sql.BigInt, assessmentId)
+        .query(`SELECT TOP 1 window_id FROM concern_window WHERE assessment_id = @aid`);
+    if (exists.recordset?.length) return;
+    await pool
+        .request()
+        .input("assessment_id", sql.BigInt, assessmentId)
+        .input("open_from", sql.DateTime, open)
+        .input("open_until", sql.DateTime, until)
+        .input("description", sql.NVarChar(500), "Opened automatically when marks were published (48 hours)")
+        .query(`
+            INSERT INTO concern_window (assessment_id, open_from, open_until, description, created_at)
+            VALUES (@assessment_id, @open_from, @open_until, @description, GETDATE());
+        `);
+}
+
 exports.bulkPublishMarks = async (req, res, next) => {
     try {
         const { submissions } = req.body; // Expecting array of submissions
-        const published_by = "Dr Robert Fox";
+        const u = req.user || {};
+        const published_by =
+            [u.first_name, u.last_name].filter(Boolean).join(" ").trim() ||
+            u.name ||
+            u.email ||
+            `user_${u.user_id || "unknown"}`;
         
         if (!submissions || !Array.isArray(submissions) || submissions.length === 0) {
             return res.status(400).json({
@@ -440,7 +475,8 @@ exports.bulkPublishMarks = async (req, res, next) => {
         
         const results = [];
         const errors = [];
-        
+        const publishedAssessmentIds = new Set();
+
         for (const sub of submissions) {
             try {
                 const { submission_id, final_mark, ai_score, manual_mark } = sub;
@@ -454,7 +490,10 @@ exports.bulkPublishMarks = async (req, res, next) => {
                 const validationData = await pool.request()
                     .input("sid", sql.BigInt, submission_id)
                     .query(`
-                        SELECT s.student_id, a.total_marks 
+                        SELECT
+                          s.student_id,
+                          s.assessment_id,
+                          a.total_marks
                         FROM submission s
                         JOIN assessment a ON s.assessment_id = a.assessment_id
                         WHERE s.submission_id = @sid
@@ -465,7 +504,7 @@ exports.bulkPublishMarks = async (req, res, next) => {
                     continue;
                 }
                 
-                const { student_id, total_marks } = validationData.recordset[0];
+                const { student_id, total_marks, assessment_id: aid } = validationData.recordset[0];
                 
                 if (final_mark < 0 || final_mark > total_marks) {
                     errors.push({ submission_id, reason: `Mark ${final_mark} exceeds max ${total_marks}` });
@@ -522,12 +561,37 @@ exports.bulkPublishMarks = async (req, res, next) => {
                     `);
                 
                 results.push({ submission_id, final_mark, status: "published" });
-                
+                if (aid != null) publishedAssessmentIds.add(Number(aid));
+
             } catch (err) {
                 errors.push({ submission_id: sub.submission_id, reason: err.message });
             }
         }
-        
+
+        for (const aid of publishedAssessmentIds) {
+            try {
+                await ensureConcernWindowForPublishedAssessment(aid);
+            } catch (e) {
+                console.warn("[bulkPublish] concern window:", e.message);
+            }
+            try {
+                const titleRow = await pool
+                    .request()
+                    .input("aid", sql.BigInt, aid)
+                    .query(`SELECT TOP 1 assessment_title FROM assessment WHERE assessment_id = @aid`);
+                const atitle = titleRow.recordset?.[0]?.assessment_title || "Assignment";
+                await notificationService.notifyStudentsForAssessment(
+                    aid,
+                    "Marks published",
+                    `Your marks for "${atitle}" are now available. You may raise a concern during the concern window.`,
+                    "MARKS_PUBLISHED"
+                );
+                await notificationService.notifyConcernWindowOpenedForAssessment(aid);
+            } catch (e) {
+                console.warn("[bulkPublish] notifications:", e.message);
+            }
+        }
+
         res.json({
             success: true,
             message: `Published: ${results.length}, Failed: ${errors.length}`,

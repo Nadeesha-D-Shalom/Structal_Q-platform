@@ -1,6 +1,16 @@
 import { useState, useEffect } from "react";
 import StudentNavbar from "./StudentNavbar";
 
+const API_BASE = process.env.REACT_APP_API_URL || "";
+const api = (path) => `${API_BASE}${path}`;
+const authHeaders = (json = true) => {
+  const token = localStorage.getItem("auth_token");
+  const h = {};
+  if (json) h["Content-Type"] = "application/json";
+  if (token) h.Authorization = `Bearer ${token}`;
+  return h;
+};
+
 /**
  * RaiseConcernForm — Standalone Create Concern Page
  *
@@ -38,7 +48,10 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted }) {
   useEffect(() => {
     const fetchSession = async () => {
       try {
-        const res = await fetch("/api/auth/session", { credentials: "include" });
+        const res = await fetch(api("/api/auth/session"), {
+          credentials: "include",
+          headers: authHeaders(false),
+        });
         if (!res.ok) throw new Error("Not authenticated");
         const data = await res.json();
         setSession(data);
@@ -66,8 +79,9 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted }) {
       setSubmissionError(null);
 
       try {
-        const res = await fetch(`/api/marks/details/${submissionId}`, {
-          credentials: "include"
+        const res = await fetch(api(`/api/student/marks/details/${submissionId}`), {
+          credentials: "include",
+          headers: authHeaders(false),
         });
         const data = await res.json();
 
@@ -121,13 +135,9 @@ export default function RaiseConcernForm({ submission, onBack, onSubmitted }) {
     };
 
     try {
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch("/api/concerns", {
+      const res = await fetch(api("/api/concerns"), {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: authHeaders(true),
         body: JSON.stringify(formData),
         credentials: "include",
       });

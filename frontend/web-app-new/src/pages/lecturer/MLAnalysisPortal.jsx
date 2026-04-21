@@ -1,7 +1,7 @@
 import LecturerNavbar from "./LecturerNavbar";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || "";
 
@@ -23,11 +23,7 @@ const MLAnalysisPortal = () => {
 
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    fetchAll();
-  }, []);
-
-  const fetchAll = async () => {
+  const fetchAll = useCallback(async () => {
     try {
       const [subRes, guideRes, submissionRes] = await Promise.all([
         fetch(`${API_BASE_URL}/api/subjects`, { headers: getAuthHeaders() }),
@@ -63,7 +59,11 @@ const MLAnalysisPortal = () => {
     } catch (err) {
       console.error("Fetch error:", err);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
 
   const handleRunAnalysis = async () => {
     if (!selectedGuide || !selectedSubmission) {

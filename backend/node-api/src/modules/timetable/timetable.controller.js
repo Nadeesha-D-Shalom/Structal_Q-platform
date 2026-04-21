@@ -1,4 +1,5 @@
 const { pool, poolConnect, sql } = require('../../config/db');
+const notificationService = require('../notification/notification.service');
 
 exports.getAllTimetables = async (req, res) => {
     try {
@@ -141,6 +142,11 @@ exports.publishTimetable = async (req, res) => {
         await poolConnect;
         const { id } = req.params;
 
+        const titleRow = await pool
+            .request()
+            .input('id', sql.Int, id)
+            .query(`SELECT title FROM exam_timetable WHERE exam_timetable_id = @id`);
+
         await pool.request()
             .input('id', sql.Int, id)
             .query(`
@@ -151,6 +157,17 @@ exports.publishTimetable = async (req, res) => {
                     updated_at = GETDATE()
                 WHERE exam_timetable_id = @id
             `);
+
+        const ttitle = titleRow.recordset?.[0]?.title || 'Exam timetable';
+        try {
+            await notificationService.notifyAllActiveStudents(
+                'Exam timetable published',
+                `The exam timetable "${ttitle}" has been published. Open Timetable to view sessions.`,
+                'EXAM_TIMETABLE_PUBLISHED'
+            );
+        } catch (e) {
+            console.warn('[publishTimetable] notifications:', e.message);
+        }
 
         res.json({
             success: true,

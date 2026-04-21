@@ -1274,12 +1274,13 @@ const EMAIL_TYPE_LABELS = {
 // ════════════════════════════════════════════════════════════════
 // SCREEN 5.7 — EMAIL NOTIFICATION LOG
 // ════════════════════════════════════════════════════════════════
-const Screen57 = ({ navigate, activeScheduleId }) => {
-    const [logs,          setLogs]          = useState([]);
-    const [summary,       setSummary]       = useState({ total:0, sent:0, failed:0, pending:0 });
-    const [loading,       setLoading]       = useState(false);
-    const [sendingReminder, setSendingReminder] = useState(false);
-    const [resending,     setResending]     = useState(null);
+const Screen57 = ({ navigate: _navigate, activeScheduleId }) => {
+    void _navigate;
+    const [logs] = useState([]);
+    const [summary] = useState({ total:0, sent:0, failed:0, pending:0 });
+    const [loading] = useState(false);
+    const [sendingReminder] = useState(false);
+    const [resending] = useState(null);
     const [flash,         setFlash]         = useState({ msg:"", type:"" });
     const [search,        setSearch]        = useState("");
     const [typeFilter,    setTypeFilter]    = useState("ALL");
@@ -1291,65 +1292,20 @@ const Screen57 = ({ navigate, activeScheduleId }) => {
 
     const fetchLogs = useCallback(async () => {
         // Compliance: email notification features are disabled (no email log fetching, no sending).
-        return;
-        if (!activeScheduleId) return;
-        setLoading(true);
-        try {
-            const res = await axios.get(`${BASE}/schedules/${activeScheduleId}/email-logs`);
-            if (Array.isArray(res.data)) {
-                setLogs(res.data);
-                const all = res.data;
-                setSummary({
-                    total:   all.length,
-                    sent:    all.filter(l => l.delivery_status === "SENT").length,
-                    failed:  all.filter(l => l.delivery_status === "FAILED").length,
-                    pending: all.filter(l => l.delivery_status === "PENDING").length,
-                });
-            } else {
-                setLogs(res.data.logs || []);
-                setSummary(res.data.summary || { total:0, sent:0, failed:0, pending:0 });
-            }
-        } catch {
-            showFlash("Failed to load email logs.", "error");
-        } finally {
-            setLoading(false);
-        }
-    }, [activeScheduleId, showFlash]);
+        void activeScheduleId;
+    }, [activeScheduleId]);
 
     useEffect(() => { fetchLogs(); }, [fetchLogs]);
 
     const handleSendReminders = async () => {
         // Compliance: no reminder emails
         showFlash("Email notification features are disabled in this platform version.", "warning");
-        return;
-        if (!activeScheduleId) return;
-        if (!window.confirm("Send reminder emails to all assigned groups for this schedule?")) return;
-        setSendingReminder(true);
-        try {
-            const res = await axios.post(`${BASE}/schedules/${activeScheduleId}/send-reminders`);
-            showFlash(res.data.message || "Reminders sent.");
-            fetchLogs();
-        } catch (err) {
-            showFlash(err.response?.data?.message || "Failed to send reminders.", "error");
-        } finally {
-            setSendingReminder(false);
-        }
     };
 
     const handleResend = async (log) => {
         // Compliance: no resend emails
         showFlash("Email notification features are disabled in this platform version.", "warning");
-        return;
-        setResending(log.email_log_id);
-        try {
-            const res = await axios.post(`${BASE}/email-logs/${log.email_log_id}/resend`);
-            showFlash(res.data.message || "Resent successfully.");
-            fetchLogs();
-        } catch (err) {
-            showFlash(err.response?.data?.message || "Resend failed.", "error");
-        } finally {
-            setResending(null);
-        }
+        void log;
     };
 
     const emailTypeColor = (t) => ({ SCHEDULE_PUBLISHED:"green", SLOT_ASSIGNED:"blue", REMINDER:"yellow" }[t] || "gray");
@@ -1709,6 +1665,7 @@ const SCREENS = [
     { id:"5.4", label:"Auto Slot Preview"      },
     { id:"5.5", label:"Group Assignment"       },
     { id:"5.6", label:"Conflict & Publication" },
+    { id:"5.7", label:"Email Notification Log" },
     { id:"5.8", label:"Student Schedule View"  },
 ];
 
@@ -1728,6 +1685,7 @@ export default function App() {
             case "5.4": return <Screen54 {...sharedProps}/>;
             case "5.5": return <Screen55 {...sharedProps}/>;
             case "5.6": return <Screen56 {...sharedProps}/>;
+            case "5.7": return <Screen57 {...sharedProps}/>;
             case "5.8": return <Screen58/>;
             default:    return <Screen51/>;
         }

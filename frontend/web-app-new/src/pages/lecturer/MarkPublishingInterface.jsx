@@ -57,7 +57,6 @@ export default function PublishMarksConfig() {
   const [assessments, setAssessments] = useState([]);
   const [selectedAssessmentId, setSelectedAssessmentId] = useState("");
   const [pendingSubmissions, setPendingSubmissions] = useState([]);
-  const [isPublishing, setIsPublishing] = useState(false);
   const [isLoadingSubmissions, setIsLoadingSubmissions] = useState(false);
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});

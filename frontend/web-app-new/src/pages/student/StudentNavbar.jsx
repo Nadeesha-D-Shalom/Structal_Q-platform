@@ -1,7 +1,11 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import logo from "../../assets/logo.png";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { formatRoleLabel } from "../../utils/authValidation";
+
+const API_BASE = process.env.REACT_APP_API_URL || "";
 
 const NAV_ITEMS = [
   { name: "Dashboard", path: "/student", icon: "fas fa-border-all" },
@@ -14,11 +18,20 @@ const NAV_ITEMS = [
 const StudentNavbar = ({ activePage = "Dashboard" }) => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifUnread, setNotifUnread] = useState(0);
+  const [notifItems, setNotifItems] = useState([]);
+  const notifRef = useRef(null);
+
+  const authHeaders = () => {
+    const token = localStorage.getItem("auth_token");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
 
   const handleLogout = async () => {
     try {
       const token = localStorage.getItem("auth_token");
-      await fetch("/api/auth/logout", {
+      await fetch(`${API_BASE}/api/auth/logout`, {
         method: "POST",
         credentials: "include",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -36,12 +49,47 @@ const StudentNavbar = ({ activePage = "Dashboard" }) => {
     const token = localStorage.getItem("auth_token");
     if (!token) return;
 
-    fetch("/api/auth/session", {
+    fetch(`${API_BASE}/api/auth/session`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => setUser(d))
       .catch(() => setUser(null));
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem("auth_token");
+    if (!token) return;
+
+    const load = () => {
+      fetch(`${API_BASE}/api/notifications/unread-count`, { headers: authHeaders() })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.success) setNotifUnread(Number(d.unread_count) || 0);
+        })
+        .catch(() => {});
+    };
+    load();
+    const t = setInterval(load, 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    if (!notifOpen) return;
+    fetch(`${API_BASE}/api/notifications?limit=20`, { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.success && Array.isArray(d.data)) setNotifItems(d.data);
+      })
+      .catch(() => setNotifItems([]));
+  }, [notifOpen]);
+
+  useEffect(() => {
+    const onDoc = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
   const getItemStyle = (itemName) =>
@@ -96,8 +144,78 @@ const StudentNavbar = ({ activePage = "Dashboard" }) => {
         </div>
 
         {/* NOTIFICATION */}
-        <div className="w-[34px] h-[34px] border rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-50">
-          <i className="fas fa-bell text-gray-500 text-[12px]"></i>
+        <div className="relative" ref={notifRef}>
+          <button
+            type="button"
+            title="Notifications"
+            onClick={() => setNotifOpen((o) => !o)}
+            className="relative w-[34px] h-[34px] border rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-50"
+          >
+            <i className="fas fa-bell text-gray-500 text-[12px]"></i>
+            {notifUnread > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-[4px] rounded-full bg-[#e11d48] text-white text-[9px] font-bold flex items-center justify-center">
+                {notifUnread > 99 ? "99+" : notifUnread}
+              </span>
+            )}
+          </button>
+          {notifOpen && (
+            <div className="absolute right-0 mt-2 w-[min(100vw-2rem,320px)] rounded-xl border border-[#e7ebf1] bg-white shadow-lg z-50 overflow-hidden">
+              <div className="px-3 py-2 border-b border-[#e7ebf1] flex justify-between items-center">
+                <span className="text-[12px] font-semibold text-[#0f2f66]">Notifications</span>
+                <button
+                  type="button"
+                  className="text-[10px] text-[#3d6df2] font-semibold"
+                  onClick={() =>
+                    fetch(`${API_BASE}/api/notifications/read-all`, {
+                      method: "POST",
+                      headers: authHeaders(),
+                    }).then(() => {
+                      setNotifUnread(0);
+                      setNotifItems((prev) => prev.map((n) => ({ ...n, is_read: true })));
+                    })
+                  }
+                >
+                  Mark all read
+                </button>
+              </div>
+              <div className="max-h-[280px] overflow-y-auto">
+                {notifItems.length === 0 ? (
+                  <p className="px-3 py-6 text-center text-[12px] text-[#74839a]">No notifications yet</p>
+                ) : (
+                  notifItems.map((n) => (
+                    <button
+                      key={n.notification_id}
+                      type="button"
+                      className={`w-full text-left px-3 py-2 border-b border-[#f0f3f7] hover:bg-[#f8fafc] ${
+                        n.is_read ? "opacity-75" : ""
+                      }`}
+                      onClick={() => {
+                        if (!n.is_read) {
+                          fetch(`${API_BASE}/api/notifications/${n.notification_id}/read`, {
+                            method: "PATCH",
+                            headers: authHeaders(),
+                          }).then(() => {
+                            setNotifUnread((c) => Math.max(0, c - 1));
+                            setNotifItems((prev) =>
+                              prev.map((x) =>
+                                x.notification_id === n.notification_id ? { ...x, is_read: true } : x
+                              )
+                            );
+                          });
+                        }
+                      }}
+                    >
+                      <p className="text-[12px] font-semibold text-[#18243d]">{n.title}</p>
+                      <p className="text-[11px] text-[#5c6b80] mt-0.5 break-words">{n.message}</p>
+                      <p className="text-[9px] text-[#9aa8bb] mt-1">
+                        {n.created_at ? new Date(n.created_at).toLocaleString() : ""}
+                      </p>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* USER */}
@@ -107,7 +225,8 @@ const StudentNavbar = ({ activePage = "Dashboard" }) => {
             {user?.student_name || user?.name || user?.first_name || "—"}
           </p>
           <p className="text-[10px] text-gray-400">
-            {user?.registration_no ? `Student ID: ${user.registration_no}` : `Role: ${user?.role || "—"}`}
+            <span className="text-[#74839a]">Role:</span> {formatRoleLabel(user?.role)}
+            {user?.registration_no ? ` · Student ID: ${user.registration_no}` : ""}
           </p>
           </div>
           <div className="w-[32px] h-[32px] bg-[#f4b37a] rounded-full cursor-pointer"></div>

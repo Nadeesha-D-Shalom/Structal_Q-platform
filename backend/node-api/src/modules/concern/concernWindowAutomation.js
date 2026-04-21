@@ -1,28 +1,42 @@
 const cron = require("node-cron");
+const { pool, poolConnect } = require("../../config/db");
 
 /**
- * Concern eligibility is computed from published_at + 48h (see viewMarks.controller,
- * submission.service) and from mark_concern (duplicate check). No persisted
- * concern_window_open column is not required on final_mark — avoids DB errors when that
- * column was never migrated.
+ * Marks expired rows as CLOSED when `status` column exists; otherwise no-op (eligibility is still enforced in APIs).
  */
-const closeConcernWindows = async () => {
+const closeExpiredConcernWindows = async () => {
   try {
-    /* no-op: time window enforced in API responses; optional future: notify / audit */
+    await poolConnect;
+    const cols = await pool.request().query(`
+      SELECT c.name
+      FROM sys.columns c
+      INNER JOIN sys.tables t ON c.object_id = t.object_id
+      WHERE t.name = 'concern_window' AND SCHEMA_NAME(t.schema_id) = 'dbo';
+    `);
+    const names = new Set((cols.recordset || []).map((r) => r.name));
+    if (!names.has("status") || !names.has("open_until")) return;
+
+    await pool.request().query(`
+      UPDATE cw
+      SET status = N'CLOSED'
+      FROM concern_window cw
+      WHERE cw.open_until IS NOT NULL
+        AND cw.open_until < GETDATE()
+        AND ISNULL(cw.status, N'') <> N'CLOSED';
+    `);
   } catch (err) {
-    console.error("[ConcernWindow] Scheduler error:", err);
+    console.error("[ConcernWindow] closeExpiredConcernWindows:", err.message);
   }
 };
 
 const startConcernWindowScheduler = () => {
-    //runs every 10 minutes
-    cron.schedule("*/10 * * * *", async () => {
-        await closeConcernWindows();
-    });
+  cron.schedule("*/10 * * * *", async () => {
+    await closeExpiredConcernWindows();
+  });
 
-    console.log("[ConcernWindow] Scheduler started — checks every 10 minutes");
+  console.log("[ConcernWindow] Scheduler started — closes expired windows every 10 minutes");
 
-    closeConcernWindows();
+  closeExpiredConcernWindows();
 };
 
-module.exports = { startConcernWindowScheduler };
+module.exports = { startConcernWindowScheduler, closeExpiredConcernWindows };

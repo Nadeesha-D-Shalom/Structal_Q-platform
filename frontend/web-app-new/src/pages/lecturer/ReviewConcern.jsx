@@ -542,15 +542,19 @@ export default function ConcernReviewResolution() {
     try {
       setLoading(true);
       const response = await fetch(apiUrl('/api/concerns'), { headers: getAuthHeaders(false) });
+      const data = await response.json().catch(() => null);
       if (!response.ok) {
-        throw new Error('Failed to fetch concerns');
+        const msg =
+          (data && (data.message || data.error)) ||
+          `Failed to fetch concerns (${response.status})`;
+        throw new Error(msg);
       }
-      const data = await response.json();
-      setConcerns(data);
+      const list = Array.isArray(data) ? data : data?.data ?? data?.recordset ?? [];
+      setConcerns(Array.isArray(list) ? list : []);
       setError(null);
     } catch (err) {
       console.error("Error fetching concerns:", err);
-      setError("Failed to load concerns. Please try again later.");
+      setError(err.message || "Failed to load concerns. Please try again later.");
     } finally {
       setLoading(false);
     }
@@ -616,11 +620,14 @@ export default function ConcernReviewResolution() {
   // Filter and sort concerns
   const filteredConcerns = concerns
     .filter(concern => {
-      const matchesSearch = 
-        concern.concern_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        concern.student_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        concern.assignment?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        concern.student_id?.toLowerCase().includes(searchQuery.toLowerCase());
+      const q = (searchQuery || "").toLowerCase();
+      const s = (v) => String(v ?? "").toLowerCase();
+      const matchesSearch =
+        !q ||
+        s(concern.concern_id).includes(q) ||
+        s(concern.student_name).includes(q) ||
+        s(concern.assignment).includes(q) ||
+        s(concern.student_id).includes(q);
       const matchesStatus = statusFilter === "All" || concern.concern_status === statusFilter;
       const matchesPriority = priorityFilter === "All" || concern.priority_level === priorityFilter;
       return matchesSearch && matchesStatus && matchesPriority;
@@ -1464,23 +1471,6 @@ const respondBtnStyle = {
   width: "fit-content"
 };
 
-const emailBtnStyle = {
-  padding: "6px 14px",
-  borderRadius: "6px",
-  border: "none",
-  backgroundColor: "#ecfdf5",
-  color: "#10b981",
-  fontSize: "11px",
-  fontWeight: "500",
-  cursor: "pointer",
-  transition: "all 0.2s",
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "6px",
-  whiteSpace: "nowrap",
-  width: "fit-content"
-};
-
 const deleteActionBtnStyle = {
   padding: "6px 14px",
   borderRadius: "6px",
@@ -1529,30 +1519,6 @@ const viewMessageBtnStyle = {
   gap: "6px",
   whiteSpace: "nowrap",
   width: "fit-content"
-};
-
-// Email Preview Styles
-const emailPreviewStyle = {
-  marginTop: "20px",
-  padding: "16px",
-  backgroundColor: "#f8f9fc",
-  borderRadius: "10px",
-  border: "1px solid #e2e8f0"
-};
-
-const previewLabelStyle = {
-  fontSize: "12px",
-  fontWeight: "600",
-  color: "#5c6b80",
-  marginBottom: "10px"
-};
-
-const previewContentStyle = {
-  fontSize: "12px",
-  color: "#1e293b",
-  lineHeight: "1.5",
-  maxHeight: "200px",
-  overflow: "auto"
 };
 
 // Status Selector Styles

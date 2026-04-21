@@ -1,6 +1,7 @@
 'use strict';
 
-const { pool: dbPool, poolConnect, sql } = require('../../config/db');
+const { pool: dbPool, poolConnect, sql, dbConfig: config } = require('../../config/db');
+const notificationService = require('../notification/notification.service');
 
 // Load typed email helpers; fall back to no-ops if service is missing
 // AFTER
@@ -990,6 +991,23 @@ exports.publishSchedule = async (req, res) => {
             }));
         } else {
             console.warn('[publishSchedule] No assigned recipients found for schedule publication emails');
+        }
+
+        try {
+            const inAppRecipients = await getAssignedRecipients(pool, scheduleId);
+            const st = sched.schedule_title || 'Evaluation schedule';
+            for (const r of inAppRecipients) {
+                if (r.user_id) {
+                    await notificationService.insertForUser(
+                        r.user_id,
+                        'Evaluation schedule published',
+                        `Your schedule "${st}" is published. Check date, time, and location in Evaluation.`,
+                        'EVALUATION_SCHEDULE_PUBLISHED'
+                    );
+                }
+            }
+        } catch (e) {
+            console.warn('[publishSchedule] in-app notifications:', e.message);
         }
 
         res.json({

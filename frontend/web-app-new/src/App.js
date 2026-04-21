@@ -20,6 +20,9 @@ import LecturerTimetable from "./pages/lecturer/ExamTimetable";
 import MarkingGuideManagement from "./pages/lecturer/MarkingGuideManagement";
 
 import LecturerSubmissions from "./pages/lecturer/LecturerSubmissions";
+import LecturerSubjects from "./pages/lecturer/LecturerSubjects";
+import LecturerAssignments from "./pages/lecturer/LecturerAssignments";
+import LecturerGroups from "./pages/lecturer/LecturerGroups";
 import ViewSubmission from "./pages/lecturer/ViewSubmission";
 
 /* AI MODULE */
@@ -79,6 +82,9 @@ function App() {
 
         {/* ================= LECTURER ================= */}
         <Route path="/lecturer" element={<ProtectedRoute><LecturerDashboard /></ProtectedRoute>} />
+        <Route path="/lecturer/subjects" element={<ProtectedRoute><LecturerSubjects /></ProtectedRoute>} />
+        <Route path="/lecturer/assignments" element={<ProtectedRoute><LecturerAssignments /></ProtectedRoute>} />
+        <Route path="/lecturer/groups" element={<ProtectedRoute><LecturerGroups /></ProtectedRoute>} />
         <Route path="/lecturer/marking-guides" element={<ProtectedRoute><MarkingGuideManagement /></ProtectedRoute>} />
         <Route path="/lecturer/publish-marks" element={<ProtectedRoute><PublishMarksConfig /></ProtectedRoute>} />
         <Route path="/lecturer/marks" element={<ProtectedRoute><MarkRevisionAuditLog /></ProtectedRoute>} />

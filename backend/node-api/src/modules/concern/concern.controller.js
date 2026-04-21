@@ -1,6 +1,7 @@
 const PDFDocument = require('pdfkit');
-const { pool, sql } = require("../../config/db");
+const { pool, poolConnect, sql } = require("../../config/db");
 const priorityDetector = require('./priorityDetector');
+const { assertActiveConcernWindow } = require("./concernEligibility");
 
 function normalizeConcernRow(row) {
     const fallbackName = (row.fallback_student_name || "").trim();
@@ -20,7 +21,21 @@ function normalizeConcernRow(row) {
 
 exports.createConcern = async (req, res, next) => {
     try {
+        await poolConnect;
         const {student_id, student_name, student_email, academic_year, concern_message, submission_id} = req.body;
+
+        const sessionUid = req.user?.user_id;
+        if (sessionUid != null && Number(student_id) !== Number(sessionUid)) {
+            return res.status(403).json({
+                success: false,
+                message: "You can only submit concerns for your own account.",
+            });
+        }
+
+        const windowCheck = await assertActiveConcernWindow(pool, submission_id, student_id);
+        if (!windowCheck.ok) {
+            return res.status(403).json({ success: false, message: windowCheck.message });
+        }
 
         const dup = await pool.request()
             .input("submission_id", sql.BigInt, submission_id)
@@ -64,19 +79,25 @@ exports.createConcern = async (req, res, next) => {
 
 exports.getAllConcerns = async (req, res, next) => {
     try {
+        await poolConnect;
         const result = await pool.request().query(`
             SELECT
                 mc.*,
-                a.assessment_title as assignment,
-                fm.total_marks_awarded as originalMark,
-                sub.subject_name,
+                a.assessment_title AS assignment,
+                sub.subject_name AS subject,
                 sub.subject_code,
+                fm.total_marks_awarded AS originalMark,
                 CONCAT(ISNULL(u.first_name, ''), ' ', ISNULL(u.last_name, '')) AS fallback_student_name,
                 u.email AS fallback_student_email
             FROM mark_concern mc
             LEFT JOIN submission s ON mc.submission_id = s.submission_id
             LEFT JOIN assessment a ON s.assessment_id = a.assessment_id
-            LEFT JOIN final_mark fm ON mc.submission_id = fm.submission_id
+            OUTER APPLY (
+                SELECT TOP 1 f.total_marks_awarded
+                FROM final_mark f
+                WHERE f.submission_id = mc.submission_id
+                ORDER BY f.id DESC
+            ) fm
             LEFT JOIN subject_offering so ON a.offering_id = so.offering_id
             LEFT JOIN subject sub ON so.subject_id = sub.subject_id
             LEFT JOIN users u ON mc.student_id = u.user_id
@@ -92,16 +113,17 @@ exports.getAllConcerns = async (req, res, next) => {
 
 exports.getConcernsForSpecificStudent = async (req, res, next) => {
     try {
+        await poolConnect;
         const { student_id } = req.params;
         const result = await pool.request()
             .input('student_id', sql.BigInt, student_id)
             .query(`
                 SELECT
                     mc.*,
-                    a.assessment_title as assignment,
-                    sub.subject_name,
+                    a.assessment_title AS assignment,
+                    sub.subject_name AS subject,
                     sub.subject_code,
-                    fm.total_marks_awarded as original_mark,
+                    fm.total_marks_awarded AS original_mark,
                     fm.published_at,
                     CONCAT(ISNULL(u.first_name, ''), ' ', ISNULL(u.last_name, '')) AS fallback_student_name,
                     u.email AS fallback_student_email
@@ -110,7 +132,12 @@ exports.getConcernsForSpecificStudent = async (req, res, next) => {
                 LEFT JOIN assessment a ON s.assessment_id = a.assessment_id
                 LEFT JOIN subject_offering so ON a.offering_id = so.offering_id
                 LEFT JOIN subject sub ON so.subject_id = sub.subject_id
-                LEFT JOIN final_mark fm ON mc.submission_id = fm.submission_id
+                OUTER APPLY (
+                    SELECT TOP 1 f.total_marks_awarded, f.published_at
+                    FROM final_mark f
+                    WHERE f.submission_id = mc.submission_id
+                    ORDER BY f.id DESC
+                ) fm
                 LEFT JOIN users u ON mc.student_id = u.user_id
                 WHERE mc.student_id = @student_id
                 ORDER BY mc.created_at DESC
@@ -141,11 +168,14 @@ exports.updateConcern = async (req, res, next) => {
 
         const lecturer_name = "Dr Robert Fox";
 
+        const revisedByStr =
+            resolvedRevisedBy != null ? String(resolvedRevisedBy) : "";
+
         await pool.request()
             .input('concern_status', sql.VarChar, concern_status)
-            .input('revised_by', sql.BigInt, resolvedRevisedBy)
+            .input('revised_by', sql.NVarChar(255), revisedByStr)
             .input('revised_on', sql.DateTimeOffset, new Date())
-            .input('lecturer_comment', sql.VarChar, lecturer_comment)
+            .input('lecturer_comment', sql.NVarChar(sql.MAX), lecturer_comment || "")
             .input('concern_id', sql.VarChar, concern_id)
             .query(`
                 UPDATE mark_concern
@@ -204,6 +234,7 @@ exports.updateConcern = async (req, res, next) => {
 exports.deleteConcern = async (req, res, next) => {
     const { concern_id } = req.params;
     try {
+        await poolConnect;
         await pool.request()
             .input('concern_id', sql.VarChar, concern_id)
             .query('DELETE FROM mark_concern WHERE concern_id = @concern_id');

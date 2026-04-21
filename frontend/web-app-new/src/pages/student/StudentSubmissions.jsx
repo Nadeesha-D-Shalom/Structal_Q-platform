@@ -14,8 +14,44 @@ const getAuthHeaders = (json = false) => {
 
 const api = (path) => `${API_BASE}${path}`;
 
+const formatCountdown = (sec) => {
+  if (sec == null || sec <= 0) return "—";
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+};
+
+const statusLabel = (lab) => {
+  const map = {
+    not_available: "Not available",
+    open: "Open",
+    open_late: "Open (late)",
+    open_resubmit: "Open (resubmit)",
+    submitted: "Submitted",
+    resubmitted: "Resubmitted",
+    closed: "Closed",
+    evaluated: "Evaluated",
+    published: "Published",
+  };
+  return map[lab.lab_status] || lab.lab_status || "—";
+};
+
+const statusClass = (lab) => {
+  const st = lab.lab_status;
+  if (st === "published") return "bg-emerald-100 text-emerald-800";
+  if (st === "evaluated") return "bg-indigo-100 text-indigo-800";
+  if (st === "open" || st === "open_late" || st === "open_resubmit")
+    return "bg-sky-100 text-sky-800";
+  if (st === "submitted" || st === "resubmitted") return "bg-amber-100 text-amber-900";
+  if (st === "closed" || st === "not_available") return "bg-gray-100 text-gray-700";
+  return "bg-gray-100 text-gray-700";
+};
+
 export default function StudentSubmissions() {
-  const [assessments, setAssessments] = useState([]);
+  const [labs, setLabs] = useState([]);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -27,13 +63,14 @@ export default function StudentSubmissions() {
     setLoading(true);
     setError("");
     try {
-      const [aRes, sRes] = await Promise.all([
-        fetch(api("/api/assessments"), { headers: getAuthHeaders(false) }),
+      const [labsRes, sRes] = await Promise.all([
+        fetch(api("/api/assessments/student/labs"), { headers: getAuthHeaders(false) }),
         fetch(api("/api/submissions/me"), { headers: getAuthHeaders(false) }),
       ]);
-      const aJson = await aRes.json().catch(() => []);
+      const labsJson = await labsRes.json().catch(() => ({}));
       const sJson = await sRes.json().catch(() => ({}));
-      setAssessments(Array.isArray(aJson) ? aJson : []);
+      const labList = labsJson?.data ?? labsJson?.recordset ?? [];
+      setLabs(Array.isArray(labList) ? labList : []);
       const list = sJson?.data ?? sJson?.recordset ?? sJson;
       setRows(Array.isArray(list) ? list : []);
     } catch (e) {
@@ -47,6 +84,8 @@ export default function StudentSubmissions() {
     load();
   }, []);
 
+  const submittable = labs.filter((l) => l.can_submit);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.assessment_id || !form.file) {
@@ -56,6 +95,11 @@ export default function StudentSubmissions() {
     const assessmentId = Number(String(form.assessment_id).trim());
     if (!Number.isInteger(assessmentId) || assessmentId <= 0) {
       setError("Please select a valid assessment.");
+      return;
+    }
+    const allowed = submittable.some((l) => Number(l.assessment_id) === assessmentId);
+    if (!allowed) {
+      setError("This assignment is not open for submission right now.");
       return;
     }
     setUploading(true);
@@ -88,23 +132,23 @@ export default function StudentSubmissions() {
     <div className="min-h-screen bg-[#f5f6fa]">
       <StudentNavbar activePage="Submissions" />
 
-      <main className="px-[45px] pt-[30px] pb-16 max-w-5xl">
-        <div className="flex items-center justify-between mb-6">
+      <main className="px-4 sm:px-8 md:px-12 pt-6 sm:pt-8 pb-16 max-w-5xl mx-auto w-full">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
           <div>
-            <h1 className="text-[22px] font-bold text-[#1b2b44]">My submissions</h1>
+            <h1 className="text-[20px] sm:text-[22px] font-bold text-[#1b2b44]">My submissions</h1>
             <p className="text-[12px] text-[#7a8aa0] mt-1">
               Upload PDF or DOCX reports. Resubmissions create a new attempt when allowed by the assessment.
             </p>
           </div>
           <Link
             to="/student"
-            className="text-[12px] text-blue-600 font-semibold hover:underline"
+            className="text-[12px] text-blue-600 font-semibold hover:underline shrink-0"
           >
             ← Dashboard
           </Link>
         </div>
 
-        <div className="bg-white border rounded-[14px] shadow-sm p-6 mb-6">
+        <div className="bg-white border rounded-[14px] shadow-sm p-4 sm:p-6 mb-6">
           <h2 className="text-[14px] font-semibold text-[#1b2b44] mb-4">New submission</h2>
           <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
             <div>
@@ -114,8 +158,10 @@ export default function StudentSubmissions() {
                 value={form.assessment_id}
                 onChange={(e) => setForm((f) => ({ ...f, assessment_id: e.target.value }))}
               >
-                <option value="">Select assessment</option>
-                {assessments.map((a) => (
+                <option value="">
+                  {submittable.length === 0 ? "No assignments open for upload" : "Select assessment"}
+                </option>
+                {submittable.map((a) => (
                   <option key={a.assessment_id} value={a.assessment_id}>
                     {a.subject_name || "Subject"} — {a.assessment_title}
                   </option>
@@ -133,10 +179,10 @@ export default function StudentSubmissions() {
                 }
               />
             </div>
-            <div className="md:col-span-2 flex items-center gap-3">
+            <div className="md:col-span-2 flex flex-wrap items-center gap-3">
               <button
                 type="submit"
-                disabled={uploading}
+                disabled={uploading || submittable.length === 0}
                 className="px-5 py-2.5 rounded-lg bg-[#2563eb] text-white text-[13px] font-semibold disabled:opacity-50"
               >
                 {uploading ? "Uploading…" : "Upload"}
@@ -147,21 +193,79 @@ export default function StudentSubmissions() {
           </form>
         </div>
 
-        <div className="bg-white border rounded-[14px] shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b flex items-center justify-between">
-            <h2 className="text-[14px] font-semibold text-[#1b2b44]">Submission history</h2>
+        <div className="bg-white border rounded-[14px] shadow-sm overflow-hidden mb-6">
+          <div className="px-4 sm:px-6 py-4 border-b flex items-center justify-between">
+            <h2 className="text-[14px] font-semibold text-[#1b2b44]">Lab assignments</h2>
             {loading && <span className="text-[12px] text-gray-400">Loading…</span>}
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-[12px]">
+            <table className="w-full text-left text-[11px] sm:text-[12px] min-w-[640px]">
               <thead className="bg-[#f9fafb] text-gray-500">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">Submitted</th>
-                  <th className="px-4 py-3 font-semibold">Subject</th>
-                  <th className="px-4 py-3 font-semibold">Assessment</th>
-                  <th className="px-4 py-3 font-semibold">Attempt</th>
-                  <th className="px-4 py-3 font-semibold">Late</th>
-                  <th className="px-4 py-3 font-semibold">File</th>
+                  <th className="px-3 sm:px-4 py-3 font-semibold">Subject</th>
+                  <th className="px-3 sm:px-4 py-3 font-semibold">Assessment</th>
+                  <th className="px-3 sm:px-4 py-3 font-semibold">Status</th>
+                  <th className="px-3 sm:px-4 py-3 font-semibold">Due</th>
+                  <th className="px-3 sm:px-4 py-3 font-semibold">Time left</th>
+                  <th className="px-3 sm:px-4 py-3 font-semibold">Mark</th>
+                </tr>
+              </thead>
+              <tbody>
+                {!loading && labs.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                      No lab assignments found.
+                    </td>
+                  </tr>
+                )}
+                {labs.map((lab) => (
+                  <tr key={lab.assessment_id} className="border-t border-gray-100">
+                    <td className="px-3 sm:px-4 py-3 font-medium text-gray-800 max-w-[140px] truncate" title={lab.subject_name}>
+                      {lab.subject_code ? `${lab.subject_code} ` : ""}
+                      {lab.subject_name || "—"}
+                    </td>
+                    <td className="px-3 sm:px-4 py-3 max-w-[200px]" title={lab.assessment_title}>
+                      {lab.assessment_title}
+                    </td>
+                    <td className="px-3 sm:px-4 py-3">
+                      <span
+                        className={`inline-flex rounded-full px-2 py-0.5 font-semibold ${statusClass(lab)}`}
+                      >
+                        {statusLabel(lab)}
+                      </span>
+                    </td>
+                    <td className="px-3 sm:px-4 py-3 text-gray-600 whitespace-nowrap">
+                      {lab.due_date ? new Date(lab.due_date).toLocaleString() : "—"}
+                    </td>
+                    <td className="px-3 sm:px-4 py-3 text-gray-700 whitespace-nowrap">
+                      {formatCountdown(lab.seconds_remaining)}
+                    </td>
+                    <td className="px-3 sm:px-4 py-3 text-gray-800">
+                      {lab.marking_status === "PUBLISHED" && lab.total_marks_awarded != null
+                        ? Number(lab.total_marks_awarded).toFixed(1)
+                        : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="bg-white border rounded-[14px] shadow-sm overflow-hidden">
+          <div className="px-4 sm:px-6 py-4 border-b flex items-center justify-between">
+            <h2 className="text-[14px] font-semibold text-[#1b2b44]">Submission history</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[11px] sm:text-[12px] min-w-[560px]">
+              <thead className="bg-[#f9fafb] text-gray-500">
+                <tr>
+                  <th className="px-3 sm:px-4 py-3 font-semibold">Submitted</th>
+                  <th className="px-3 sm:px-4 py-3 font-semibold">Subject</th>
+                  <th className="px-3 sm:px-4 py-3 font-semibold">Assessment</th>
+                  <th className="px-3 sm:px-4 py-3 font-semibold">Attempt</th>
+                  <th className="px-3 sm:px-4 py-3 font-semibold">Late</th>
+                  <th className="px-3 sm:px-4 py-3 font-semibold">File</th>
                 </tr>
               </thead>
               <tbody>
@@ -174,20 +278,20 @@ export default function StudentSubmissions() {
                 )}
                 {rows.map((r) => (
                   <tr key={r.submission_id} className="border-t border-gray-100">
-                    <td className="px-4 py-3 text-gray-700">
+                    <td className="px-3 sm:px-4 py-3 text-gray-700 whitespace-nowrap">
                       {r.submitted_at ? new Date(r.submitted_at).toLocaleString() : "—"}
                     </td>
-                    <td className="px-4 py-3">{r.subject_name}</td>
-                    <td className="px-4 py-3">{r.assessment_title}</td>
-                    <td className="px-4 py-3">{r.attempt_no}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 sm:px-4 py-3">{r.subject_name}</td>
+                    <td className="px-3 sm:px-4 py-3">{r.assessment_title}</td>
+                    <td className="px-3 sm:px-4 py-3">{r.attempt_no}</td>
+                    <td className="px-3 sm:px-4 py-3">
                       {r.is_late ? (
                         <span className="text-orange-600 font-medium">Yes</span>
                       ) : (
                         <span className="text-green-600">No</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 max-w-[220px] truncate" title={r.original_file_name}>
+                    <td className="px-3 sm:px-4 py-3 max-w-[220px] truncate" title={r.original_file_name}>
                       {r.original_file_name}
                     </td>
                   </tr>
