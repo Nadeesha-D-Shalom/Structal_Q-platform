@@ -14,27 +14,10 @@ router.get("/pdf/:submission_id", marksController.getPdf);
 //Save the calculated final mark in the evaluated marks table before publishing
 router.post("/evaluated-results/save", marksController.saveEvaluatedResults);
 
-// Get the AI calculated marks 
-router.get("/ai-scores/:submission_id", marksController.getAiScores);
-
-
 //Get the CSV file with pending marks for publication for mark publish ui
 router.get("/export-csv/:assessment_id", marksController.exportPendingMarksCSV);
 
 // Final POST request to publish the marks to the database
 router.post("/publish", marksController.bulkPublishMarks);
-
-
-// CONCERN WINDOW MANAGEMENT
-router.post("/concern-windows", marksController.createConcernWindow);
-router.get("/concern-windows", marksController.getConcernWindows);
-router.get("/concern-windows/:id", marksController.getConcernWindowById);
-router.put("/concern-windows/:id", marksController.updateConcernWindow);
-router.delete("/concern-windows/:id", marksController.deleteConcernWindow);
-
-// STUDENT CONCERNS
-router.post("/concerns", marksController.raiseConcern);
-router.get("/concerns", marksController.getConcerns);
-router.put("/concerns/:id/resolve", marksController.resolveConcern);
 
 module.exports = router;

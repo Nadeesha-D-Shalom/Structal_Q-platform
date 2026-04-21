@@ -328,6 +328,7 @@ const MarkRevisionLogTable = ({ revisions, loading, onRefresh }) => {
   const [itemsPerPage, setItemsPerPage] = useState(8);
   const [submissionIdFilter, setSubmissionIdFilter] = useState("");
   const [filteredRevisions, setFilteredRevisions] = useState([]);
+  const [generatingReport, setGeneratingReport] = useState(false);
 
   useEffect(() => {
     let filtered = [...revisions];
@@ -386,14 +387,67 @@ const MarkRevisionLogTable = ({ revisions, loading, onRefresh }) => {
     setSubmissionIdFilter("");
   };
 
+  // Generate Report for Mark Revision Audit Log
+  const handleGenerateRevisionReport = async () => {
+    setGeneratingReport(true);
+    try {
+      const res = await fetch("/api/lecturer/marks/audits/report", {
+        method: "GET",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" }
+      });
+
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `mark_revision_audit_log_${new Date().toISOString().split("T")[0]}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } else {
+        const data = await res.json();
+        alert(`Error: ${data.message || "Failed to generate report"}`);
+      }
+    } catch (err) {
+      console.error("Error generating revision report:", err);
+      alert("Failed to connect to server");
+    } finally {
+      setGeneratingReport(false);
+    }
+  };
+
   return (
     <div style={revisionTableCardStyle}>
       <div style={revisionCardHeaderStyle}>
         <div style={iconBoxStyle}>📝</div>
-        <div>
+        <div style={{ flex: 1 }}>
           <h3 style={cardTitleStyle}>Mark Revision Audit Log</h3>
           <p style={cardSubtitleStyle}>Track all mark changes with revision history.</p>
         </div>
+        {/* Generate Report Button - Top Right */}
+        <button
+          onClick={handleGenerateRevisionReport}
+          disabled={generatingReport || revisions.length === 0}
+          style={{
+            ...generateReportBtnStyle,
+            opacity: (generatingReport || revisions.length === 0) ? 0.6 : 1,
+            cursor: (generatingReport || revisions.length === 0) ? "not-allowed" : "pointer"
+          }}
+        >
+          {generatingReport ? (
+            <>
+              <span style={btnSpinnerStyle} />
+              Generating...
+            </>
+          ) : (
+            <>
+              📥 Generate Report
+            </>
+          )}
+        </button>
       </div>
 
       <div style={cardContentStyle}>
@@ -575,7 +629,8 @@ export default function MarkRevisionAuditLog() {
   const [popupTitle, setPopupTitle] = useState("");
   const [popupDetails, setPopupDetails] = useState({});
   const [session, setSession] = useState(null);
-  
+  const [generatingMarksReport, setGeneratingMarksReport] = useState(false);
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(8);
@@ -598,7 +653,7 @@ export default function MarkRevisionAuditLog() {
       }
     };
     fetchSession();
-  }, [API_BASE]);
+  }, []);
 
   // Fetch all published marks
   useEffect(() => {
@@ -756,6 +811,38 @@ export default function MarkRevisionAuditLog() {
     }
   };
 
+  // Generate Report for Published Marks
+  const handleGenerateMarksReport = async () => {
+    setGeneratingMarksReport(true);
+    try {
+      const res = await fetch("/api/lecturer/marks/report", {
+        method: "GET",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" }
+      });
+
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `published_marks_report_${new Date().toISOString().split("T")[0]}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } else {
+        const data = await res.json();
+        alert(`Error: ${data.message || "Failed to generate report"}`);
+      }
+    } catch (err) {
+      console.error("Error generating marks report:", err);
+      alert("Failed to connect to server");
+    } finally {
+      setGeneratingMarksReport(false);
+    }
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
     return new Date(dateString).toLocaleString("en-US", {
@@ -807,10 +894,31 @@ export default function MarkRevisionAuditLog() {
         <div style={mainCardStyle}>
           <div style={cardHeaderStyle}>
             <div style={iconBoxStyle}>📊</div>
-            <div>
+            <div style={{ flex: 1 }}>
               <h3 style={cardTitleStyle}>Published Marks</h3>
               <p style={cardSubtitleStyle}>Manage and audit all published student marks.</p>
             </div>
+            {/* Generate Report Button - Top Right of Published Marks */}
+            <button
+              onClick={handleGenerateMarksReport}
+              disabled={generatingMarksReport || submissions.length === 0}
+              style={{
+                ...generateReportBtnStyle,
+                opacity: (generatingMarksReport || submissions.length === 0) ? 0.6 : 1,
+                cursor: (generatingMarksReport || submissions.length === 0) ? "not-allowed" : "pointer"
+              }}
+            >
+              {generatingMarksReport ? (
+                <>
+                  <span style={btnSpinnerStyle} />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  📥 Generate Report
+                </>
+              )}
+            </button>
           </div>
 
           <div style={cardContentStyle}>
@@ -1140,6 +1248,36 @@ const cardSubtitleStyle = {
 
 const cardContentStyle = {
   padding: "24px 32px"
+};
+
+// Generate Report Button Style
+const generateReportBtnStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "8px",
+  padding: "10px 20px",
+  borderRadius: "10px",
+  border: "none",
+  backgroundColor: "#0d9488",
+  color: "#fff",
+  fontSize: "13px",
+  fontWeight: "600",
+  cursor: "pointer",
+  transition: "all 0.2s",
+  whiteSpace: "nowrap",
+  boxShadow: "0 2px 8px rgba(13, 148, 136, 0.3)",
+  marginLeft: "auto"
+};
+
+// Spinner inside button
+const btnSpinnerStyle = {
+  display: "inline-block",
+  width: "14px",
+  height: "14px",
+  border: "2px solid rgba(255,255,255,0.4)",
+  borderTopColor: "#fff",
+  borderRadius: "50%",
+  animation: "spin 0.7s linear infinite"
 };
 
 // Search and Filter Styles

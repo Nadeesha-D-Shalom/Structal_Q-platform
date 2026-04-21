@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import StudentNavbar from "./StudentNavbar";
+import { useNavigate } from "react-router-dom";
 
 const API_BASE = process.env.REACT_APP_API_URL || "";
 const apiUrl = (p) => `${API_BASE}${p}`;
@@ -67,6 +68,10 @@ const ViewDetailsModal = ({ isOpen, onClose, concern }) => {
               <span style={infoLabelStyle}>Original Mark:</span>
               <span style={markValueStyle}>{concern?.original_mark}/100</span>
             </div>
+            <div style={infoRowStyle}>
+              <span style={infoLabelStyle}>Revised Mark:</span>
+              <span style={markValueStyle}>{concern?.revised_mark != null ? `${concern.revised_mark}/100` : "N/A"}</span>
+            </div>
           </div>
 
           {/* Student Message */}
@@ -103,6 +108,7 @@ const ViewDetailsModal = ({ isOpen, onClose, concern }) => {
 };
 
 export default function StudentConcernsOverview() {
+  const navigate = useNavigate();
   const [session, setSession] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [concerns, setConcerns] = useState([]);
@@ -199,6 +205,21 @@ export default function StudentConcernsOverview() {
     setStatusFilter("All");
   };
 
+  const getInitials = (name) => {
+    return name
+      ?.split(" ")
+      .map(word => word[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2) || "S";
+  };
+
+  const getAvatarColor = (name) => {
+    const colors = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6", "#ec4899"];
+    const index = (name?.length || 0) % colors.length;
+    return colors[index];
+  };
+
   const getStatusStyle = (status) => {
     switch(status) {
       case "Pending": return { color: "#f59e0b", dot: "#f59e0b" };
@@ -223,6 +244,9 @@ export default function StudentConcernsOverview() {
     setSelectedConcern(concern);
     setShowDetailsModal(true);
   };
+
+  const initials = session?.student_name
+    ?.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "S";
 
   if (sessionLoading) {
     return (
@@ -317,7 +341,9 @@ export default function StudentConcernsOverview() {
             filteredConcerns.map((concern, index) => {
               const statusStyle = getStatusStyle(concern.concern_status);
               const priorityStyle = getPriorityStyle(concern.priority_level);
-
+              const avatarColor = getAvatarColor(concern.student_name || session?.student_name);
+              const initials = getInitials(concern.student_name || session?.student_name);
+              
               return (
                 <div key={concern.concern_id} style={tableRowStyle(index === filteredConcerns.length - 1)}>
                   <div style={studentCellStyle}>
@@ -517,6 +543,20 @@ const studentCellStyle = {
   alignItems: "center",
   gap: "12px"
 };
+
+const avatarStyle = (color) => ({
+  width: "40px",
+  height: "40px",
+  borderRadius: "50%",
+  backgroundColor: color,
+  color: "#fff",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "14px",
+  fontWeight: "700",
+  flexShrink: 0
+});
 
 const studentNameStyle = {
   fontSize: "14px",

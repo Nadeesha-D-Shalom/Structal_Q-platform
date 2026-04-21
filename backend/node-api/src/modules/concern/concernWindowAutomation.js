@@ -1,42 +1,38 @@
 const cron = require("node-cron");
-const { pool, poolConnect } = require("../../config/db");
+const { pool } = require("../../config/db");
 
-/**
- * Marks expired rows as CLOSED when `status` column exists; otherwise no-op (eligibility is still enforced in APIs).
- */
-const closeExpiredConcernWindows = async () => {
+const closeConcernWindows = async () => {
   try {
-    await poolConnect;
-    const cols = await pool.request().query(`
-      SELECT c.name
-      FROM sys.columns c
-      INNER JOIN sys.tables t ON c.object_id = t.object_id
-      WHERE t.name = 'concern_window' AND SCHEMA_NAME(t.schema_id) = 'dbo';
+    const result = await pool.request().query(`
+      UPDATE final_mark
+      SET
+        concern_window_open = 0
+      WHERE marking_status      = 'PUBLISHED'
+        AND concern_window_open = 1
+        AND published_at IS NOT NULL
+        AND DATEDIFF(HOUR, published_at, GETDATE()) >= 48
     `);
-    const names = new Set((cols.recordset || []).map((r) => r.name));
-    if (!names.has("status") || !names.has("open_until")) return;
 
-    await pool.request().query(`
-      UPDATE cw
-      SET status = N'CLOSED'
-      FROM concern_window cw
-      WHERE cw.open_until IS NOT NULL
-        AND cw.open_until < GETDATE()
-        AND ISNULL(cw.status, N'') <> N'CLOSED';
-    `);
+    const closed = result.rowsAffected[0];
+    if (closed > 0) {
+      console.log(
+        `[ConcernWindow] Closed ${closed} concern window(s) at ${new Date().toISOString()}`
+      );
+    }
   } catch (err) {
-    console.error("[ConcernWindow] closeExpiredConcernWindows:", err.message);
+    console.error("[ConcernWindow] Scheduler error:", err);
   }
 };
 
 const startConcernWindowScheduler = () => {
-  cron.schedule("*/10 * * * *", async () => {
-    await closeExpiredConcernWindows();
-  });
+    //runs every 10 minutes
+    cron.schedule("*/10 * * * *", async () => {
+        await closeConcernWindows();
+    });
 
-  console.log("[ConcernWindow] Scheduler started — closes expired windows every 10 minutes");
+    console.log("[ConcernWindow] Scheduler started — checks every 10 minutes");
 
-  closeExpiredConcernWindows();
+    closeConcernWindows();
 };
 
-module.exports = { startConcernWindowScheduler, closeExpiredConcernWindows };
+module.exports = { startConcernWindowScheduler };

@@ -147,25 +147,6 @@ exports.notifyStudentsNewAssignmentBroadcast = async ({ assessmentTitle, subject
 };
 
 /**
- * After marks are published, remind students that the concern window is open (48h).
- * Same recipients as submissions on this assessment.
- */
-exports.notifyConcernWindowOpenedForAssessment = async (assessmentId) => {
-  await poolConnect;
-  const titleRow = await pool
-    .request()
-    .input("aid", sql.BigInt, assessmentId)
-    .query(`SELECT TOP 1 assessment_title FROM assessment WHERE assessment_id = @aid`);
-  const atitle = titleRow.recordset?.[0]?.assessment_title || "Assignment";
-  return exports.notifyStudentsForAssessment(
-    assessmentId,
-    "Concern window open",
-    `You can raise a concern about "${atitle}" while the concern window is active (48 hours from publish).`,
-    "CONCERN_WINDOW_OPENED"
-  );
-};
-
-/**
  * Notify all active student accounts (in-app). Use for exam timetable publish and similar broadcasts.
  */
 exports.notifyAllActiveStudents = async (title, message, type) => {

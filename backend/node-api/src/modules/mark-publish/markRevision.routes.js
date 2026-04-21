@@ -14,4 +14,10 @@ router.put('/update', markRevisionController.updateMark);
 //delete mark endpoint
 router.delete('/delete/:submission_id', markRevisionController.deleteMark);
 
+//generate marks report
+router.get('/report', markRevisionController.generateMarksReport);
+
+//generate audits report
+router.get('/audits/report', markRevisionController.generateAuditsReport);
+
 module.exports = router;

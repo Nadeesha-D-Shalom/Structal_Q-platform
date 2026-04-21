@@ -1,10 +1,9 @@
 const { pool, sql } = require("../../config/db");
-const notificationService = require("../notification/notification.service");
-const { assertActiveConcernWindow } = require("../concern/concernEligibility");
 const path = require("path");
 const mime = require('mime-types');
 const fs = require("fs");
 const { Parser } = require('json2csv');
+const notificationHandler = require('../notification/notification.service')
 
 exports.getAllAssessments = async (req, res, next) => {
     try {
@@ -113,7 +112,6 @@ exports.getPdf = async (req, res, next) => {
     }
 };
 
-
 // Save evaluated results
 exports.saveEvaluatedResults = async (req, res) => {
     try {
@@ -164,77 +162,6 @@ exports.saveEvaluatedResults = async (req, res) => {
             message: "Failed to save evaluated results"
         });
     }
-};
-
-exports.getAiScores = async (req, res, next) => {
-    try {
-        const { submission_id } = req.params;
-        const result = await pool.request()
-            .input("sid", sql.BigInt, submission_id)
-            .query(`
-                SELECT
-                    o.page_no,
-                    o.has_diagram,
-                    CAST(ISNULL(d.match_score, 0) * 10 AS DECIMAL(10,2)) AS clarity_score,
-                    CASE
-                        WHEN ISNULL(o.has_diagram, 0) = 1
-                             AND (d.match_score IS NULL OR d.match_score < 0.5)
-                        THEN 1 ELSE 0
-                    END AS manual_review_recommended,
-                    d.detected_labels,
-                    d.issues
-                FROM ocr_page_result o
-                LEFT JOIN diagram_check_result d
-                    ON d.analysis_result_id = o.analysis_result_id
-                    AND d.page_no = o.page_no
-                WHERE o.analysis_result_id = (
-                    SELECT TOP 1 ar.analysis_result_id
-                    FROM analysis_result ar
-                    WHERE ar.submission_id = @sid
-                    ORDER BY ar.analysis_result_id DESC
-                )
-                AND ISNULL(o.has_diagram, 0) = 1
-                ORDER BY o.page_no ASC;
-            `);
-
-        const parseJson = (val) => {
-            if (val == null) return null;
-            if (Array.isArray(val)) return val;
-            if (typeof val === "string") {
-                const trimmed = val.trim();
-                if (!trimmed) return null;
-                try { return JSON.parse(trimmed); } catch { return null; }
-            }
-            return null;
-        };
-
-        const normalizeIssues = (val) => {
-            if (val == null) return null;
-            if (Array.isArray(val)) return val.join(", ");
-            if (typeof val === "string") {
-                const parsed = parseJson(val);
-                if (Array.isArray(parsed)) return parsed.join(", ");
-                return val;
-            }
-            const parsed = parseJson(val);
-            if (Array.isArray(parsed)) return parsed.join(", ");
-            return null;
-        };
-
-        const data = (result.recordset || []).map((r) => {
-            const detectedLabels = parseJson(r.detected_labels);
-            return {
-                page_no: r.page_no,
-                has_diagram: !!r.has_diagram,
-                clarity_score: r.clarity_score ?? 0,
-                manual_review_recommended: !!r.manual_review_recommended,
-                detected_labels: Array.isArray(detectedLabels) ? detectedLabels : [],
-                issues: normalizeIssues(r.issues),
-            };
-        });
-
-        res.status(200).json({ success: true, data });
-    } catch (err) { next(err); }
 };
 
 // Export pending marks to CSV
@@ -303,168 +230,9 @@ exports.exportPendingMarksCSV = async (req, res, next) => {
     }
 };
 
-// CONCERN WINDOW MANAGEMENT
-exports.createConcernWindow = async (req, res, next) => {
-    try {
-        const { assessment_id, open_from, open_until, description } = req.body;
-        const result = await pool.request()
-            .input('assessment_id', sql.BigInt, assessment_id)
-            .input('open_from', sql.DateTime, open_from ? new Date(open_from) : new Date())
-            .input('open_until', sql.DateTime, open_until ? new Date(open_until) : null)
-            .input('description', sql.NVarChar(500), description || null)
-            .query(`
-                INSERT INTO concern_window (assessment_id, open_from, open_until, description, created_at)
-                OUTPUT INSERTED.window_id
-                VALUES (@assessment_id, @open_from, @open_until, @description, GETDATE())
-            `);
-        res.status(201).json({ success: true, window_id: result.recordset[0]?.window_id });
-    } catch (err) { next(err); }
-};
-
-exports.getConcernWindows = async (req, res, next) => {
-    try {
-        const result = await pool.request().query(`
-            SELECT cw.*, a.assessment_title
-            FROM concern_window cw
-            LEFT JOIN assessment a ON a.assessment_id = cw.assessment_id
-            ORDER BY cw.created_at DESC
-        `);
-        res.json({ success: true, data: result.recordset });
-    } catch (err) { next(err); }
-};
-
-exports.getConcernWindowById = async (req, res, next) => {
-    try {
-        const { id } = req.params;
-        const result = await pool.request()
-            .input('id', sql.BigInt, id)
-            .query(`SELECT * FROM concern_window WHERE window_id = @id`);
-        if (!result.recordset.length) return res.status(404).json({ success: false, message: 'Concern window not found' });
-        res.json({ success: true, data: result.recordset[0] });
-    } catch (err) { next(err); }
-};
-
-exports.updateConcernWindow = async (req, res, next) => {
-    try {
-        const { id } = req.params;
-        const { open_from, open_until, description } = req.body;
-        await pool.request()
-            .input('id', sql.BigInt, id)
-            .input('open_from', sql.DateTime, open_from ? new Date(open_from) : null)
-            .input('open_until', sql.DateTime, open_until ? new Date(open_until) : null)
-            .input('description', sql.NVarChar(500), description || null)
-            .query(`
-                UPDATE concern_window
-                SET open_from = COALESCE(@open_from, open_from),
-                    open_until = COALESCE(@open_until, open_until),
-                    description = COALESCE(@description, description)
-                WHERE window_id = @id
-            `);
-        res.json({ success: true, message: 'Concern window updated' });
-    } catch (err) { next(err); }
-};
-
-exports.deleteConcernWindow = async (req, res, next) => {
-    try {
-        const { id } = req.params;
-        await pool.request()
-            .input('id', sql.BigInt, id)
-            .query(`DELETE FROM concern_window WHERE window_id = @id`);
-        res.json({ success: true, message: 'Concern window deleted' });
-    } catch (err) { next(err); }
-};
-
-// STUDENT CONCERNS
-exports.raiseConcern = async (req, res, next) => {
-    try {
-        const { student_id, submission_id, concern_message, academic_year } = req.body;
-        if (!student_id || !submission_id || !concern_message) {
-            return res.status(400).json({ success: false, message: 'Missing required fields' });
-        }
-        const sessionUid = req.user?.user_id;
-        if (sessionUid != null && Number(student_id) !== Number(sessionUid)) {
-            return res.status(403).json({ success: false, message: 'You can only submit concerns for your own account.' });
-        }
-        const win = await assertActiveConcernWindow(pool, submission_id, student_id);
-        if (!win.ok) {
-            return res.status(403).json({ success: false, message: win.message });
-        }
-        await pool.request()
-            .input('student_id', sql.BigInt, student_id)
-            .input('submission_id', sql.BigInt, submission_id)
-            .input('concern_message', sql.NVarChar(sql.MAX), concern_message)
-            .input('academic_year', sql.VarChar, academic_year || null)
-            .query(`
-                INSERT INTO mark_concern (student_id, submission_id, concern_message, academic_year)
-                VALUES (@student_id, @submission_id, @concern_message, @academic_year)
-            `);
-        res.status(201).json({ success: true, message: 'Concern raised successfully' });
-    } catch (err) { next(err); }
-};
-
-exports.getConcerns = async (req, res, next) => {
-    try {
-        const result = await pool.request().query(`
-            SELECT mc.*, a.assessment_title, sub.subject_name
-            FROM mark_concern mc
-            LEFT JOIN submission s ON mc.submission_id = s.submission_id
-            LEFT JOIN assessment a ON s.assessment_id = a.assessment_id
-            LEFT JOIN subject_offering so ON a.offering_id = so.offering_id
-            LEFT JOIN subject sub ON so.subject_id = sub.subject_id
-            ORDER BY mc.created_at DESC
-        `);
-        res.json({ success: true, data: result.recordset });
-    } catch (err) { next(err); }
-};
-
-exports.resolveConcern = async (req, res, next) => {
-    try {
-        const { id } = req.params;
-        const { resolution_note } = req.body;
-        await pool.request()
-            .input('id', sql.BigInt, id)
-            .input('resolution_note', sql.NVarChar(sql.MAX), resolution_note || null)
-            .query(`
-                UPDATE mark_concern
-                SET concern_status = 'Resolved',
-                    lecturer_comment = @resolution_note,
-                    last_modified = GETDATE()
-                WHERE id = @id
-            `);
-        res.json({ success: true, message: 'Concern resolved successfully' });
-    } catch (err) { next(err); }
-};
-
-
-async function ensureConcernWindowForPublishedAssessment(assessmentId) {
-    const open = new Date();
-    const until = new Date(open.getTime() + 48 * 60 * 60 * 1000);
-    const exists = await pool
-        .request()
-        .input("aid", sql.BigInt, assessmentId)
-        .query(`SELECT TOP 1 window_id FROM concern_window WHERE assessment_id = @aid`);
-    if (exists.recordset?.length) return;
-    await pool
-        .request()
-        .input("assessment_id", sql.BigInt, assessmentId)
-        .input("open_from", sql.DateTime, open)
-        .input("open_until", sql.DateTime, until)
-        .input("description", sql.NVarChar(500), "Opened automatically when marks were published (48 hours)")
-        .query(`
-            INSERT INTO concern_window (assessment_id, open_from, open_until, description, created_at)
-            VALUES (@assessment_id, @open_from, @open_until, @description, GETDATE());
-        `);
-}
-
 exports.bulkPublishMarks = async (req, res, next) => {
     try {
-        const { submissions } = req.body; // Expecting array of submissions
-        const u = req.user || {};
-        const published_by =
-            [u.first_name, u.last_name].filter(Boolean).join(" ").trim() ||
-            u.name ||
-            u.email ||
-            `user_${u.user_id || "unknown"}`;
+        const { submissions, published_by } = req.body; 
         
         if (!submissions || !Array.isArray(submissions) || submissions.length === 0) {
             return res.status(400).json({
@@ -475,8 +243,7 @@ exports.bulkPublishMarks = async (req, res, next) => {
         
         const results = [];
         const errors = [];
-        const publishedAssessmentIds = new Set();
-
+        
         for (const sub of submissions) {
             try {
                 const { submission_id, final_mark, ai_score, manual_mark } = sub;
@@ -490,10 +257,7 @@ exports.bulkPublishMarks = async (req, res, next) => {
                 const validationData = await pool.request()
                     .input("sid", sql.BigInt, submission_id)
                     .query(`
-                        SELECT
-                          s.student_id,
-                          s.assessment_id,
-                          a.total_marks
+                        SELECT s.student_id, a.total_marks 
                         FROM submission s
                         JOIN assessment a ON s.assessment_id = a.assessment_id
                         WHERE s.submission_id = @sid
@@ -504,7 +268,7 @@ exports.bulkPublishMarks = async (req, res, next) => {
                     continue;
                 }
                 
-                const { student_id, total_marks, assessment_id: aid } = validationData.recordset[0];
+                const { student_id, total_marks } = validationData.recordset[0];
                 
                 if (final_mark < 0 || final_mark > total_marks) {
                     errors.push({ submission_id, reason: `Mark ${final_mark} exceeds max ${total_marks}` });
@@ -561,37 +325,15 @@ exports.bulkPublishMarks = async (req, res, next) => {
                     `);
                 
                 results.push({ submission_id, final_mark, status: "published" });
-                if (aid != null) publishedAssessmentIds.add(Number(aid));
 
+                const message = `Your marks for "Submission - ${submission_id}" have been published. Your final mark is "${final_mark}/100".`;
+                await notificationHandler.insertForUser(student_id, "Marks Published", message, "mark_published");
+                
             } catch (err) {
                 errors.push({ submission_id: sub.submission_id, reason: err.message });
             }
         }
-
-        for (const aid of publishedAssessmentIds) {
-            try {
-                await ensureConcernWindowForPublishedAssessment(aid);
-            } catch (e) {
-                console.warn("[bulkPublish] concern window:", e.message);
-            }
-            try {
-                const titleRow = await pool
-                    .request()
-                    .input("aid", sql.BigInt, aid)
-                    .query(`SELECT TOP 1 assessment_title FROM assessment WHERE assessment_id = @aid`);
-                const atitle = titleRow.recordset?.[0]?.assessment_title || "Assignment";
-                await notificationService.notifyStudentsForAssessment(
-                    aid,
-                    "Marks published",
-                    `Your marks for "${atitle}" are now available. You may raise a concern during the concern window.`,
-                    "MARKS_PUBLISHED"
-                );
-                await notificationService.notifyConcernWindowOpenedForAssessment(aid);
-            } catch (e) {
-                console.warn("[bulkPublish] notifications:", e.message);
-            }
-        }
-
+        
         res.json({
             success: true,
             message: `Published: ${results.length}, Failed: ${errors.length}`,
