@@ -1,6 +1,7 @@
 const PDFDocument = require('pdfkit');
 const { pool, sql } = require("../../config/db");
 const priorityDetector = require('./priorityDetector');
+const notificationHandler = require('../notification/notification.service')
 
 function normalizeConcernRow(row) {
     const fallbackName = (row.fallback_student_name || "").trim();
@@ -139,7 +140,7 @@ exports.updateConcern = async (req, res, next) => {
         const resolvedRevisedBy = revised_by ?? req.user?.user_id;
         const resolvedOriginalMark = originalMark ?? original_mark;
 
-        const lecturer_name = req.session?.user?.name ?? req.user?.name ?? "Unknown";
+        const lecturer_name =`${req.user?.first_name || ""} ${req.user?.last_name || ""}`.trim() || "Unknown";
 
         await pool.request()
             .input('concern_status', sql.VarChar, concern_status)
@@ -190,6 +191,26 @@ exports.updateConcern = async (req, res, next) => {
                     AND marking_status = 'PUBLISHED'
                 `);
         }
+
+        // Get student_id for notification
+        const concernData = await pool.request()
+            .input("concern_id", sql.VarChar, concern_id)
+            .query(`
+                SELECT student_id
+                FROM mark_concern
+                WHERE concern_id = @concern_id
+            `);
+
+        if (concernData.recordset.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Concern not found"
+            });
+        }
+
+        const student_id = concernData.recordset[0].student_id;
+        const message = `Your concern [ID : ${concern_id}] regarding the assignment has been reviewed by the lecturer. Please check your concern overview panel..`;
+        await notificationHandler.insertForUser(student_id, "Responded to Concern", message, "responded_concern");
 
         res.json({
             success: true,

@@ -326,7 +326,7 @@ exports.bulkPublishMarks = async (req, res, next) => {
                 
                 results.push({ submission_id, final_mark, status: "published" });
 
-                const message = `Your marks for "Submission - ${submission_id}" have been published. Your final mark is "${final_mark}/100".`;
+                const message = `Your marks for Submission - ${submission_id} have been published. Your final mark is ${final_mark}%.`;
                 await notificationHandler.insertForUser(student_id, "Marks Published", message, "mark_published");
                 
             } catch (err) {
