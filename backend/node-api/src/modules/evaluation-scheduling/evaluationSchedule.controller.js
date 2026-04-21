@@ -1,6 +1,7 @@
 'use strict';
 
-const { pool: dbPool, poolConnect, sql } = require('../../config/db');
+const { pool: dbPool, poolConnect, sql, dbConfig: config } = require('../../config/db');
+const notificationService = require('../notification/notification.service');
 
 // Load typed email helpers; fall back to no-ops if service is missing
 // AFTER
@@ -992,6 +993,23 @@ exports.publishSchedule = async (req, res) => {
             console.warn('[publishSchedule] No assigned recipients found for schedule publication emails');
         }
 
+        try {
+            const inAppRecipients = await getAssignedRecipients(pool, scheduleId);
+            const st = sched.schedule_title || 'Evaluation schedule';
+            for (const r of inAppRecipients) {
+                if (r.user_id) {
+                    await notificationService.insertForUser(
+                        r.user_id,
+                        'Evaluation schedule published',
+                        `Your schedule "${st}" is published. Check date, time, and location in Evaluation.`,
+                        'EVALUATION_SCHEDULE_PUBLISHED'
+                    );
+                }
+            }
+        } catch (e) {
+            console.warn('[publishSchedule] in-app notifications:', e.message);
+        }
+
         res.json({
             message:      'Schedule published',
             emailsSent,
@@ -1558,7 +1576,8 @@ exports.getEmailLogs = async (req, res) => {
 
 exports.getStudentScheduleView = async (req, res) => {
     try {
-        const pool = await sql.connect(config);
+        await poolConnect;
+        const pool = dbPool;
 
         // ── 1. Fetch all PUBLISHED schedules with location + assessment info ──
         const scheduleRes = await pool.request().query(`
@@ -1579,7 +1598,7 @@ exports.getStudentScheduleView = async (req, res) => {
                 ISNULL(el.capacity,        0)             AS capacity
             FROM evaluation_schedule es
             LEFT JOIN evaluation_location el ON el.location_id  = es.location_id
-            LEFT JOIN Assessments          a  ON a.assessment_id = es.assessment_id
+            LEFT JOIN assessment            a  ON a.assessment_id = es.assessment_id
             WHERE es.status = 'PUBLISHED'
             ORDER BY es.date DESC
         `);

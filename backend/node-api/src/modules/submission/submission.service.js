@@ -60,30 +60,39 @@ exports.upload = async (req) => {
 
         const assess = assessmentRes.recordset[0];
 
-        // ================= LATE CHECK WITH GRACE PERIOD =================
         const now = new Date();
-        const dueDate = new Date(assess.due_date);
-        const gracePeriod = assess.grace_period_minutes || 0;
-        const graceEnd = new Date(dueDate.getTime() + gracePeriod * 60000);
+
+        // ================= TIME WINDOW (start → due + grace) =================
+        if (assess.start_date) {
+            const start = new Date(assess.start_date);
+            if (now.getTime() < start.getTime()) {
+                throw createBadRequest("Submission is not open yet (before start date)");
+            }
+        }
+
+        if (!assess.due_date) {
+            throw createBadRequest("Assessment has no due date configured");
+        }
+
+        const dueMs = new Date(assess.due_date).getTime();
+        const graceMin = Number(assess.grace_minutes ?? assess.grace_period_minutes ?? 0) || 0;
+        const graceEndMs = dueMs + graceMin * 60000;
+
+        if (now.getTime() > graceEndMs) {
+            throw createBadRequest("Submission period is closed (past due date and grace period)");
+        }
 
         let isLate = 0;
         let lateMinutes = 0;
-
-        if (now > graceEnd) {
-            lateMinutes = Math.floor((now - dueDate) / 60000);
-
-            if (assess.late_policy_enabled) {
-                isLate = 1;
-            } else {
-                throw new Error("Late submission not allowed");
-            }
-        } else if (now > dueDate) {
-            // Within grace period, allow but mark as late
-            lateMinutes = Math.floor((now - dueDate) / 60000);
+        if (now.getTime() > dueMs) {
             isLate = 1;
+            lateMinutes = Math.floor((now.getTime() - dueMs) / 60000);
+            if (!assess.late_policy_enabled) {
+                throw createBadRequest("Late submission is not allowed for this assignment");
+            }
         }
 
-        // ================= ATTEMPT =================
+        // ================= ATTEMPT / RESUBMISSION =================
         const attemptRes = await pool.request()
             .input('assessment_id', sql.Int, assessment_id)
             .input('student_id', sql.Int, student_id)
@@ -92,14 +101,24 @@ exports.upload = async (req) => {
                 FROM submission
                 WHERE assessment_id = @assessment_id
                 AND student_id = @student_id
+                AND (submission_status IS NULL OR submission_status <> 'DELETED')
             `);
 
-        const attemptNo = attemptRes.recordset[0].maxAttempt
-            ? attemptRes.recordset[0].maxAttempt + 1
-            : 1;
+        const maxPrev = attemptRes.recordset[0].maxAttempt;
+        const attemptNo = maxPrev ? maxPrev + 1 : 1;
 
-        // ================= PATH =================
-        const fullPath = path.resolve(req.file.path);
+        if (attemptNo > 1) {
+            if (!assess.allow_resubmission) {
+                throw createBadRequest("Resubmission is not allowed for this assignment");
+            }
+            const maxR = assess.max_resubmissions;
+            if (maxR != null && maxR !== undefined && attemptNo > 1 + Number(maxR)) {
+                throw createBadRequest("Maximum submission attempts reached");
+            }
+        }
+
+        // ================= PATH (normalize slashes for cross-platform DB rows) =================
+        const fullPath = path.resolve(req.file.path).replace(/\\/g, "/");
 
         // ================= INSERT FILE =================
         const fileInsert = await pool.request()
@@ -153,6 +172,7 @@ exports.upload = async (req) => {
                     assessment_id,
                     student_id,
                     attempt_no,
+                    submitted_at,
                     is_late,
                     late_minutes,
                     file_id,
@@ -162,6 +182,7 @@ exports.upload = async (req) => {
                     @assessment_id,
                     @student_id,
                     @attempt_no,
+                    GETDATE(),
                     @is_late,
                     @late_minutes,
                     @file_id,

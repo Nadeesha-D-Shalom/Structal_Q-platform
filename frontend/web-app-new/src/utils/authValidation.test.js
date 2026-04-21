@@ -46,4 +46,12 @@ describe("getDashboardPathForRole", () => {
   test("unknown role → /student", () => {
     expect(getDashboardPathForRole("guest")).toBe("/student");
   });
+
+  test("Teacher synonym → /lecturer", () => {
+    expect(getDashboardPathForRole("Teacher")).toBe("/lecturer");
+  });
+
+  test("ADMIN uppercase → /lecturer", () => {
+    expect(getDashboardPathForRole("ADMIN")).toBe("/lecturer");
+  });
 });

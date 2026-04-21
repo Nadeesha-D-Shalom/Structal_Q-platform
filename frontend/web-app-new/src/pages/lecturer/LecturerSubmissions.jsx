@@ -417,7 +417,6 @@ const BatchModal = ({
   guidesForAssessment, batchMarkingGuideId, setBatchMarkingGuideId,
   submissionRows, batchSelectedSubmissionIds, setBatchSelectedSubmissionIds,
 }) => {
-  const allSelected = submissionRows.length > 0 && batchSelectedSubmissionIds.length === submissionRows.length;
   const toggle = (sid) => {
     const n = Number(sid);
     setBatchSelectedSubmissionIds(prev =>

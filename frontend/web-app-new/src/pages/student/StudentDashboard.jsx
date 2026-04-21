@@ -52,7 +52,7 @@ const StudentDashboard = () => {
       <StudentNavbar />
 
       {/* Content */}
-      <main className="px-[45px] pt-[30px]">
+      <main className="px-4 sm:px-8 md:px-12 pt-6 sm:pt-8 max-w-6xl mx-auto w-full">
 
         {/* Header */}
         <h1 className="text-[22px] font-bold text-[#1b2b44]">
@@ -63,7 +63,7 @@ const StudentDashboard = () => {
         </p>
 
         {/* Cards */}
-        <div className="grid grid-cols-3 gap-[18px] mb-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[18px] mb-5">
 
           {/* Card 1 */}
           <div className="bg-white border rounded-[14px] px-[18px] py-[14px] shadow-sm relative">
@@ -124,10 +124,10 @@ const StudentDashboard = () => {
         </div>
 
         {/* Bottom */}
-        <div className="grid grid-cols-3 gap-[18px]">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-[18px]">
 
           {/* Activity */}
-          <div className="col-span-2 bg-white border rounded-[14px]">
+          <div className="lg:col-span-2 bg-white border rounded-[14px]">
 
             <div className="flex justify-between items-center px-4 py-3 border-b">
               <h2 className="text-[13px] font-semibold flex items-center gap-2">
@@ -167,9 +167,10 @@ const StudentDashboard = () => {
             <div className="space-y-3">
 
               {[
-                ["fa-upload", "Upload Submission", "/student/submissions"],
-                ["fa-eye", "View Marks", "/student/marks"],
-                ["fa-exclamation", "Raise Concern", "/student/raise-concern"],
+                ["fa-upload", "Lab submissions", "/student/submissions"],
+                ["fa-eye", "View marks", "/student/marks"],
+                ["fa-calendar", "Exam timetable", "/student/timetable"],
+                ["fa-exclamation", "Raise concern", "/student/raise-concern"],
               ].map((item, i) => (
                 <Link
                   key={i}

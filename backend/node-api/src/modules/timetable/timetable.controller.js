@@ -1,4 +1,56 @@
 const { pool, poolConnect, sql } = require('../../config/db');
+const notificationService = require('../notification/notification.service');
+
+function normalizeTimeForSql(t) {
+    if (t == null || t === '') return null;
+    const s = String(t).trim();
+    if (s.length === 5 && s[2] === ':') return `${s}:00`;
+    return s;
+}
+
+/** Returns true if examDateStr (YYYY-MM-DD) is strictly before today in local server TZ. */
+function isExamDateInPast(examDateStr) {
+    const m = String(examDateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return true;
+    const exam = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    exam.setHours(0, 0, 0, 0);
+    return exam < today;
+}
+
+function parseTimeToMinutes(t) {
+    const p = String(t || '')
+        .trim()
+        .split(':')
+        .map((x) => parseInt(x, 10));
+    if (p.length < 2 || p.some((n) => Number.isNaN(n))) return null;
+    return p[0] * 60 + p[1];
+}
+
+exports.getExamRooms = async (req, res) => {
+    try {
+        await poolConnect;
+        const result = await pool.request().query(`
+            SELECT
+                room_id,
+                room_name,
+                ISNULL(building, '') AS building,
+                ISNULL(capacity, 0) AS capacity
+            FROM exam_room
+            ORDER BY room_name
+        `);
+        res.json({
+            success: true,
+            data: result.recordset,
+        });
+    } catch (err) {
+        res.status(500).json({
+            success: false,
+            error: err.message,
+        });
+    }
+};
 
 exports.getAllTimetables = async (req, res) => {
     try {
@@ -141,6 +193,11 @@ exports.publishTimetable = async (req, res) => {
         await poolConnect;
         const { id } = req.params;
 
+        const titleRow = await pool
+            .request()
+            .input('id', sql.Int, id)
+            .query(`SELECT title FROM exam_timetable WHERE exam_timetable_id = @id`);
+
         await pool.request()
             .input('id', sql.Int, id)
             .query(`
@@ -151,6 +208,17 @@ exports.publishTimetable = async (req, res) => {
                     updated_at = GETDATE()
                 WHERE exam_timetable_id = @id
             `);
+
+        const ttitle = titleRow.recordset?.[0]?.title || 'Exam timetable';
+        try {
+            await notificationService.notifyAllActiveStudents(
+                'Exam timetable published',
+                `The exam timetable "${ttitle}" has been published. Open Timetable to view sessions.`,
+                'EXAM_TIMETABLE_PUBLISHED'
+            );
+        } catch (e) {
+            console.warn('[publishTimetable] notifications:', e.message);
+        }
 
         res.json({
             success: true,
@@ -226,32 +294,65 @@ exports.createSession = async (req, res) => {
         const { id } = req.params;
         const { subject_id, exam_date, start_time, end_time, room_id, capacity } = req.body;
 
-        // Check conflicts
+        const st = normalizeTimeForSql(start_time);
+        const et = normalizeTimeForSql(end_time);
+
+        if (!subject_id || !exam_date || !st || !et || !room_id) {
+            return res.status(400).json({
+                success: false,
+                error: "subject_id, exam_date, start_time, end_time, and room_id are required",
+            });
+        }
+
+        if (isExamDateInPast(exam_date)) {
+            return res.status(400).json({
+                success: false,
+                error: "Exam date cannot be in the past",
+            });
+        }
+
+        const sm = parseTimeToMinutes(st);
+        const em = parseTimeToMinutes(et);
+        if (sm == null || em == null || em <= sm) {
+            return res.status(400).json({
+                success: false,
+                error: "End time must be after start time",
+            });
+        }
+
+        if (!Number.isFinite(Number(capacity)) || Number(capacity) < 1) {
+            return res.status(400).json({
+                success: false,
+                error: "capacity must be a positive number",
+            });
+        }
+
+        // Check conflicts (same room / date / overlapping interval)
         const conflict = await pool.request()
-            .input('room_id', sql.Int, room_id)
+            .input('room_id', sql.BigInt, room_id)
             .input('exam_date', sql.Date, exam_date)
-            .input('start_time', sql.Time, start_time)
-            .input('end_time', sql.Time, end_time)
+            .input('start_time', sql.Time, st)
+            .input('end_time', sql.Time, et)
             .query(`
                 SELECT 1 FROM exam_session
                 WHERE room_id = @room_id AND exam_date = @exam_date
-                AND ((start_time < @end_time AND end_time > @start_time))
+                AND (start_time < @end_time AND end_time > @start_time)
             `);
 
         if (conflict.recordset.length > 0) {
             return res.status(400).json({
                 success: false,
-                error: "Time conflict detected"
+                error: "Time conflict detected for this room",
             });
         }
 
         const result = await pool.request()
-            .input('exam_timetable_id', sql.Int, id)
-            .input('subject_id', sql.Int, subject_id)
+            .input('exam_timetable_id', sql.BigInt, id)
+            .input('subject_id', sql.BigInt, subject_id)
             .input('exam_date', sql.Date, exam_date)
-            .input('start_time', sql.Time, start_time)
-            .input('end_time', sql.Time, end_time)
-            .input('room_id', sql.Int, room_id)
+            .input('start_time', sql.Time, st)
+            .input('end_time', sql.Time, et)
+            .input('room_id', sql.BigInt, room_id)
             .input('capacity', sql.Int, capacity)
             .query(`
                 INSERT INTO exam_session (exam_timetable_id, subject_id, exam_date, start_time, end_time, room_id, capacity)
@@ -278,13 +379,74 @@ exports.updateSession = async (req, res) => {
         const { sessionId } = req.params;
         const { subject_id, exam_date, start_time, end_time, room_id, capacity } = req.body;
 
-        await pool.request()
-            .input('sessionId', sql.Int, sessionId)
-            .input('subject_id', sql.Int, subject_id)
+        const st = normalizeTimeForSql(start_time);
+        const et = normalizeTimeForSql(end_time);
+
+        if (!subject_id || !exam_date || !st || !et || !room_id) {
+            return res.status(400).json({
+                success: false,
+                error: "subject_id, exam_date, start_time, end_time, and room_id are required",
+            });
+        }
+
+        const sm = parseTimeToMinutes(st);
+        const em = parseTimeToMinutes(et);
+        if (sm == null || em == null || em <= sm) {
+            return res.status(400).json({
+                success: false,
+                error: "End time must be after start time",
+            });
+        }
+
+        if (!Number.isFinite(Number(capacity)) || Number(capacity) < 1) {
+            return res.status(400).json({
+                success: false,
+                error: "capacity must be a positive number",
+            });
+        }
+
+        // Allow editing sessions that already have a past exam date; block *new* past dates on update.
+        const existing = await pool.request()
+            .input('sessionId', sql.BigInt, sessionId)
+            .query(
+                `SELECT CONVERT(VARCHAR(10), exam_date, 23) AS exam_date FROM exam_session WHERE session_id = @sessionId`
+            );
+        const prevStr = String(existing.recordset?.[0]?.exam_date || '').slice(0, 10);
+        const incoming = String(exam_date).slice(0, 10);
+        if (incoming !== prevStr && isExamDateInPast(exam_date)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Exam date cannot be in the past',
+            });
+        }
+
+        const conflict = await pool.request()
+            .input('sessionId', sql.BigInt, sessionId)
+            .input('room_id', sql.BigInt, room_id)
             .input('exam_date', sql.Date, exam_date)
-            .input('start_time', sql.Time, start_time)
-            .input('end_time', sql.Time, end_time)
-            .input('room_id', sql.Int, room_id)
+            .input('start_time', sql.Time, st)
+            .input('end_time', sql.Time, et)
+            .query(`
+                SELECT 1 FROM exam_session
+                WHERE room_id = @room_id AND exam_date = @exam_date
+                AND session_id <> @sessionId
+                AND (start_time < @end_time AND end_time > @start_time)
+            `);
+
+        if (conflict.recordset.length > 0) {
+            return res.status(400).json({
+                success: false,
+                error: "Time conflict detected for this room",
+            });
+        }
+
+        await pool.request()
+            .input('sessionId', sql.BigInt, sessionId)
+            .input('subject_id', sql.BigInt, subject_id)
+            .input('exam_date', sql.Date, exam_date)
+            .input('start_time', sql.Time, st)
+            .input('end_time', sql.Time, et)
+            .input('room_id', sql.BigInt, room_id)
             .input('capacity', sql.Int, capacity)
             .query(`
                 UPDATE exam_session
@@ -311,7 +473,7 @@ exports.deleteSession = async (req, res) => {
         const { sessionId } = req.params;
 
         await pool.request()
-            .input('sessionId', sql.Int, sessionId)
+            .input('sessionId', sql.BigInt, sessionId)
             .query(`
                 DELETE FROM exam_session
                 WHERE session_id = @sessionId

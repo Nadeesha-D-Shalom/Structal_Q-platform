@@ -470,4 +470,3 @@ exports.generateAuditsReport = async (req, res) => {
         res.status(500).json({ success: false, message: "Failed to generate audit report" });
     }
 }
-

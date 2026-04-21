@@ -27,11 +27,67 @@ function fmtTimeLabel(ts) {
   }
 }
 
+async function safeDashboardQuery(label, run) {
+  try {
+    return await run();
+  } catch (err) {
+    console.warn(`[dashboard] ${label}:`, err.message);
+    return { recordset: [] };
+  }
+}
+
+/** mark_concern shape differs between scripts (submission-based vs final_mark-based). */
+async function queryConcernActivitiesForDashboard() {
+  try {
+    return await pool.request().query(`
+      SELECT TOP 5
+        mc.created_at AS ts,
+        a.assessment_title AS assessment_title,
+        sub.subject_name AS subject_name
+      FROM mark_concern mc
+      INNER JOIN submission s ON s.submission_id = mc.submission_id
+      INNER JOIN assessment a ON a.assessment_id = s.assessment_id
+      INNER JOIN subject_offering so ON a.offering_id = so.offering_id
+      INNER JOIN subject sub ON sub.subject_id = so.subject_id
+      WHERE mc.concern_status = 'Pending'
+      ORDER BY mc.created_at DESC;
+    `);
+  } catch (e1) {
+    try {
+      return await pool.request().query(`
+        SELECT TOP 5
+          mc.submitted_at AS ts,
+          a.assessment_title AS assessment_title,
+          sub.subject_name AS subject_name
+        FROM mark_concern mc
+        LEFT JOIN final_mark fm ON fm.final_mark_id = mc.final_mark_id
+        LEFT JOIN submission s ON s.submission_id = fm.submission_id
+        LEFT JOIN assessment a ON a.assessment_id = s.assessment_id
+        LEFT JOIN subject_offering so ON so.offering_id = a.offering_id
+        LEFT JOIN subject sub ON sub.subject_id = so.subject_id
+        WHERE mc.status = 'Pending'
+        ORDER BY mc.submitted_at DESC;
+      `);
+    } catch (e2) {
+      console.warn("[dashboard] concern_activities:", e1.message, "| fallback:", e2.message);
+      return { recordset: [] };
+    }
+  }
+}
+
 exports.getLecturerDashboardSummary = async (req, res) => {
   try {
     await poolConnect;
 
-    const pendingReviewsRes = await pool.request().query(`
+    const [
+      pendingReviewsRes,
+      highRiskRes,
+      guidesRes,
+      aiActivitiesRes,
+      concernActivitiesRes,
+    ] = await Promise.all([
+      safeDashboardQuery("pending_reviews", () =>
+        pool.request().query(`
       SELECT COUNT(DISTINCT s.submission_id) AS pending_reviews_count
       FROM submission s
       JOIN analysis_result ar
@@ -40,9 +96,10 @@ exports.getLecturerDashboardSummary = async (req, res) => {
       LEFT JOIN final_mark fm
         ON fm.submission_id = s.submission_id
       WHERE fm.submission_id IS NULL;
-    `);
-
-    const highRiskRes = await pool.request().query(`
+    `)
+      ),
+      safeDashboardQuery("high_risk", () =>
+        pool.request().query(`
       WITH latest AS (
         SELECT
           submission_id,
@@ -62,44 +119,38 @@ exports.getLecturerDashboardSummary = async (req, res) => {
       WHERE rn = 1
         AND ISNULL(risk_level, 'LOW') = 'HIGH'
         AND fm.submission_id IS NULL;
-    `);
-
-    const guidesRes = await pool.request().query(`
+    `)
+      ),
+      safeDashboardQuery("guides", () =>
+        pool.request().query(`
       SELECT COUNT(*) AS active_guides_count
       FROM marking_guide
       WHERE ISNULL(status, 'ACTIVE') = 'ACTIVE';
-    `);
-
-    const aiActivitiesRes = await pool.request().query(`
+    `)
+      ),
+      safeDashboardQuery("ai_activities", () =>
+        pool.request().query(`
       SELECT TOP 5
         ar.completed_at AS ts,
         ar.risk_level AS risk_level,
-        CONCAT('ML Analysis Completed for ', a.assessment_title) AS text
+        sub.subject_name AS subject_name,
+        CONCAT('ML Analysis completed: ', a.assessment_title) AS text
       FROM analysis_result ar
       INNER JOIN submission s ON s.submission_id = ar.submission_id
       INNER JOIN assessment a ON a.assessment_id = s.assessment_id
+      INNER JOIN subject_offering so ON a.offering_id = so.offering_id
+      INNER JOIN subject sub ON sub.subject_id = so.subject_id
       WHERE ar.status = 'COMPLETED'
       ORDER BY ar.completed_at DESC;
-    `);
-
-    const concernActivitiesRes = await pool.request().query(`
-      SELECT TOP 5
-        mc.submitted_at AS ts,
-        a.assessment_title AS assessment_title,
-        sub.subject_name AS subject_name
-      FROM mark_concern mc
-      LEFT JOIN final_mark fm ON fm.final_mark_id = mc.final_mark_id
-      LEFT JOIN submission s ON s.submission_id = fm.submission_id
-      LEFT JOIN assessment a ON a.assessment_id = s.assessment_id
-      LEFT JOIN subject_offering so ON so.offering_id = a.offering_id
-      LEFT JOIN subject sub ON sub.subject_id = so.subject_id
-      WHERE mc.status = 'Pending'
-      ORDER BY mc.submitted_at DESC;
-    `);
+    `)
+      ),
+      safeDashboardQuery("concern_activities", () => queryConcernActivitiesForDashboard()),
+    ]);
 
     const aiActivities = (aiActivitiesRes.recordset || []).map((r) => ({
       ts: r.ts,
       text: r.text,
+      subject: r.subject_name || "—",
       time: fmtTimeLabel(r.ts),
       risk_level: r.risk_level,
       colorClass: riskColor(r.risk_level),
@@ -108,7 +159,8 @@ exports.getLecturerDashboardSummary = async (req, res) => {
 
     const concernActivities = (concernActivitiesRes.recordset || []).map((r) => ({
       ts: r.ts,
-      text: `New concern for ${r.assessment_title} (${r.subject_name})`,
+      text: `New concern: ${r.assessment_title}`,
+      subject: r.subject_name || "—",
       time: fmtTimeLabel(r.ts),
       colorClass: concernColor(),
       kind: "CONCERN",
@@ -123,6 +175,7 @@ exports.getLecturerDashboardSummary = async (req, res) => {
       .slice(0, 5)
       .map((a) => ({
         text: a.text,
+        subject: a.subject || "—",
         time: a.time,
         color: a.colorClass.bg,
       }));

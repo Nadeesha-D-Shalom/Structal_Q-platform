@@ -1,5 +1,6 @@
 const service = require("./auth.service");
 const jwt = require("jsonwebtoken");
+const { normalizeRole } = require("../../utils/roleNormalize");
 
 exports.login = async (req, res) => {
     try {
@@ -34,7 +35,9 @@ exports.login = async (req, res) => {
 exports.session = async (req, res) => {
     try {
         if (req.session && req.session.user) {
-            return res.json(req.session.user);
+            const su = { ...req.session.user };
+            if (su.role != null) su.role = normalizeRole(su.role);
+            return res.json(su);
         }
 
         const authHeader = req.headers.authorization || req.headers.Authorization;
@@ -44,6 +47,7 @@ exports.session = async (req, res) => {
 
         const token = authHeader.split(" ")[1];
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const role = normalizeRole(decoded.role);
 
         const userPayload = {
             user_id: decoded.user_id,
@@ -52,7 +56,8 @@ exports.session = async (req, res) => {
             student_name: `${decoded.first_name || ""} ${decoded.last_name || ""}`.trim(),
             student_email: decoded.email,
             academic_year: decoded.academic_year || "",
-            role: decoded.role,
+            registration_no: decoded.registration_no || "",
+            role,
             email: decoded.email,
             first_name: decoded.first_name,
             last_name: decoded.last_name,

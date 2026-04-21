@@ -1,6 +1,7 @@
 const { pool, sql } = require("../../config/db");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
+const { normalizeRole } = require("../../utils/roleNormalize");
 
 async function comparePassword(password, storedHash) {
     if (!storedHash) return false;
@@ -25,10 +26,12 @@ exports.login = async (email, password) => {
 
     if (!isMatch) throw new Error("Invalid password");
 
+    const role = normalizeRole(user.role);
+
     const token = jwt.sign(
         {
             user_id: user.user_id,
-            role: user.role,
+            role,
             email: user.email,
             first_name: user.first_name,
             last_name: user.last_name,
@@ -49,7 +52,7 @@ exports.login = async (email, password) => {
             student_email: user.email,
             academic_year: user.academic_year || "",
             name: `${user.first_name || ""} ${user.last_name || ""}`.trim(),
-            role: user.role,
+            role,
             email: user.email,
             first_name: user.first_name,
             last_name: user.last_name,
