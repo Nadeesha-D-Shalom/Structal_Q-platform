@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import LecturerNavbar from "./LecturerNavbar";
+import { getApiBaseUrl } from "../../utils/apiBase";
 
-const BASE    = "/api/evaluation-scheduling";
+const BASE    = `${getApiBaseUrl()}/api/evaluation-scheduling`;
 const USER_ID = 1;
 let authInterceptorAttached = false;
 

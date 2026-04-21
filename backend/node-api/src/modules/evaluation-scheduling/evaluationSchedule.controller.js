@@ -1576,7 +1576,8 @@ exports.getEmailLogs = async (req, res) => {
 
 exports.getStudentScheduleView = async (req, res) => {
     try {
-        const pool = await sql.connect(config);
+        await poolConnect;
+        const pool = dbPool;
 
         // ── 1. Fetch all PUBLISHED schedules with location + assessment info ──
         const scheduleRes = await pool.request().query(`
@@ -1597,7 +1598,7 @@ exports.getStudentScheduleView = async (req, res) => {
                 ISNULL(el.capacity,        0)             AS capacity
             FROM evaluation_schedule es
             LEFT JOIN evaluation_location el ON el.location_id  = es.location_id
-            LEFT JOIN Assessments          a  ON a.assessment_id = es.assessment_id
+            LEFT JOIN assessment            a  ON a.assessment_id = es.assessment_id
             WHERE es.status = 'PUBLISHED'
             ORDER BY es.date DESC
         `);
