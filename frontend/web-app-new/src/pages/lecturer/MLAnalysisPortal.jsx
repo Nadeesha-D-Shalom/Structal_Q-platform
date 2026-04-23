@@ -2,6 +2,7 @@ import LecturerNavbar from "./LecturerNavbar";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import { useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
+import { appToast } from "../../components/UIFeedback/appNotify";
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || "";
 
@@ -67,7 +68,7 @@ const MLAnalysisPortal = () => {
 
   const handleRunAnalysis = async () => {
     if (!selectedGuide || !selectedSubmission) {
-      alert("Please select marking guide and submission");
+      appToast("Please select marking guide and submission", "warning");
       return;
     }
 
@@ -83,14 +84,14 @@ const MLAnalysisPortal = () => {
       );
 
       if (!guide || !submission) {
-        alert("Invalid selection. Please try again.");
+        appToast("Invalid selection. Please try again.", "warning");
         setLoading(false);
         return;
       }
 
       const guidePath = guide.guide_file_path || guide.storage_path;
       if (!guidePath) {
-        alert("Selected marking guide has no file path. Re-upload the guide or pick another guide.");
+        appToast("Selected marking guide has no file path. Re-upload the guide or pick another guide.", "warning");
         setLoading(false);
         return;
       }
@@ -116,12 +117,12 @@ const MLAnalysisPortal = () => {
           state: { analysis_result_id: result.analysis_result_id, fromMlPortal: true },
         });
       } else {
-        alert("Analysis failed: " + (result.error || result.message || "Unknown error"));
+        appToast("Analysis failed: " + (result.error || result.message || "Unknown error"), "error");
       }
 
     } catch (err) {
       console.error("Analysis error:", err);
-      alert("Network error while running analysis");
+      appToast("Network error while running analysis", "error");
     } finally {
       setLoading(false);
     }

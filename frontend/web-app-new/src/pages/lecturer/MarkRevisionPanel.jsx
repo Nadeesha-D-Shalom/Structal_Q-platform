@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import LecturerNavbar from "./LecturerNavbar";
+import { appToast } from "../../components/UIFeedback/appNotify";
 
 // Success Popup Component
 const SuccessPopup = ({ isVisible, onClose, message, title, details }) => {
@@ -409,11 +410,11 @@ const MarkRevisionLogTable = ({ revisions, loading, onRefresh }) => {
         window.URL.revokeObjectURL(url);
       } else {
         const data = await res.json();
-        alert(`Error: ${data.message || "Failed to generate report"}`);
+        appToast(`Error: ${data.message || "Failed to generate report"}`, "error");
       }
     } catch (err) {
       console.error("Error generating revision report:", err);
-      alert("Failed to connect to server");
+      appToast("Failed to connect to server", "error");
     } finally {
       setGeneratingReport(false);
     }
@@ -768,11 +769,11 @@ export default function MarkRevisionAuditLog() {
         setShowEditModal(false);
         setSelectedSubmission(null);
       } else {
-        alert(`Error: ${response.message || "Failed to update mark"}`);
+        appToast(`Error: ${response.message || "Failed to update mark"}`, "error");
       }
     } catch (err) {
       console.error("Error updating mark:", err);
-      alert("Failed to connect to server");
+      appToast("Failed to connect to server", "error");
     }
   };
 
@@ -803,11 +804,11 @@ export default function MarkRevisionAuditLog() {
         setShowDeleteModal(false);
         setSelectedSubmission(null);
       } else {
-        alert(`Error: ${response.message || "Failed to delete mark"}`);
+        appToast(`Error: ${response.message || "Failed to delete mark"}`, "error");
       }
     } catch (err) {
       console.error("Error deleting mark:", err);
-      alert("Failed to connect to server");
+      appToast("Failed to connect to server", "error");
     }
   };
 
@@ -833,11 +834,11 @@ export default function MarkRevisionAuditLog() {
         window.URL.revokeObjectURL(url);
       } else {
         const data = await res.json();
-        alert(`Error: ${data.message || "Failed to generate report"}`);
+        appToast(`Error: ${data.message || "Failed to generate report"}`, "error");
       }
     } catch (err) {
       console.error("Error generating marks report:", err);
-      alert("Failed to connect to server");
+      appToast("Failed to connect to server", "error");
     } finally {
       setGeneratingMarksReport(false);
     }

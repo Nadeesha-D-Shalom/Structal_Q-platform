@@ -132,13 +132,13 @@ export default function LecturerAssignments() {
             />
             <input
               className="border rounded-lg px-3 py-2 text-sm"
-              placeholder="Start (ISO datetime)"
+              type="datetime-local"
               value={form.start_date}
               onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))}
             />
             <input
               className="border rounded-lg px-3 py-2 text-sm"
-              placeholder="Due (ISO datetime)"
+              type="datetime-local"
               value={form.due_date}
               onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))}
             />

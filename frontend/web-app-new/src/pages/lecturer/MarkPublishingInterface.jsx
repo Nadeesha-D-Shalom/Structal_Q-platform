@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import LecturerNavbar from "./LecturerNavbar"; 
+import LecturerNavbar from "./LecturerNavbar";
+import { appToast, appConfirm } from "../../components/UIFeedback/appNotify"; 
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
@@ -177,16 +178,19 @@ export default function PublishMarksConfig() {
 // Bulk publish all pending submissions
 const handleBulkPublish = async () => {
     if (!validateAllMarks()) {
-        alert("Please fix the errors before publishing.");
+        appToast("Please fix the errors before publishing.", "warning");
         return;
     }
     
     if (pendingSubmissions.length === 0) {
-        alert("No submissions to publish");
+        appToast("No submissions to publish", "warning");
         return;
     }
     
-    const userConfirmed = window.confirm(`Are you sure you want to publish ${pendingSubmissions.length} submission(s)?`);
+    const userConfirmed = await appConfirm(
+      `Are you sure you want to publish ${pendingSubmissions.length} submission(s)?`,
+      { title: "Publish marks", confirmLabel: "Publish", variant: "warning" }
+    );
     if (!userConfirmed) {
         return;
     }
@@ -230,11 +234,11 @@ const handleBulkPublish = async () => {
             // Refresh the list
             await handleAssessmentChange({ target: { value: selectedAssessmentId } });
         } else {
-            alert(result.message || "Bulk publish failed");
+            appToast(result.message || "Bulk publish failed", "error");
         }
     } catch (err) {
         console.error("Error in bulk publish:", err);
-        alert(`Failed to connect to server: ${err.message}`);
+        appToast(`Failed to connect to server: ${err.message}`, "error");
     } finally {
         setBulkPublishing(false);
     }
@@ -244,12 +248,12 @@ const handleBulkPublish = async () => {
   // Export to CSV - Working version
 const handleExportCSV = async () => {
     if (!selectedAssessmentId) {
-        alert("Please select an assessment first");
+        appToast("Please select an assessment first", "warning");
         return;
     }
     
     if (pendingSubmissions.length === 0) {
-        alert("No data to export");
+        appToast("No data to export", "warning");
         return;
     }
     
@@ -277,10 +281,10 @@ const handleExportCSV = async () => {
         link.remove();
         window.URL.revokeObjectURL(downloadUrl);
         
-        alert("CSV exported successfully!");
+        appToast("CSV exported successfully!", "success");
     } catch (err) {
         console.error("Export error:", err);
-        alert(`Failed to export CSV: ${err.message}`);
+        appToast(`Failed to export CSV: ${err.message}`, "error");
     } finally {
         setExportingCSV(false);
     }

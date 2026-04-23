@@ -23,6 +23,81 @@ function parseNumericId(value, fieldName) {
     return parsed;
 }
 
+async function getSubmissionContext(submissionId) {
+    const result = await pool.request()
+        .input('submissionId', sql.BigInt, submissionId)
+        .query(`
+            SELECT TOP 1
+                s.submission_id,
+                s.assessment_id,
+                s.student_id,
+                s.attempt_no,
+                s.file_id,
+                s.submission_status,
+                a.due_date,
+                a.start_date
+            FROM submission s
+            INNER JOIN assessment a ON s.assessment_id = a.assessment_id
+            WHERE s.submission_id = @submissionId
+        `);
+    return result.recordset[0] || null;
+}
+
+function ensureBeforeDeadline(dueDate, actionName) {
+    const dueMs = dueDate ? new Date(dueDate).getTime() : null;
+    if (!dueMs || Number.isNaN(dueMs)) {
+        throw createBadRequest(`Cannot ${actionName}: assessment due date is not configured`);
+    }
+    if (Date.now() > dueMs) {
+        throw createBadRequest(`Cannot ${actionName}: deadline has passed`);
+    }
+}
+
+async function insertUploadedFile({ file, uploadUserId }) {
+    const allowedTypes = [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ];
+    if (!file) throw createBadRequest("File is required");
+    if (!allowedTypes.includes(file.mimetype)) {
+        throw createBadRequest("Only PDF and DOCX files are allowed");
+    }
+    const fullPath = path.resolve(file.path).replace(/\\/g, "/");
+    const fileInsert = await pool.request()
+        .input('original_file_name', sql.VarChar, file.originalname)
+        .input('stored_file_name', sql.VarChar, file.filename)
+        .input('storage_category', sql.VarChar, "STUDENT_SUBMISSION")
+        .input('storage_path', sql.VarChar, fullPath)
+        .input('mime_type', sql.VarChar, file.mimetype)
+        .input('file_size_bytes', sql.BigInt, file.size)
+        .input('sha256_hash', sql.VarChar, null)
+        .input('upload_user_id', sql.Int, uploadUserId)
+        .query(`
+            INSERT INTO file_storage (
+                original_file_name,
+                stored_file_name,
+                storage_category,
+                storage_path,
+                mime_type,
+                file_size_bytes,
+                sha256_hash,
+                upload_user_id
+            )
+            OUTPUT INSERTED.file_id
+            VALUES (
+                @original_file_name,
+                @stored_file_name,
+                @storage_category,
+                @storage_path,
+                @mime_type,
+                @file_size_bytes,
+                @sha256_hash,
+                @upload_user_id
+            )
+        `);
+    return Number(fileInsert.recordset[0].file_id);
+}
+
 
 // =====================================================
 // UPLOAD SUBMISSION
@@ -532,4 +607,84 @@ exports.softDelete = async (submissionId) => {
         `);
 
     return true;
+};
+
+exports.editOwnSubmission = async ({ submissionId, userId, file }) => {
+    await poolConnect;
+    const sid = parseNumericId(submissionId, "submission_id");
+    const uid = parseNumericId(userId, "user_id");
+    const ctx = await getSubmissionContext(sid);
+    if (!ctx) throw new Error("Submission not found");
+    if (Number(ctx.student_id) !== uid) throw createBadRequest("You can edit only your own submissions");
+    if (String(ctx.submission_status || "").toUpperCase() === "DELETED") {
+        throw createBadRequest("Submission is deleted");
+    }
+    ensureBeforeDeadline(ctx.due_date, "edit submission");
+
+    const newFileId = await insertUploadedFile({ file, uploadUserId: uid });
+    await pool.request()
+        .input('sid', sql.BigInt, sid)
+        .input('oldFileId', sql.BigInt, ctx.file_id)
+        .input('newFileId', sql.BigInt, newFileId)
+        .query(`
+            UPDATE submission
+            SET file_id = @newFileId,
+                submitted_at = GETDATE(),
+                updated_at = GETDATE(),
+                submission_status = 'EDITED'
+            WHERE submission_id = @sid;
+
+            UPDATE file_storage
+            SET is_deleted = 1
+            WHERE file_id = @oldFileId;
+        `);
+
+    return { success: true, message: "Submission edited successfully" };
+};
+
+exports.resubmitOwnSubmission = async ({ submissionId, userId, file }) => {
+    await poolConnect;
+    const sid = parseNumericId(submissionId, "submission_id");
+    const uid = parseNumericId(userId, "user_id");
+    const ctx = await getSubmissionContext(sid);
+    if (!ctx) throw new Error("Submission not found");
+    if (Number(ctx.student_id) !== uid) throw createBadRequest("You can resubmit only your own submissions");
+    if (String(ctx.submission_status || "").toUpperCase() === "DELETED") {
+        throw createBadRequest("Submission is deleted");
+    }
+    ensureBeforeDeadline(ctx.due_date, "resubmit");
+
+    const reqLike = {
+        file,
+        body: { assessment_id: ctx.assessment_id },
+        user: { user_id: uid },
+    };
+    return exports.upload(reqLike);
+};
+
+exports.deleteOwnSubmission = async ({ submissionId, userId }) => {
+    await poolConnect;
+    const sid = parseNumericId(submissionId, "submission_id");
+    const uid = parseNumericId(userId, "user_id");
+    const ctx = await getSubmissionContext(sid);
+    if (!ctx) throw new Error("Submission not found");
+    if (Number(ctx.student_id) !== uid) throw createBadRequest("You can delete only your own submissions");
+    if (String(ctx.submission_status || "").toUpperCase() === "DELETED") {
+        throw createBadRequest("Submission already deleted");
+    }
+    ensureBeforeDeadline(ctx.due_date, "delete submission");
+
+    await pool.request()
+        .input('sid', sql.BigInt, sid)
+        .input('fid', sql.BigInt, ctx.file_id)
+        .query(`
+            UPDATE submission
+            SET submission_status = 'DELETED', updated_at = GETDATE()
+            WHERE submission_id = @sid;
+
+            UPDATE file_storage
+            SET is_deleted = 1
+            WHERE file_id = @fid;
+        `);
+    return { success: true, message: "Submission deleted successfully" };
 };

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import LecturerNavbar from "./LecturerNavbar";
 import axios from "axios";
+import { appToast } from "../../components/UIFeedback/appNotify";
 
 const API_BASE = process.env.REACT_APP_API_URL || "";
 
@@ -27,7 +28,7 @@ const SubmissionComparison = () => {
 
         } catch (err) {
             console.error(err);
-            alert("Comparison failed");
+            appToast("Comparison failed", "error");
         } finally {
             setLoading(false);
         }

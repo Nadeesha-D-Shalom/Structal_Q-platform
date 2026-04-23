@@ -85,6 +85,53 @@ exports.softDeleteSubmission = async (req, res) => {
     }
 };
 
+exports.editOwnSubmission = async (req, res) => {
+    try {
+        const uid = req.user?.user_id;
+        if (!uid) return res.status(401).json({ success: false, error: "Not authenticated" });
+        const result = await service.editOwnSubmission({
+            submissionId: req.params.id,
+            userId: uid,
+            file: req.file,
+        });
+        res.json(result);
+    } catch (err) {
+        const status = Number(err.statusCode) || 500;
+        res.status(status).json({ success: false, error: err.message });
+    }
+};
+
+exports.resubmitOwnSubmission = async (req, res) => {
+    try {
+        const uid = req.user?.user_id;
+        if (!uid) return res.status(401).json({ success: false, error: "Not authenticated" });
+        const result = await service.resubmitOwnSubmission({
+            submissionId: req.params.id,
+            userId: uid,
+            file: req.file,
+        });
+        res.json(result);
+    } catch (err) {
+        const status = Number(err.statusCode) || 500;
+        res.status(status).json({ success: false, error: err.message });
+    }
+};
+
+exports.deleteOwnSubmission = async (req, res) => {
+    try {
+        const uid = req.user?.user_id;
+        if (!uid) return res.status(401).json({ success: false, error: "Not authenticated" });
+        const result = await service.deleteOwnSubmission({
+            submissionId: req.params.id,
+            userId: uid,
+        });
+        res.json(result);
+    } catch (err) {
+        const status = Number(err.statusCode) || 500;
+        res.status(status).json({ success: false, error: err.message });
+    }
+};
+
 /* GET BY ID (FIXED) */
 exports.getSubmissionById = async (req, res) => {
     try {

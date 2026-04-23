@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import StudentNavbar from "./StudentNavbar";
 import { useNavigate } from "react-router-dom";
+import { appToast } from "../../components/UIFeedback/appNotify";
 
 const PER_PAGE = 5;
 const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
@@ -141,18 +142,18 @@ export default function StudentMarksList() {
         
       } else {
         console.error("Failed to fetch submission details");
-        alert("Unable to load submission details. Please try again.");
+        appToast("Unable to load submission details. Please try again.", "error");
       }
     } catch (err) {
       console.error("Error fetching submission details:", err);
-      alert("Failed to load submission details");
+      appToast("Failed to load submission details", "error");
     }
   };
 
   // ── Handle Export PDF ─────────────────────────────────────────────────
   const handleExportPDF = async () => {
     if (filtered.length === 0) {
-      alert("No data to export");
+      appToast("No data to export", "warning");
       return;
     }
     
@@ -206,7 +207,7 @@ export default function StudentMarksList() {
 
     } catch (err) {
       console.error("Error exporting PDF:", err);
-      alert("Failed to export PDF. Please try again.");
+      appToast("Failed to export PDF. Please try again.", "error");
     } finally {
       setExporting(false);
     }

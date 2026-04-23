@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import LecturerNavbar from "./LecturerNavbar";
 import { useLocation } from "react-router-dom";
+import { appToast } from "../../components/UIFeedback/appNotify";
 
 const API_BASE = process.env.REACT_APP_API_URL || "";
 
@@ -205,7 +206,7 @@ const FileSlot = ({
 
   const handleSelect = useCallback((submission) => {
     if (!submission.storage_path) {
-      alert("Invalid file (missing path)");
+      appToast("Invalid file (missing path)", "warning");
       return;
     }
     onSelect(submission);
@@ -351,7 +352,7 @@ const MLAnalysisConfig = () => {
 
   const handleCompare = async () => {
     if (!file1?.storage_path || !file2?.storage_path) {
-      alert("Please select both files");
+      appToast("Please select both files", "warning");
       return;
     }
 
@@ -375,10 +376,10 @@ const MLAnalysisConfig = () => {
       if (data.success) {
         setResult(data.data);
       } else {
-        alert(data.error || "Comparison failed");
+        appToast(data.error || "Comparison failed", "error");
       }
     } catch (err) {
-      alert("Network error during comparison");
+      appToast("Network error during comparison", "error");
     } finally {
       setLoading(false);
     }

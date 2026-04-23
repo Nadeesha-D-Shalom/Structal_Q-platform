@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import logo from "../../assets/logo.png";
 import { useEffect, useRef, useState } from "react";
 
-import { formatRoleLabel } from "../../utils/authValidation";
+import { formatRoleLabel, normalizeRole } from "../../utils/authValidation";
 
 const API_BASE = process.env.REACT_APP_API_URL || "";
 
@@ -47,14 +47,38 @@ const StudentNavbar = ({ activePage = "Dashboard" }) => {
 
   useEffect(() => {
     const token = localStorage.getItem("auth_token");
-    if (!token) return;
+    let cached = null;
+    try {
+      cached = JSON.parse(localStorage.getItem("auth_user") || "null");
+    } catch {
+      cached = null;
+    }
+    if (!token) {
+      if (cached) setUser(cached);
+      return;
+    }
 
     fetch(`${API_BASE}/api/auth/session`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setUser(d))
-      .catch(() => setUser(null));
+      .then((d) => {
+        if (!d) {
+          setUser(cached);
+          return;
+        }
+        const roleFromLogin = cached?.role;
+        const roleFromSession = d.role;
+        const role =
+          roleFromLogin != null &&
+          roleFromLogin !== "" &&
+          normalizeRole(roleFromLogin) === "student" &&
+          normalizeRole(roleFromSession) !== "student"
+            ? roleFromLogin
+            : roleFromSession ?? roleFromLogin;
+        setUser({ ...cached, ...d, role: role ?? d.role });
+      })
+      .catch(() => setUser(cached));
   }, []);
 
   useEffect(() => {
@@ -225,7 +249,7 @@ const StudentNavbar = ({ activePage = "Dashboard" }) => {
             {user?.student_name || user?.name || user?.first_name || "—"}
           </p>
           <p className="text-[10px] text-gray-400">
-            <span className="text-[#74839a]">Role:</span> {formatRoleLabel(user?.role)}
+            <span className="text-[#74839a]">Role:</span> {formatRoleLabel(user?.role || "student")}
             {user?.registration_no ? ` · Student ID: ${user.registration_no}` : ""}
           </p>
           </div>

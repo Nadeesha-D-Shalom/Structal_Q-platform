@@ -3,8 +3,10 @@ import LecturerNavbar from "./LecturerNavbar";
 import { useNavigate } from "react-router-dom";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import axios from "axios";
+import { getApiBaseUrl } from "../../utils/apiBase";
+import { appToast } from "../../components/UIFeedback/appNotify";
 
-const API_BASE = process.env.REACT_APP_API_URL || "";
+const API_BASE = getApiBaseUrl();
 
 const EVAL_STEPS = [
   { label: "Loading", icon: "fa-solid fa-inbox" },
@@ -37,6 +39,7 @@ const styles = `
   }
   .ls-title { font-size: 26px; font-weight: 600; color: #0f172a; letter-spacing: -0.5px; line-height: 1.2; }
   .ls-subtitle { font-size: 13px; color: #64748b; margin-top: 4px; }
+  .ls-subtitle-meta { color: #94a3b8; font-weight: 400; }
   .ls-btn-row { display: flex; gap: 10px; align-items: center; }
 
   /* Buttons */
@@ -523,7 +526,6 @@ const LecturerSubmissions = () => {
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluatedResults, setEvaluatedResults] = useState([]);
   const [resultsLoading, setResultsLoading] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
   const [fileActionKey, setFileActionKey] = useState("");
   const [currentStep, setCurrentStep] = useState(-1);
   const [manualMarks, setManualMarks] = useState({});
@@ -541,6 +543,7 @@ const LecturerSubmissions = () => {
   const [batchMarkingGuideId, setBatchMarkingGuideId] = useState("");
   const [batchSelectedSubmissionIds, setBatchSelectedSubmissionIds] = useState([]);
   const [catalogSubjects, setCatalogSubjects] = useState([]);
+  const [lastAutoRefresh, setLastAutoRefresh] = useState(null);
 
   /* ── data fetching ── */
   useEffect(() => {
@@ -630,9 +633,10 @@ const LecturerSubmissions = () => {
     } catch { setData([]); } finally { setLoading(false); }
   }, [getAuthHeaders]);
 
-  const fetchEvaluatedResults = useCallback(async () => {
+  const fetchEvaluatedResults = useCallback(async (opts = {}) => {
+    const silent = opts.silent === true;
     try {
-      setResultsLoading(true);
+      if (!silent) setResultsLoading(true);
       const res = await axios.get(`${API_BASE}/api/ai-analysis/results/all`, { headers: getAuthHeaders() });
       const rows = Array.isArray(res.data?.data) ? res.data.data : Array.isArray(res.data) ? res.data : null;
       if (rows) {
@@ -646,10 +650,22 @@ const LecturerSubmissions = () => {
         });
         setManualMarks(im); setFinalMarks(fi);
       } else { setEvaluatedResults([]); }
-    } catch { setEvaluatedResults([]); } finally { setResultsLoading(false); }
+    } catch { setEvaluatedResults([]); } finally { if (!silent) setResultsLoading(false); }
   }, [getAuthHeaders]);
 
   useEffect(() => { fetchSubmissions(); fetchEvaluatedResults(); }, [fetchSubmissions, fetchEvaluatedResults]);
+
+  useEffect(() => {
+    const intervalMs = 45_000;
+    const tick = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      Promise.all([fetchSubmissions(), fetchEvaluatedResults({ silent: true })]).then(() => {
+        setLastAutoRefresh(new Date());
+      });
+    };
+    const id = setInterval(tick, intervalMs);
+    return () => clearInterval(id);
+  }, [fetchSubmissions, fetchEvaluatedResults]);
 
   /* ── stats ── */
   const stats = useMemo(() => {
@@ -686,7 +702,7 @@ const LecturerSubmissions = () => {
       };
     }).filter(r => r.diagram_marks > 0 && r.diagram_marks !== "" && r.diagram_marks !== null);
 
-    if (!toSave.length) { alert("No manual marks entered. Please enter marks first."); return; }
+    if (!toSave.length) { appToast("No manual marks entered. Please enter marks first.", "warning"); return; }
     setSaving(true);
     try {
       const response = await axios.post(`${API_BASE}/api/marks/evaluated-results/save`, { results: toSave });
@@ -697,8 +713,8 @@ const LecturerSubmissions = () => {
         setPopupDetails({ "Total Saved": response.data.saved.length, "AI Processed": evaluatedResults.length, "Manual Entries": toSave.length, "Status": "Completed" });
         setShowSuccessPopup(true);
         await fetchEvaluatedResults();
-      } else { alert(response.data.message || "Failed to save results"); }
-    } catch { alert("Failed to save evaluated results"); } finally { setSaving(false); }
+      } else { appToast(response.data.message || "Failed to save results", "error"); }
+    } catch { appToast("Failed to save evaluated results", "error"); } finally { setSaving(false); }
   };
 
   const openBatchEvaluateModal = () => {
@@ -710,8 +726,8 @@ const LecturerSubmissions = () => {
   };
 
   const runBatchEvaluation = async () => {
-    if (!batchAssessmentId || !batchMarkingGuideId) { alert("Please select an assessment and a marking guide."); return; }
-    if (!batchSelectedSubmissionIds.length) { alert("Select at least one submission."); return; }
+    if (!batchAssessmentId || !batchMarkingGuideId) { appToast("Please select an assessment and a marking guide.", "warning"); return; }
+    if (!batchSelectedSubmissionIds.length) { appToast("Select at least one submission.", "warning"); return; }
     setShowBatchModal(false);
     try {
       setIsEvaluating(true); setCurrentStep(0);
@@ -727,56 +743,122 @@ const LecturerSubmissions = () => {
       if (!res.ok) { clearInterval(iv); throw new Error(result.error || result.message || "Evaluation failed"); }
       clearInterval(iv); setCurrentStep(EVAL_STEPS.length);
       setTimeout(() => { fetchSubmissions(); fetchEvaluatedResults(); setTimeout(() => setCurrentStep(-1), 2000); }, 1000);
-    } catch (err) { alert(err.message); setCurrentStep(-1); } finally { setIsEvaluating(false); }
+    } catch (err) { appToast(err.message, "error"); setCurrentStep(-1); } finally { setIsEvaluating(false); }
   };
 
   const handleView = (id) => navigate(`/lecturer/submissions/${id}`);
   const handleAnalyze = (row) => navigate("/lecturer/ml-analysis", { state: { submission_id: row.submission_id, marking_guide_id: row.marking_guide_id || 1, submission_path: row.storage_path, guide_file: row.guide_path || "" } });
   const handleCompare = (row) => navigate(`/analysis/${row.submission_id}`, { state: { submission_id: row.submission_id, file_id: row.file_id, file_name: row.original_file_name, storage_path: row.storage_path } });
 
-  const handleDeleteSubmission = async (submissionId) => {
-    const sid = Number(submissionId);
-    if (!sid || !window.confirm(`Delete submission #${sid}?`)) return;
-    try {
-      setDeletingId(sid);
-      const res = await fetch(`${API_BASE}/api/submissions/${sid}`, { method: "DELETE", headers: getAuthHeaders() });
-      const payload = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(payload?.message || "Delete failed");
-      await fetchSubmissions(); await fetchEvaluatedResults();
-      setData(p => p.filter(x => Number(x.submission_id) !== sid));
-    } catch (err) { alert(err?.message || "Delete failed"); } finally { setDeletingId(null); }
+  const coerceSubmissionFileId = (row) => {
+    const v = row?.file_id ?? row?.File_Id ?? row?.fileId;
+    if (v == null || v === "") return NaN;
+    if (typeof v === "bigint") return Number(v);
+    const n = Number(String(v).trim());
+    return Number.isFinite(n) && n > 0 ? n : NaN;
   };
 
-  const fetchFileBlob = async (fileId) => {
-    const id = Number(fileId);
-    if (!id) throw new Error("Submission file is not available.");
-    const res = await fetch(`${API_BASE}/api/submissions/file/${id}`, { headers: getAuthHeaders() });
-    if (!res.ok) { const t = await res.text().catch(() => ""); throw new Error(t || "Unable to access submission document"); }
-    return res.blob();
+  const fetchSubmissionFileBlob = async (fileId, { download = false, filename = "" } = {}) => {
+    const id = typeof fileId === "number" && Number.isFinite(fileId) ? fileId : Number(fileId);
+    if (!id || !Number.isFinite(id) || id <= 0) throw new Error("Submission file is not available.");
+    const q = download ? "?download=1" : "";
+    const url = `${API_BASE}/api/submissions/file/${id}${q}`;
+    const res = await fetch(url, { headers: getAuthHeaders() });
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error(t?.trim() || `Unable to access file (${res.status})`);
+    }
+    const mime =
+      res.headers.get("content-type")?.split(";")[0]?.trim() ||
+      (String(filename).toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream");
+    const buf = await res.arrayBuffer();
+    return new Blob([buf], { type: mime });
   };
 
-  const previewSubmissionDocument = async (row) => {
+  /** Must open a tab synchronously (before any await) or the browser blocks pop-ups. */
+  const previewSubmissionDocument = (row) => {
     const key = `preview-${row.submission_id}`;
-    try {
-      setFileActionKey(key);
-      const blob = await fetchFileBlob(row?.file_id);
-      const url = window.URL.createObjectURL(blob);
-      window.open(url, "_blank", "noopener,noreferrer");
-      setTimeout(() => window.URL.revokeObjectURL(url), 60000);
-    } catch (err) { alert(err?.message || "Preview failed"); } finally { setFileActionKey(""); }
+    const previewWin = window.open("about:blank", "_blank");
+    if (!previewWin) {
+      appToast("Pop-up blocked. Allow pop-ups for this site to open the preview tab.", "warning");
+      return;
+    }
+    previewWin.document.title = "Loading preview…";
+    const loading = previewWin.document.createElement("p");
+    loading.style.cssText = "font-family:system-ui,sans-serif;padding:24px;color:#64748b";
+    loading.textContent = "Loading document…";
+    previewWin.document.body.appendChild(loading);
+
+    (async () => {
+      try {
+        setFileActionKey(key);
+        const fileId = coerceSubmissionFileId(row);
+        if (!Number.isFinite(fileId)) {
+          previewWin.close();
+          throw new Error("No file is linked to this submission.");
+        }
+        const blob = await fetchSubmissionFileBlob(fileId, {
+          download: false,
+          filename: row?.original_file_name || "",
+        });
+        const ext = String(row?.original_file_name || "").toLowerCase();
+        const isPdf = ext.endsWith(".pdf") || (blob.type && blob.type.includes("pdf"));
+        const objectUrl = window.URL.createObjectURL(blob);
+        if (isPdf) {
+          previewWin.location.replace(objectUrl);
+        } else {
+          const safeName = (row?.original_file_name || "submission").replace(/"/g, "");
+          previewWin.document.open();
+          previewWin.document.write(
+            `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Preview</title></head><body style="font-family:system-ui,sans-serif;padding:24px">` +
+              `<p>Inline preview is only available for PDF. Use the link below to open or save this file.</p>` +
+              `<p><a href="${objectUrl}" download="${safeName}" style="color:#2563eb;font-weight:600">Download file</a></p>` +
+              `</body></html>`
+          );
+          previewWin.document.close();
+        }
+        setTimeout(() => window.URL.revokeObjectURL(objectUrl), 600000);
+      } catch (err) {
+        try {
+          previewWin.document.body.innerHTML = "";
+          const errP = previewWin.document.createElement("p");
+          errP.style.cssText = "font-family:system-ui,sans-serif;padding:24px;color:#b91c1c";
+          errP.textContent = err?.message || "Preview failed";
+          previewWin.document.body.appendChild(errP);
+        } catch {
+          previewWin.close();
+        }
+        appToast(err?.message || "Preview failed", "error");
+      } finally {
+        setFileActionKey("");
+      }
+    })();
   };
 
   const downloadSubmissionDocument = async (row) => {
     const key = `download-${row.submission_id}`;
     try {
       setFileActionKey(key);
-      const blob = await fetchFileBlob(row?.file_id);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a"); a.href = url;
+      const fileId = coerceSubmissionFileId(row);
+      if (!Number.isFinite(fileId)) throw new Error("No file is linked to this submission.");
+      const blob = await fetchSubmissionFileBlob(fileId, {
+        download: true,
+        filename: row?.original_file_name || "",
+      });
+      const objectUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
       a.download = row?.original_file_name || `submission-${row.submission_id}`;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => window.URL.revokeObjectURL(url), 30000);
-    } catch (err) { alert(err?.message || "Download failed"); } finally { setFileActionKey(""); }
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => window.URL.revokeObjectURL(objectUrl), 60000);
+    } catch (err) {
+      appToast(err?.message || "Download failed", "error");
+    } finally {
+      setFileActionKey("");
+    }
   };
 
   /* ─────────────────────────── Render ─────────────────────────── */
@@ -814,7 +896,14 @@ const LecturerSubmissions = () => {
         <div className="ls-header">
           <div>
             <h1 className="ls-title">ML-Enhanced Submissions</h1>
-            <p className="ls-subtitle">AI-powered evaluation · Similarity detection · Risk analysis</p>
+            <p className="ls-subtitle">
+              AI-powered evaluation · Similarity detection · Risk analysis
+              <span className="ls-subtitle-meta">
+                {" "}
+                · Auto-refresh every 45s (while tab visible)
+                {lastAutoRefresh ? ` · Last: ${lastAutoRefresh.toLocaleTimeString()}` : ""}
+              </span>
+            </p>
           </div>
           <div className="ls-btn-row">
             <button onClick={fetchEvaluatedResults} disabled={resultsLoading} className="btn btn-ghost">
@@ -883,7 +972,7 @@ const LecturerSubmissions = () => {
                   [1,2,3].map(i => (
                     <tr key={i} className="tbl-row">
                       {[...Array(7)].map((_, j) => (
-                        <td key={j}><div className="skeleton" style={{ height: 20, width: j === 6 ? 160 : "80%" }} /></td>
+                        <td key={j}><div className="skeleton" style={{ height: 20, width: j === 6 ? 140 : "80%" }} /></td>
                       ))}
                     </tr>
                   ))
@@ -911,7 +1000,11 @@ const LecturerSubmissions = () => {
                           </div>
                         </td>
                         <td><span className="badge badge-gray">v{row.attempt_no || 1}</span></td>
-                        <td><span className="badge badge-green badge-dot">On-Time</span></td>
+                        <td>
+                          {Number(row.is_late) === 1
+                            ? <span className="badge badge-yellow badge-dot">Late</span>
+                            : <span className="badge badge-green badge-dot">On-Time</span>}
+                        </td>
                         <td><span className={`badge ${sim.cls}`}>{sim.text}</span></td>
                         <td><span className={`badge ${risk.cls}`}>{risk.text}</span></td>
                         <td>
@@ -921,9 +1014,6 @@ const LecturerSubmissions = () => {
                             <button onClick={() => handleView(row.submission_id)} title="Open workspace" className="icon-btn icon-btn-purple"><i className="fa-solid fa-wand-magic-sparkles" /></button>
                             <button onClick={() => handleAnalyze(row)} title="AI Analysis" className="icon-btn icon-btn-blue"><i className="fa-solid fa-code-compare" /></button>
                             <button onClick={() => handleCompare(row)} title="Compare" className="icon-btn icon-btn-gray"><i className="fa-regular fa-eye" /></button>
-                            <button onClick={() => handleDeleteSubmission(row.submission_id)} title="Delete" disabled={deletingId === row.submission_id} className="icon-btn icon-btn-red">
-                              {deletingId === row.submission_id ? <span className="spin-inline" style={{ borderTopColor: "#dc2626", borderColor: "rgba(220,38,38,0.2)", width: 11, height: 11 }} /> : <i className="fa-solid fa-trash" />}
-                            </button>
                           </div>
                         </td>
                       </tr>
