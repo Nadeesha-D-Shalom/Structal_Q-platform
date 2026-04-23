@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import LecturerNavbar from "./LecturerNavbar";
+import { appConfirm } from "../../components/UIFeedback/appNotify";
 
 const API_BASE = process.env.REACT_APP_API_URL || "";
 
@@ -121,7 +122,7 @@ export default function MarkingGuideManagement() {
   };
 
   const handleDeactivate = async (guideId) => {
-    if (!window.confirm(`Deactivate marking guide #${guideId}?`)) return;
+    if (!(await appConfirm(`Deactivate marking guide #${guideId}?`, { title: "Deactivate guide", confirmLabel: "Deactivate", variant: "warning" }))) return;
     try {
       const res = await fetch(`${API_BASE}/api/marking-guides/${guideId}`, {
         method: "DELETE",

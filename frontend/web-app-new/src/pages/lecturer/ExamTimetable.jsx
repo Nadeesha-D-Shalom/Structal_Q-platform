@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import LecturerNavbar from "./LecturerNavbar";
 import { getApiBaseUrl } from "../../utils/apiBase";
+import { appToast, appConfirm } from "../../components/UIFeedback/appNotify";
 
 const API_ROOT = getApiBaseUrl();
 const API_BASE = `${API_ROOT}/api/timetable`;
@@ -107,7 +108,8 @@ export default function LecturerTimetable() {
 
   const handleCreateTimetable = async () => {
     if (!academicYear || !semester || !timetableType || !sectionName.trim()) {
-      return alert("Select exam type, year, semester and specialization.");
+      appToast("Select exam type, year, semester and specialization.", "warning");
+      return;
     }
     const generatedTitle = [timetableType, academicYear, semester, sectionName.trim()].join(" - ");
     setLoading(true);
@@ -136,7 +138,7 @@ export default function LecturerTimetable() {
               : t
           )
         );
-        alert("Timetable updated.");
+        appToast("Timetable updated.", "success");
       } else {
         const res = await axios.post(API_BASE, body, { headers: getAuthHeaders() });
         const newId = res.data?.timetable_id ?? res.data?.data?.timetable_id;
@@ -167,18 +169,24 @@ export default function LecturerTimetable() {
       setSemester("First Semester");
     } catch (e) {
       console.error("Save timetable failed:", e);
-      alert(e?.response?.data?.error || "Failed to save timetable.");
+      appToast(e?.response?.data?.error || "Failed to save timetable.", "error");
     } finally {
       setLoading(false);
     }
   };
 
   const handleEditTimetable = () => {
-    if (!selectedId) return alert("Select a timetable first.");
+    if (!selectedId) {
+      appToast("Select a timetable first.", "warning");
+      return;
+    }
     const current = timetables.find(
       (t) => String(t.exam_timetable_id || t.timetable_id) === String(selectedId)
     );
-    if (!current) return alert("Selected timetable not found.");
+    if (!current) {
+      appToast("Selected timetable not found.", "warning");
+      return;
+    }
     setEditingTimetableId(String(current.exam_timetable_id || current.timetable_id));
     setTimetableType(String(current.timetable_type || "GENERAL"));
     setAcademicYear(String(current.academic_year || ""));
@@ -195,8 +203,16 @@ export default function LecturerTimetable() {
   };
 
   const handleDeleteTimetable = async () => {
-    if (!selectedId) return alert("Select a timetable first.");
-    if (!window.confirm("Delete selected timetable and all its sessions?")) return;
+    if (!selectedId) {
+      appToast("Select a timetable first.", "warning");
+      return;
+    }
+    const ok = await appConfirm("Delete selected timetable and all its sessions?", {
+      title: "Delete timetable",
+      confirmLabel: "Delete",
+      variant: "warning",
+    });
+    if (!ok) return;
     setLoading(true);
     try {
       await axios.delete(`${API_BASE}/${selectedId}`, { headers: getAuthHeaders() });
@@ -209,10 +225,10 @@ export default function LecturerTimetable() {
       setSelectedId("");
       setSessions([]);
       setConflicts([]);
-      alert("Timetable deleted.");
+      appToast("Timetable deleted.", "success");
     } catch (e) {
       console.error("Delete timetable failed:", e);
-      alert(e?.response?.data?.error || "Failed to delete timetable.");
+      appToast(e?.response?.data?.error || "Failed to delete timetable.", "error");
     } finally {
       setLoading(false);
     }
@@ -266,7 +282,10 @@ export default function LecturerTimetable() {
 
   const handleSaveSession = async () => {
     const err = validateSessionForm();
-    if (err) return alert(err);
+    if (err) {
+      appToast(err, "warning");
+      return;
+    }
     const trimmedRoom = sRoomName.trim();
     const trimmedBuilding = sBuildingName.trim();
     const roomAsNum = Number(trimmedRoom);
@@ -296,7 +315,7 @@ export default function LecturerTimetable() {
       await refreshConflicts(selectedId);
     } catch (e) {
       console.error("Save session failed:", e);
-      alert(e?.response?.data?.error || "Failed to save session.");
+      appToast(e?.response?.data?.error || "Failed to save session.", "error");
     } finally {
       setLoading(false);
     }
@@ -322,7 +341,12 @@ export default function LecturerTimetable() {
 
   const handleDeleteSession = async (sessionId) => {
     if (!selectedId || !sessionId) return;
-    if (!window.confirm("Delete this session?")) return;
+    const delOk = await appConfirm("Delete this session?", {
+      title: "Delete session",
+      confirmLabel: "Delete",
+      variant: "warning",
+    });
+    if (!delOk) return;
     setLoading(true);
     try {
       await axios.delete(`${API_BASE}/${selectedId}/sessions/${sessionId}`, { headers: getAuthHeaders() });
@@ -331,7 +355,7 @@ export default function LecturerTimetable() {
       await refreshConflicts(selectedId);
     } catch (e) {
       console.error("Delete session failed:", e);
-      alert(e?.response?.data?.error || "Failed to delete session.");
+      appToast(e?.response?.data?.error || "Failed to delete session.", "error");
     } finally {
       setLoading(false);
     }
@@ -344,10 +368,10 @@ export default function LecturerTimetable() {
       await axios.patch(`${API_BASE}/${selectedId}/publish`, {}, { headers: getAuthHeaders() });
       await refreshSessions(selectedId);
       await refreshConflicts(selectedId);
-      alert("Timetable published.");
+      appToast("Timetable published.", "success");
     } catch (e) {
       console.error("Publish failed:", e);
-      alert(e?.response?.data?.error || "Failed to publish timetable.");
+      appToast(e?.response?.data?.error || "Failed to publish timetable.", "error");
     } finally {
       setLoading(false);
     }

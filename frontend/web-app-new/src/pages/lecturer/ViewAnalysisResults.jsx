@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import LecturerNavbar from "./LecturerNavbar";
+import { appToast } from "../../components/UIFeedback/appNotify";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
@@ -290,7 +291,7 @@ const ViewAnalysisResults = () => {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert(e?.message || "Report download failed");
+      appToast(e?.message || "Report download failed", "error");
     } finally {
       setReportLoading(false);
     }

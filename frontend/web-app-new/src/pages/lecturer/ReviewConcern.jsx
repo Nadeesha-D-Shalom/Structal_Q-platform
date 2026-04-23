@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import LecturerNavbar from "./LecturerNavbar";
+import { appToast } from "../../components/UIFeedback/appNotify";
 
 const API_BASE = process.env.REACT_APP_API_URL || "";
 const apiUrl = (path) => `${API_BASE}${path}`;
@@ -329,7 +330,7 @@ const RespondModal = ({ isOpen, onClose, concern, onSend }) => {
       onClose();
     } catch (err) {
       console.error("Error sending response:", err);
-      alert("Failed to send response. Please try again.");
+      appToast("Failed to send response. Please try again.", "error");
     } finally {
       setSending(false);
     }
@@ -619,7 +620,7 @@ export default function ConcernReviewResolution() {
       setShowSuccessPopup(true);
     } catch (err) {
       console.error("Error exporting PDF:", err);
-      alert("Failed to export PDF. Please try again.");
+      appToast("Failed to export PDF. Please try again.", "error");
     } finally {
       setExporting(false);
     }
@@ -677,7 +678,7 @@ export default function ConcernReviewResolution() {
       setSelectedConcern(null);
     } catch (err) {
       console.error("Error deleting concern:", err);
-      alert("Failed to delete concern. Please try again.");
+      appToast("Failed to delete concern. Please try again.", "error");
     }
   };
 
@@ -698,7 +699,7 @@ export default function ConcernReviewResolution() {
       setSelectedConcern(null);
     } catch (err) {
       console.error("Error sending response:", err);
-      alert("Failed to send response. Please try again.");
+      appToast("Failed to send response. Please try again.", "error");
     }
   };
 

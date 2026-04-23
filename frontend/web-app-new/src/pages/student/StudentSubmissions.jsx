@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import StudentNavbar from "./StudentNavbar";
+import { getApiBaseUrl } from "../../utils/apiBase";
 
-const API_BASE = process.env.REACT_APP_API_URL || "";
+const API_BASE = getApiBaseUrl();
 
 const getAuthHeaders = (json = false) => {
   const token = localStorage.getItem("auth_token");
@@ -39,6 +40,13 @@ const statusLabel = (lab) => {
   return map[lab.lab_status] || lab.lab_status || "—";
 };
 
+const canManageBeforeDeadline = (dueDate) => {
+  if (!dueDate) return false;
+  const due = new Date(dueDate);
+  if (Number.isNaN(due.getTime())) return false;
+  return Date.now() <= due.getTime();
+};
+
 const statusClass = (lab) => {
   const st = lab.lab_status;
   if (st === "published") return "bg-emerald-100 text-emerald-800";
@@ -58,6 +66,9 @@ export default function StudentSubmissions() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [form, setForm] = useState({ assessment_id: "", file: null });
+  const [rowFiles, setRowFiles] = useState({});
+  const [rowActions, setRowActions] = useState({});
+  const [rowBusy, setRowBusy] = useState({});
 
   const load = async () => {
     setLoading(true);
@@ -125,6 +136,57 @@ export default function StudentSubmissions() {
       setError(err.message || "Upload failed");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const setBusy = (submissionId, v) => {
+    setRowBusy((prev) => ({ ...prev, [submissionId]: v }));
+  };
+
+  const executeRowAction = async (row) => {
+    const action = rowActions[row.submission_id];
+    if (!action) {
+      setError("Select an action first.");
+      return;
+    }
+    if (!canManageBeforeDeadline(row.due_date)) {
+      setError("You can only edit, resubmit, or delete before the assignment deadline.");
+      return;
+    }
+    setBusy(row.submission_id, true);
+    setError("");
+    setMessage("");
+    try {
+      if (action === "delete") {
+        const res = await fetch(api(`/api/submissions/me/${row.submission_id}`), {
+          method: "DELETE",
+          headers: getAuthHeaders(false),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.success === false) throw new Error(data.error || data.message || "Delete failed");
+        setMessage("Submission removed.");
+      } else {
+        const selectedFile = rowFiles[row.submission_id];
+        if (!selectedFile) throw new Error("Choose a PDF or DOCX file for edit / resubmit.");
+        const fd = new FormData();
+        fd.append("file", selectedFile);
+        const path =
+          action === "edit"
+            ? `/api/submissions/me/${row.submission_id}/edit`
+            : `/api/submissions/me/${row.submission_id}/resubmit`;
+        const method = action === "edit" ? "PUT" : "POST";
+        const res = await fetch(api(path), { method, headers: getAuthHeaders(false), body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.success === false) throw new Error(data.error || data.message || "Request failed");
+        setMessage(action === "edit" ? "File updated for this attempt." : "New attempt submitted.");
+      }
+      setRowActions((prev) => ({ ...prev, [row.submission_id]: "" }));
+      setRowFiles((prev) => ({ ...prev, [row.submission_id]: null }));
+      await load();
+    } catch (err) {
+      setError(err.message || "Action failed");
+    } finally {
+      setBusy(row.submission_id, false);
     }
   };
 
@@ -257,21 +319,23 @@ export default function StudentSubmissions() {
             <h2 className="text-[14px] font-semibold text-[#1b2b44]">Submission history</h2>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-[11px] sm:text-[12px] min-w-[560px]">
+            <table className="w-full text-left text-[11px] sm:text-[12px] min-w-[920px]">
               <thead className="bg-[#f9fafb] text-gray-500">
                 <tr>
                   <th className="px-3 sm:px-4 py-3 font-semibold">Submitted</th>
                   <th className="px-3 sm:px-4 py-3 font-semibold">Subject</th>
                   <th className="px-3 sm:px-4 py-3 font-semibold">Assessment</th>
+                  <th className="px-3 sm:px-4 py-3 font-semibold">Deadline</th>
                   <th className="px-3 sm:px-4 py-3 font-semibold">Attempt</th>
                   <th className="px-3 sm:px-4 py-3 font-semibold">Late</th>
                   <th className="px-3 sm:px-4 py-3 font-semibold">File</th>
+                  <th className="px-3 sm:px-4 py-3 font-semibold">Manage</th>
                 </tr>
               </thead>
               <tbody>
                 {!loading && rows.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
                       No submissions yet.
                     </td>
                   </tr>
@@ -283,6 +347,9 @@ export default function StudentSubmissions() {
                     </td>
                     <td className="px-3 sm:px-4 py-3">{r.subject_name}</td>
                     <td className="px-3 sm:px-4 py-3">{r.assessment_title}</td>
+                    <td className="px-3 sm:px-4 py-3 text-gray-600 whitespace-nowrap">
+                      {r.due_date ? new Date(r.due_date).toLocaleString() : "—"}
+                    </td>
                     <td className="px-3 sm:px-4 py-3">{r.attempt_no}</td>
                     <td className="px-3 sm:px-4 py-3">
                       {r.is_late ? (
@@ -293,6 +360,48 @@ export default function StudentSubmissions() {
                     </td>
                     <td className="px-3 sm:px-4 py-3 max-w-[220px] truncate" title={r.original_file_name}>
                       {r.original_file_name}
+                    </td>
+                    <td className="px-3 sm:px-4 py-3 align-top">
+                      {canManageBeforeDeadline(r.due_date) ? (
+                        <div className="flex flex-col gap-2 min-w-[200px]">
+                          <select
+                            className="border rounded-md px-2 py-1.5 bg-white text-[11px]"
+                            value={rowActions[r.submission_id] || ""}
+                            onChange={(e) =>
+                              setRowActions((prev) => ({ ...prev, [r.submission_id]: e.target.value }))
+                            }
+                          >
+                            <option value="">Choose action</option>
+                            <option value="edit">Replace file (same attempt)</option>
+                            <option value="resubmit">New attempt</option>
+                            <option value="delete">Remove submission</option>
+                          </select>
+                          {(rowActions[r.submission_id] === "edit" ||
+                            rowActions[r.submission_id] === "resubmit") && (
+                            <input
+                              type="file"
+                              accept=".pdf,.doc,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                              className="text-[11px]"
+                              onChange={(e) =>
+                                setRowFiles((prev) => ({
+                                  ...prev,
+                                  [r.submission_id]: e.target.files?.[0] || null,
+                                }))
+                              }
+                            />
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => executeRowAction(r)}
+                            disabled={!rowActions[r.submission_id] || rowBusy[r.submission_id]}
+                            className="px-3 py-1.5 rounded-md bg-[#1d4ed8] text-white text-[11px] font-semibold disabled:opacity-50"
+                          >
+                            {rowBusy[r.submission_id] ? "Working…" : "Apply"}
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-gray-400">Closed (after deadline)</span>
+                      )}
                     </td>
                   </tr>
                 ))}

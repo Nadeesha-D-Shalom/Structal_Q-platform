@@ -10,7 +10,7 @@
     "test:unit": "jest tests/unit",
     "encrypt:db-password": "node src/utils/secretCrypto.js"
   },
-  "author": "",
+  "author": "Nadeesha D Shalom",
   "license": "ISC",
   "dependencies": {
     "abort-controller": "^3.0.0",

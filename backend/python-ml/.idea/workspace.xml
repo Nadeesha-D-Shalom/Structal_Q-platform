@@ -5,7 +5,30 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="73978067-b5a3-4b9e-bce9-b1f97c06eaa6" name="Changes" comment="feat: implement hybrid semantic retrieval with TOC filtering and rubric-driven scoring">
+      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/submission/submission.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/submission/submission.controller.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/submission/submission.routes.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/submission/submission.routes.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../node-api/src/modules/submission/submission.service.js" beforeDir="false" afterPath="$PROJECT_DIR$/../node-api/src/modules/submission/submission.service.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/App.js" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/App.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/EvaluationScheduling.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/EvaluationScheduling.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/ExamTimetable.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/ExamTimetable.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/LecturerAssignments.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/LecturerAssignments.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/LecturerSubmissions.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/LecturerSubmissions.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/MLAnalysisConfig.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/MLAnalysisConfig.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/MLAnalysisPortal.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/MLAnalysisPortal.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/MLAnalysisResult.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/MLAnalysisResult.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/MarkPublishingInterface.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/MarkPublishingInterface.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/MarkRevisionPanel.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/MarkRevisionPanel.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/MarkingGuideManagement.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/MarkingGuideManagement.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/ReviewConcern.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/ReviewConcern.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/SubmissionComparison.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/SubmissionComparison.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/ViewAnalysisResults.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/ViewAnalysisResults.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/ViewSubmission.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/lecturer/ViewSubmission.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/student/StudentNavbar.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/student/StudentNavbar.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/student/StudentSubmissions.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/student/StudentSubmissions.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/student/StudentsMarkList.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../frontend/web-app-new/src/pages/student/StudentsMarkList.jsx" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

@@ -6,7 +6,6 @@ const path = require("path");
 const { pool, sql } = require("../../config/db");
 const fs = require("fs");
 
-
 const uploadDir = "storage/students";
 
 if (!fs.existsSync(uploadDir)) {
@@ -41,6 +40,9 @@ const upload = multer({
 router.post('/upload', upload.single('file'), controller.uploadSubmission);
 
 router.get('/me', controller.getMySubmissions);
+router.put('/me/:id/edit', upload.single('file'), controller.editOwnSubmission);
+router.post('/me/:id/resubmit', upload.single('file'), controller.resubmitOwnSubmission);
+router.delete('/me/:id', controller.deleteOwnSubmission);
 
 router.get('/student/:id', controller.getStudentSubmissions);
 
@@ -48,24 +50,27 @@ router.get('/lecturer/student-only', controller.getAllStudentSubmissions);
 
 router.get('/lecturer/all', controller.getAllSubmissionsForLecturer);
 
-router.get('/:id/ai-metadata', controller.getAIMetadata);
-
-router.get('/:id', controller.getSubmissionById);
-
-router.delete('/:id', controller.softDeleteSubmission);
-
-
-/* FILE PREVIEW */
+/* FILE STREAM — must be before /:id so paths like /file/123 are not captured by /:id */
 router.get("/file/:fileId", async (req, res) => {
     try {
-        const { fileId } = req.params;
+        const raw = req.params.fileId;
+        if (raw == null || !/^\d+$/.test(String(raw).trim())) {
+            return res.status(400).send("Invalid file id");
+        }
+        const idStr = String(raw).trim();
+        const fileIdNum = Number(idStr);
+        if (!Number.isSafeInteger(fileIdNum) || fileIdNum <= 0) {
+            return res.status(400).send("Invalid file id");
+        }
 
+        /* NULL is_deleted must count as active: (is_deleted = 0) alone omits those rows in SQL */
         const result = await pool.request()
-            .input("fileId", sql.Int, fileId)
+            .input("fileId", sql.BigInt, fileIdNum)
             .query(`
                 SELECT storage_path, mime_type, original_file_name
                 FROM file_storage
-                WHERE file_id = @fileId AND is_deleted = 0
+                WHERE file_id = @fileId
+                  AND (ISNULL(CAST(is_deleted AS INT), 0) = 0)
             `);
 
         if (result.recordset.length === 0) {
@@ -73,29 +78,30 @@ router.get("/file/:fileId", async (req, res) => {
         }
 
         const file = result.recordset[0];
-        const filePath = path.resolve(file.storage_path);
-
+        let filePath = path.resolve(file.storage_path);
+        if (!fs.existsSync(filePath)) {
+            const alt = path.join(process.cwd(), file.storage_path.replace(/^\//, ""));
+            if (fs.existsSync(alt)) filePath = alt;
+        }
         if (!fs.existsSync(filePath)) {
             return res.status(404).send("File missing on disk");
         }
 
-        /* =========================
-           CONTENT TYPE FIX
-        ========================= */
         const ext = path.extname(file.original_file_name).toLowerCase();
+        const asDownload = String(req.query.download || "") === "1";
+        const safeFileName = String(file.original_file_name || "file").replace(/[\r\n"]/g, "_");
 
         if (ext === ".pdf") {
             res.setHeader("Content-Type", "application/pdf");
-            res.setHeader("Content-Disposition", "inline");
+            res.setHeader("Content-Disposition", asDownload ? `attachment; filename="${safeFileName}"` : "inline");
         }
         else if (ext === ".docx") {
-            // DOCX cannot render in browser → prevent download force
             res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-            res.setHeader("Content-Disposition", "inline");
+            res.setHeader("Content-Disposition", asDownload ? `attachment; filename="${safeFileName}"` : "inline");
         }
         else {
-            res.setHeader("Content-Type", "application/octet-stream");
-            res.setHeader("Content-Disposition", "inline");
+            res.setHeader("Content-Type", file.mime_type || "application/octet-stream");
+            res.setHeader("Content-Disposition", asDownload ? `attachment; filename="${safeFileName}"` : "inline");
         }
 
         return res.sendFile(filePath);
@@ -105,5 +111,11 @@ router.get("/file/:fileId", async (req, res) => {
         res.status(500).send("Preview failed");
     }
 });
+
+router.get('/:id/ai-metadata', controller.getAIMetadata);
+
+router.get('/:id', controller.getSubmissionById);
+
+router.delete('/:id', controller.softDeleteSubmission);
 
 module.exports = router;

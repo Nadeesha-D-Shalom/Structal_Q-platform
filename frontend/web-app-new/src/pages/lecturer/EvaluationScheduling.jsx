@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import LecturerNavbar from "./LecturerNavbar";
 import { getApiBaseUrl } from "../../utils/apiBase";
+import { appConfirm } from "../../components/UIFeedback/appNotify";
 
 const BASE    = `${getApiBaseUrl()}/api/evaluation-scheduling`;
 const USER_ID = 1;
@@ -341,7 +342,7 @@ const Screen51 = () => {
     };
 
     const handleDelete = async (loc) => {
-        if (!window.confirm(`Delete "${loc.location_name}"?`)) return;
+        if (!(await appConfirm(`Delete "${loc.location_name}"?`, { title: "Deactivate location", confirmLabel: "Delete", variant: "warning" }))) return;
         try {
             await axios.delete(`${BASE}/locations/${loc.location_id}`);
             showFlash("Location deactivated.");
@@ -353,9 +354,10 @@ const Screen51 = () => {
 
     //handlehardDelete
     const handleHardDelete = async (loc) => {
-    if (!window.confirm(
-        `Permanently delete "${loc.location_name}"?\n\nThis will also remove all linked schedules, slots, and logs. This cannot be undone.`
-    )) return;
+    if (!(await appConfirm(
+        `Permanently delete "${loc.location_name}"?\n\nThis will also remove all linked schedules, slots, and logs. This cannot be undone.`,
+        { title: "Permanent delete", confirmLabel: "Delete forever", variant: "error" }
+    ))) return;
     try {
         await axios.delete(`${BASE}/locations/${loc.location_id}/hard`);
         showFlash("Location permanently deleted.");
@@ -731,7 +733,7 @@ const Screen53 = ({ setActiveScheduleId, navigate }) => {
     };
 
     const handleCancel = async (sched) => {
-        if (!window.confirm(`Cancel schedule "${sched.schedule_title || `#${sched.evaluation_schedule_id}`}"?`)) return;
+        if (!(await appConfirm(`Cancel schedule "${sched.schedule_title || `#${sched.evaluation_schedule_id}`}"?`, { title: "Cancel schedule", confirmLabel: "Cancel schedule", variant: "warning" }))) return;
         setCancelling(sched.evaluation_schedule_id);
         try {
             await axios.patch(`${BASE}/schedules/${sched.evaluation_schedule_id}/cancel`, {});

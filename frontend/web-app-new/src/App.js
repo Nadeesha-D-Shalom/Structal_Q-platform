@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { UIFeedbackProvider } from "./components/UIFeedback/UIFeedbackProvider";
 
 /* AUTH */
 import LoginPage from "./pages/auth/LoginPage";
@@ -66,6 +67,7 @@ function ProtectedRoute({ children }) {
 
 function App() {
   return (
+    <UIFeedbackProvider>
     <Router>
       <Routes>
 
@@ -111,6 +113,7 @@ function App() {
         <Route path="/analysis/:submissionId" element={<ProtectedRoute><ViewAnalysisResults /></ProtectedRoute>} />
       </Routes>
     </Router>
+    </UIFeedbackProvider>
   );
 }
 

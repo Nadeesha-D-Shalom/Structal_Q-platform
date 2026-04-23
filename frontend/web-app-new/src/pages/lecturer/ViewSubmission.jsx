@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import LecturerNavbar from "./LecturerNavbar";
+import { getApiBaseUrl } from "../../utils/apiBase";
 
-const API_BASE = process.env.REACT_APP_API_URL || "";
+const API_BASE = getApiBaseUrl();
 
 /* ─── Style injection ─── */
 const injectStyles = () => {
@@ -320,7 +321,6 @@ const ViewSubmission = () => {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [msgIdx, setMsgIdx] = useState(0);
-  const [docLoading, setDocLoading] = useState(false);
 
   useEffect(() => { injectStyles(); }, []);
   const fetchSubmission = useCallback(async () => {
@@ -393,52 +393,6 @@ const ViewSubmission = () => {
       setError(err.message || "Analysis failed. Please try again.");
     } finally {
       setRunning(false);
-    }
-  };
-
-  const fetchSubmissionBlob = async () => {
-    const fileId = Number(data?.file_id);
-    if (!fileId) throw new Error("Submission file is not available.");
-    const res = await fetch(`${API_BASE}/api/submissions/file/${fileId}`, {
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(text || "Unable to load submission document");
-    }
-    return res.blob();
-  };
-
-  const previewSubmissionDocument = async () => {
-    try {
-      setDocLoading(true);
-      const blob = await fetchSubmissionBlob();
-      const previewUrl = window.URL.createObjectURL(blob);
-      window.open(previewUrl, "_blank", "noopener,noreferrer");
-      window.setTimeout(() => window.URL.revokeObjectURL(previewUrl), 60000);
-    } catch (err) {
-      setError(err.message || "Preview failed");
-    } finally {
-      setDocLoading(false);
-    }
-  };
-
-  const downloadSubmissionDocument = async () => {
-    try {
-      setDocLoading(true);
-      const blob = await fetchSubmissionBlob();
-      const objectUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = objectUrl;
-      link.download = fileName || "submission";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 30000);
-    } catch (err) {
-      setError(err.message || "Download failed");
-    } finally {
-      setDocLoading(false);
     }
   };
 
@@ -592,42 +546,6 @@ const ViewSubmission = () => {
 
           {/* Action zone */}
           <div style={{ padding: "18px 26px 24px", borderTop: "1.5px solid #f0f1f5", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, background: "#fafbfc" }}>
-            <div style={{ display: "flex", gap: 8, width: "100%", maxWidth: 300 }}>
-              <button
-                className="vs-btn"
-                onClick={previewSubmissionDocument}
-                disabled={docLoading}
-                style={{
-                  flex: 1,
-                  padding: "10px 16px",
-                  borderRadius: 10,
-                  fontSize: 12.5,
-                  fontWeight: 700,
-                  color: "#065f46",
-                  background: "#d1fae5",
-                  opacity: docLoading ? 0.7 : 1,
-                }}
-              >
-                Preview file
-              </button>
-              <button
-                className="vs-btn"
-                onClick={downloadSubmissionDocument}
-                disabled={docLoading}
-                style={{
-                  flex: 1,
-                  padding: "10px 16px",
-                  borderRadius: 10,
-                  fontSize: 12.5,
-                  fontWeight: 700,
-                  color: "#075985",
-                  background: "#e0f2fe",
-                  opacity: docLoading ? 0.7 : 1,
-                }}
-              >
-                Download file
-              </button>
-            </div>
             <button
               className="vs-btn"
               onClick={runAnalysis}

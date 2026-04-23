@@ -7,12 +7,14 @@ import {
   Cell, CartesianGrid, Legend,
 } from "recharts";
 import { getApiBaseUrl } from "../../utils/apiBase";
+import { appToast } from "../../components/UIFeedback/appNotify";
 import {
   hasUsableAnalysisPayload,
   normalizeAnalysisPayload,
   unwrapAnalysisApiData,
 } from "../../utils/analysisPayload";
 import { normalizeRouteId } from "../../utils/routeHelpers";
+import { jsPDF } from "jspdf";
 
 const API_BASE = getApiBaseUrl();
 
@@ -171,6 +173,118 @@ const injectStyles = () => {
    HELPERS
 ───────────────────────────────────────── */
 const pct = (val) => (val * 100).toFixed(1);
+
+/** Build a structured A4 PDF from the loaded analysis payload (no extra API call). */
+function buildAnalysisPdf(data) {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const margin = 14;
+  const pageW = doc.internal.pageSize.getWidth();
+  const maxW = pageW - margin * 2;
+  let y = margin;
+
+  const addLine = (h = 6) => {
+    y += h;
+    if (y > 285) {
+      doc.addPage();
+      y = margin;
+    }
+  };
+
+  const subId = data.submission_id ?? data.Submission_Id ?? "—";
+  const arId = data.analysis_result_id ?? data.Analysis_Result_Id ?? "—";
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.text("Structal Q — AI analysis report", margin, y);
+  addLine(10);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text(`Submission ID: ${subId}`, margin, y);
+  addLine(6);
+  doc.text(`Analysis result ID: ${arId}`, margin, y);
+  addLine(6);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, margin, y);
+  addLine(10);
+
+  const sections = ["A", "B", "C", "D", "E", "F"];
+  const maxTotal = sections.reduce((s, k) => s + (data.guide_weights?.[k]?.marks ?? 0), 0);
+  const totalScore = data.final_score ?? 0;
+  const totalPct = maxTotal ? ((totalScore / maxTotal) * 100).toFixed(1) : "0";
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("Executive summary", margin, y);
+  addLine(8);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text(`Final score: ${totalScore} / ${maxTotal} (${totalPct}% overall)`, margin, y);
+  addLine(6);
+  doc.text(`Semantic similarity: ${pct(data.semantic_similarity ?? 0)}%`, margin, y);
+  addLine(6);
+  doc.text(`Diagram clarity: ${pct(data.diagram_clarity ?? 0)}%`, margin, y);
+  addLine(6);
+  doc.text(`Unique word ratio: ${pct(data.unique_word_ratio ?? 0)}%`, margin, y);
+  addLine(10);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("Section scores (rubric)", margin, y);
+  addLine(8);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  sections.forEach((k) => {
+    const score = data[`section_${k}`] ?? 0;
+    const cap = data.guide_weights?.[k]?.marks ?? 0;
+    doc.text(`Section ${k}: ${score} / ${cap}`, margin, y);
+    addLine(6);
+  });
+  addLine(4);
+
+  const ocr = data.diagram_analysis?.ocr_avg_confidence;
+  if (ocr != null && ocr !== "") {
+    doc.setFont("helvetica", "bold");
+    doc.text("Diagram / OCR", margin, y);
+    addLine(7);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Average OCR confidence: ${Number(ocr).toFixed(1)}%`, margin, y);
+    addLine(6);
+    doc.text(`Diagram images detected: ${data.diagram_analysis?.image_count ?? 0}`, margin, y);
+    addLine(10);
+  }
+
+  const qs = data.question_scores;
+  if (Array.isArray(qs) && qs.length > 0) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text("Question-level scores", margin, y);
+    addLine(8);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    qs.slice(0, 40).forEach((q) => {
+      const qn = q.question_no ?? q.question_id ?? q.Question_No ?? "?";
+      const sm = q.suggested_marks ?? q.Suggested_Marks ?? "—";
+      const line = `Q${qn}: suggested marks ${sm}`;
+      const wrapped = doc.splitTextToSize(line, maxW);
+      doc.text(wrapped, margin, y);
+      y += wrapped.length * 4.5;
+      if (y > 285) {
+        doc.addPage();
+        y = margin;
+      }
+    });
+    if (qs.length > 40) {
+      doc.text(`… and ${qs.length - 40} more (truncated in PDF)`, margin, y);
+      addLine(6);
+    }
+    addLine(6);
+  }
+
+  doc.setFontSize(8);
+  doc.setTextColor(120);
+  doc.text("Structal Q — automated evaluation report. For official marks, refer to published results.", margin, y);
+  doc.save(`analysis_report_submission_${subId}.pdf`);
+}
 
 const scoreColor = (pct) => {
   if (pct >= 75) return { bg: "#ecfdf5", text: "#059669", bar: "#10b981" };
@@ -392,33 +506,16 @@ const MLAnalysisResult = () => {
     };
   }, [id, location.state]);
 
-  const handleDownloadReport = async () => {
-    const submissionId = analysisData?.submission_id;
-    if (!submissionId) {
-      alert("Submission id not found for report generation.");
+  const handleDownloadReport = () => {
+    if (!hasUsableAnalysisPayload(analysisData)) {
+      appToast("No analysis data to export.", "warning");
       return;
     }
-
     try {
       setReportLoading(true);
-      const res = await fetch(
-        `${API_BASE}/api/ai-analysis/report/${submissionId}`,
-        { headers: getAuthHeaders() }
-      );
-      if (!res.ok) throw new Error("Failed to generate report");
-      const report = await res.json();
-
-      const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `analysis_report_submission_${submissionId}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      buildAnalysisPdf(analysisData);
     } catch (e) {
-      alert(e?.message || "Report download failed");
+      appToast(e?.message || "PDF export failed", "error");
     } finally {
       setReportLoading(false);
     }
@@ -573,9 +670,9 @@ const MLAnalysisResult = () => {
               onClick={handleDownloadReport}
               disabled={reportLoading}
               style={{ opacity: reportLoading ? 0.6 : 1 }}
-              title="Download generated analysis report"
+              title="Download structured PDF report"
             >
-              {reportLoading ? "Generating..." : "Download Report"}
+              {reportLoading ? "Generating…" : "Download PDF report"}
             </button>
             <button className="mr-back-btn" onClick={() => navigate(-1)}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
