@@ -276,3 +276,59 @@ exports.deleteSubject = async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 };
+
+//UPDATE OFFERING
+exports.updateSubjectOffering = async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { academic_year, semester, intake_name } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ error: "Invalid offering id" });
+    }
+
+    await poolConnect; 
+
+    await pool.request()
+      .input("id", sql.Int, id)
+      .input("academic_year", sql.VarChar, academic_year)
+      .input("semester", sql.VarChar, semester)
+      .input("intake_name", sql.VarChar, intake_name)
+      .query(`
+        UPDATE subject_offering
+        SET academic_year=@academic_year,
+            semester=@semester,
+            intake_name=@intake_name,
+            updated_at=GETDATE()
+        WHERE offering_id=@id
+      `);
+
+    res.json({ success: true });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+//DELETE OFFERING
+exports.deleteSubjectOffering = async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    if (!id) {
+      return res.status(400).json({ error: "Invalid offering id" });
+    }
+
+    await poolConnect; 
+
+    await pool.request()
+      .input("id", sql.Int, id)
+      .query(`DELETE FROM subject_offering WHERE offering_id=@id`);
+
+    res.json({ success: true });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
