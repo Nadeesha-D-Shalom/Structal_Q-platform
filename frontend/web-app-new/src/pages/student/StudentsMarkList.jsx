@@ -222,9 +222,6 @@ export default function StudentMarksList() {
     return "#ef4444";
   };
 
-  const initials = session?.student_name
-    ?.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "S";
-
   if (sessionLoading) {
     return (
       <div style={{ minHeight: "100vh", backgroundColor: "#f5f6fa", display: "flex", alignItems: "center", justifyContent: "center" }}>

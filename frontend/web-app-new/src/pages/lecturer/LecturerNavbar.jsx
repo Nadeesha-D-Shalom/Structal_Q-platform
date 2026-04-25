@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { name: "Timetable",       path: "/lecturer/timetable",        icon: "far fa-calendar-alt" },
   { name: "Submissions",     path: "/lecturer/submissions",      icon: "far fa-file-alt" },
   { name: "Evaluation",      path: "/lecturer/evaluation",       icon: "fas fa-poll-h" },
+  { name: "Profile",         path: "/lecturer/profile",          icon: "fas fa-user-circle" },
 ];
 
 // First 7 items shown in the bar; the rest collapse into "More"
@@ -78,6 +79,7 @@ const LecturerNavbar = () => {
     if (p.startsWith("/lecturer/review-concerns")) return "Review Concerns";
     if (p.startsWith("/lecturer/timetable"))       return "Timetable";
     if (p.startsWith("/lecturer/evaluation"))      return "Evaluation";
+    if (p.startsWith("/lecturer/profile"))         return "Profile";
     return "Dashboard";
   };
 
@@ -127,9 +129,6 @@ const LecturerNavbar = () => {
       ) : null}
     </>
   );
-  /** Alias — avoids ReferenceError if an old bundle/HMR chunk still references `idOrRole` */
-  const idOrRole = roleLine;
-
   /* ── class helpers ── */
   const desktopLinkClass = (name) => {
     const active = currentPage === name;
@@ -282,6 +281,18 @@ const LecturerNavbar = () => {
                   <p className="text-[13px] font-semibold text-[#1b2b44] truncate">{displayName}</p>
                   <p className="text-[11px] text-gray-400">{roleLine}</p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileOpen(false);
+                    navigate("/lecturer/profile");
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-[13px] text-[#1b2b44]
+                             hover:bg-gray-50 transition-colors font-medium"
+                >
+                  <i className="fas fa-user text-[12px]" />
+                  My profile
+                </button>
                 <button
                   type="button"
                   onClick={handleLogout}

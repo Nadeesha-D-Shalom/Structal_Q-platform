@@ -654,7 +654,7 @@ export default function MarkRevisionAuditLog() {
       }
     };
     fetchSession();
-  }, []);
+  }, [API_BASE]);
 
   // Fetch all published marks
   useEffect(() => {
