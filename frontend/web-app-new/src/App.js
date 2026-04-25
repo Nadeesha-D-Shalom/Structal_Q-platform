@@ -34,6 +34,7 @@ import SubmissionComparison from "./pages/lecturer/SubmissionComparison";
 import ViewAnalysisResults from "./pages/lecturer/ViewAnalysisResults";
 import StudentTimetable from "./pages/student/StudentTimetable";
 import StudentSubmissions from "./pages/student/StudentSubmissions";
+import UserProfilePage from "./pages/common/UserProfilePage";
 
 function ProtectedRoute({ children }) {
   const [status, setStatus] = useState("checking");
@@ -81,6 +82,7 @@ function App() {
         <Route path="/student/concerns" element={<ProtectedRoute><StudentConcernsOverview /></ProtectedRoute>} />
         <Route path="/student/timetable" element={<ProtectedRoute><StudentTimetable /></ProtectedRoute>} />
         <Route path="/student/submissions" element={<ProtectedRoute><StudentSubmissions /></ProtectedRoute>} />
+        <Route path="/student/profile" element={<ProtectedRoute><UserProfilePage /></ProtectedRoute>} />
 
         {/* ================= LECTURER ================= */}
         <Route path="/lecturer" element={<ProtectedRoute><LecturerDashboard /></ProtectedRoute>} />
@@ -93,6 +95,7 @@ function App() {
         <Route path="/lecturer/review-concerns" element={<ProtectedRoute><ConcernReviewResolution /></ProtectedRoute>} />
         <Route path="/lecturer/evaluation" element={<ProtectedRoute><EvaluationScheduling /></ProtectedRoute>} />
         <Route path="/lecturer/timetable" element={<ProtectedRoute><LecturerTimetable /></ProtectedRoute>} />
+        <Route path="/lecturer/profile" element={<ProtectedRoute><UserProfilePage /></ProtectedRoute>} />
 
         {/* ================= SUBMISSIONS ================= */}
         <Route path="/lecturer/submissions" element={<ProtectedRoute><LecturerSubmissions /></ProtectedRoute>} />

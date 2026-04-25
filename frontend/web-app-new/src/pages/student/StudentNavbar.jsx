@@ -12,7 +12,8 @@ const NAV_ITEMS = [
   { name: "Submissions", path: "/student/submissions", icon: "fas fa-file-alt" },
   { name: "Grades & Marks", path: "/student/marks", icon: "fas fa-star" },
   { name: "Timetable", path: "/student/timetable", icon: "fas fa-calendar" },
-  { name: "Concerns", path: "/student/concerns", icon: "fas fa-question-circle" }
+  { name: "Concerns", path: "/student/concerns", icon: "fas fa-question-circle" },
+  { name: "Profile", path: "/student/profile", icon: "fas fa-user-circle" }
 ];
 
 const StudentNavbar = ({ activePage = "Dashboard" }) => {
@@ -253,7 +254,11 @@ const StudentNavbar = ({ activePage = "Dashboard" }) => {
             {user?.registration_no ? ` · Student ID: ${user.registration_no}` : ""}
           </p>
           </div>
-          <div className="w-[32px] h-[32px] bg-[#f4b37a] rounded-full cursor-pointer"></div>
+          <div
+            className="w-[32px] h-[32px] bg-[#f4b37a] rounded-full cursor-pointer"
+            title="My Profile"
+            onClick={() => navigate("/student/profile")}
+          ></div>
         </div>
 
       </div>
