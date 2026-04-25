@@ -34,7 +34,7 @@ import SubmissionComparison from "./pages/lecturer/SubmissionComparison";
 import ViewAnalysisResults from "./pages/lecturer/ViewAnalysisResults";
 import StudentTimetable from "./pages/student/StudentTimetable";
 import StudentSubmissions from "./pages/student/StudentSubmissions";
-import UserProfilePage from "./pages/common/UserProfilePage";
+import UserProfilePage from "./pages/profile/UserProfilePage";
 
 function ProtectedRoute({ children }) {
   const [status, setStatus] = useState("checking");

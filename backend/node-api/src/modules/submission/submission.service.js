@@ -327,6 +327,8 @@ exports.getAllSubmissionsForLecturer = async () => {
             ORDER BY ar.analysis_result_id DESC
         ) ar
         WHERE f.storage_category = 'STUDENT_SUBMISSION'
+          AND (s.submission_status IS NULL OR s.submission_status <> 'DELETED')
+          AND ISNULL(CAST(f.is_deleted AS INT), 0) = 0
         ORDER BY s.submitted_at DESC;
     `);
 

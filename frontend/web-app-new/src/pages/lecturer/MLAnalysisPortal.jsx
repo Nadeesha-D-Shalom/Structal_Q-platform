@@ -3,8 +3,9 @@ import "@fortawesome/fontawesome-free/css/all.min.css";
 import { useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 import { appToast } from "../../components/UIFeedback/appNotify";
+import { getApiBaseUrl } from "../../utils/apiBase";
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || "";
+const API_BASE_URL = getApiBaseUrl();
 
 const MLAnalysisPortal = () => {
   const navigate = useNavigate();
@@ -114,7 +115,11 @@ const MLAnalysisPortal = () => {
 
       if (result.success && result.analysis_result_id) {
         navigate(`/analysis/${result.analysis_result_id}`, {
-          state: { analysis_result_id: result.analysis_result_id, fromMlPortal: true },
+          state: {
+            analysis_result_id: result.analysis_result_id,
+            submission_id: Number(selectedSubmission),
+            fromMlPortal: true,
+          },
         });
       } else {
         appToast("Analysis failed: " + (result.error || result.message || "Unknown error"), "error");
@@ -188,7 +193,7 @@ const MLAnalysisPortal = () => {
                   .filter(g => !selectedSubject || Number(g.subject_id) === Number(selectedSubject))
                   .map((g) => (
                     <option key={g.marking_guide_id} value={g.marking_guide_id}>
-                      {g.guide_name}
+                      {g.guide_name || g.title || `Guide #${g.marking_guide_id}`}
                     </option>
                   ))}
               </select>

@@ -79,9 +79,19 @@ exports.getAIMetadata = async (req, res) => {
 exports.softDeleteSubmission = async (req, res) => {
     try {
         await service.softDelete(req.params.id);
-        res.json({ message: "Deleted successfully" });
+        res.json({ success: true, message: "Deleted successfully" });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+/* DELETE (LECTURER) */
+exports.softDeleteSubmissionByLecturer = async (req, res) => {
+    try {
+        await service.softDelete(req.params.id);
+        res.json({ success: true, message: "Submission deleted successfully" });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
     }
 };
 

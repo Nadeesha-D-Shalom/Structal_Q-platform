@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const controller = require('./submission.controller');
+const { requireRole } = require("../../middleware/authMiddleware");
 const path = require("path");
 const { pool, sql } = require("../../config/db");
 const fs = require("fs");
@@ -115,6 +116,9 @@ router.get("/file/:fileId", async (req, res) => {
 router.get('/:id/ai-metadata', controller.getAIMetadata);
 
 router.get('/:id', controller.getSubmissionById);
+
+/* Lecturer-only delete from submissions management */
+router.delete('/lecturer/:id', requireRole(["lecturer"]), controller.softDeleteSubmissionByLecturer);
 
 router.delete('/:id', controller.softDeleteSubmission);
 

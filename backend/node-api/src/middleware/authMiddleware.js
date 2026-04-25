@@ -12,7 +12,11 @@ exports.verifyToken = (req, res, next) => {
 
     const authHeader = req.headers.authorization || req.headers.Authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return res.status(401).json({ message: "Authentication required" });
+        return res.status(401).json({
+            success: false,
+            message: "Authentication required",
+            error: "Authentication required",
+        });
     }
 
     const token = authHeader.split(" ")[1];
@@ -25,7 +29,11 @@ exports.verifyToken = (req, res, next) => {
         };
         next();
     } catch (err) {
-        return res.status(401).json({ message: "Invalid or expired token" });
+        return res.status(401).json({
+            success: false,
+            message: "Invalid or expired token",
+            error: "Invalid or expired token",
+        });
     }
 };
 
@@ -36,7 +44,11 @@ exports.requireRole = (roles) => {
         );
         const userRole = normalizeRole(req.user?.role);
         if (!req.user || !roleList.includes(userRole)) {
-            return res.status(403).json({ message: "Access denied" });
+            return res.status(403).json({
+                success: false,
+                message: "Access denied",
+                error: "Access denied",
+            });
         }
         next();
     };

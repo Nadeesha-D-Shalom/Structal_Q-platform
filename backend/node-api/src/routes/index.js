@@ -17,7 +17,7 @@ const markComparisonRoutes = require('../modules/mark-comparison/markComparison.
 const dashboardRoutes = require('../modules/dashboard/dashboard.routes');
 const groupRoutes = require('../modules/group/group.routes');
 const notificationRoutes = require('../modules/notification/notification.routes');
-const userRoutes = require('../modules/user/user.routes');
+const profileRoutes = require('../modules/profile/profile.routes');
 
 
 router.use('/subjects', verifyToken, subjectRoutes);
@@ -35,6 +35,6 @@ router.use('/mark-comparison', verifyToken, markComparisonRoutes);
 router.use('/dashboard', verifyToken, dashboardRoutes);
 router.use('/groups', verifyToken, groupRoutes);
 router.use('/notifications', verifyToken, notificationRoutes);
-router.use('/users', userRoutes);
+router.use('/profile', verifyToken, profileRoutes);
 
 module.exports = router;

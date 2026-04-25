@@ -321,6 +321,7 @@ export default function StudentConcernsOverview() {
             filteredConcerns.map((concern, index) => {
               const statusStyle = getStatusStyle(concern.concern_status);
               const priorityStyle = getPriorityStyle(concern.priority_level);
+
               return (
                 <div key={concern.concern_id} style={tableRowStyle(index === filteredConcerns.length - 1)}>
                   <div style={studentCellStyle}>

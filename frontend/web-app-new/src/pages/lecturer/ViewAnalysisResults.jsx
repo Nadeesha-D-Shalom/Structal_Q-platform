@@ -2,18 +2,196 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import LecturerNavbar from "./LecturerNavbar";
 import { appToast } from "../../components/UIFeedback/appNotify";
+import { getApiBaseUrl } from "../../utils/apiBase";
+import { jsPDF } from "jspdf";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   Cell, CartesianGrid,
 } from "recharts";
 
-const API_BASE = process.env.REACT_APP_API_URL || "";
+const API_BASE = getApiBaseUrl();
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem("auth_token");
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
+
+const fmtTs = (v) => {
+  if (v == null || v === "") return "—";
+  try {
+    return new Date(v).toLocaleString();
+  } catch {
+    return String(v);
+  }
+};
+
+/** Parse `question_scores` from API (array or JSON string). */
+function parseQuestionScores(data) {
+  let qs = data?.question_scores;
+  if (qs == null) return [];
+  if (typeof qs === "string") {
+    try {
+      qs = JSON.parse(qs);
+    } catch {
+      return [];
+    }
+  }
+  return Array.isArray(qs) ? qs : [];
+}
+
+/**
+ * A4 PDF for the “Saved Analysis Result” screen (metrics + question scores + diagram rows).
+ * Matches the professional layout used on MLAnalysisResult.
+ */
+function buildSavedAnalysisPdf(data, diagramPages) {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const margin = 14;
+  const pageW = doc.internal.pageSize.getWidth();
+  const maxW = pageW - margin * 2;
+  let y = margin;
+
+  const addLine = (h = 6) => {
+    y += h;
+    if (y > 285) {
+      doc.addPage();
+      y = margin;
+    }
+  };
+
+  const subId = data.submission_id ?? data.Submission_Id ?? "—";
+  const arId = data.analysis_result_id ?? data.Analysis_Result_Id ?? "—";
+  const analysisType = data.analysis_type ?? data.Analysis_Type ?? "—";
+  const simPct = parseFloat(data.similarity_avg ?? 0) * 100;
+  const strPct = parseFloat(data.structural_similarity_avg ?? 0) * 100;
+  const riskLevel = data.risk_level ?? "—";
+  const riskScore = data.risk_score ?? "—";
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(15, 23, 41);
+  doc.text("Structal Q — Saved AI analysis report", margin, y);
+  addLine(10);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(51, 65, 85);
+  doc.text(`Submission ID: ${subId}`, margin, y);
+  addLine(6);
+  doc.text(`Analysis result ID: ${arId}`, margin, y);
+  addLine(6);
+  doc.text(`Analysis type: ${analysisType}`, margin, y);
+  addLine(6);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, margin, y);
+  addLine(10);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("Summary metrics", margin, y);
+  addLine(8);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text(`Similarity (avg): ${simPct.toFixed(1)}%`, margin, y);
+  addLine(6);
+  doc.text(`Structural similarity (avg): ${strPct.toFixed(1)}%`, margin, y);
+  addLine(6);
+  doc.text(`Risk level: ${riskLevel}`, margin, y);
+  addLine(6);
+  doc.text(`Risk score: ${riskScore}`, margin, y);
+  addLine(6);
+  doc.text(`OCR used: ${data.ocr_used ? "Yes" : "No"}`, margin, y);
+  addLine(6);
+  doc.text(`Computer vision used: ${data.cv_used ? "Yes" : "No"}`, margin, y);
+  addLine(10);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("Timeline", margin, y);
+  addLine(8);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text(`Started: ${fmtTs(data.started_at)}`, margin, y);
+  addLine(6);
+  doc.text(`Completed: ${fmtTs(data.completed_at)}`, margin, y);
+  addLine(10);
+
+  const qs = parseQuestionScores(data);
+  if (qs.length > 0) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text("Question-level AI scores", margin, y);
+    addLine(8);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    qs.slice(0, 60).forEach((q) => {
+      const qid = q.question_id ?? q.Question_Id ?? q.question_no ?? "?";
+      const sm = q.suggested_marks ?? q.Suggested_Marks ?? "—";
+      const sem = q.semantic_score ?? q.Semantic_Score;
+      const kw = q.keyword_score ?? q.Keyword_Score;
+      const conf = q.confidence ?? q.Confidence;
+      const parts = [
+        `Q${qid}`,
+        `suggested ${sm}`,
+        sem != null ? `semantic ${Number(sem).toFixed(3)}` : null,
+        kw != null ? `keyword ${Number(kw).toFixed(2)}` : null,
+        conf != null ? `confidence ${Number(conf).toFixed(3)}` : null,
+      ].filter(Boolean);
+      const line = parts.join(" · ");
+      const wrapped = doc.splitTextToSize(line, maxW);
+      doc.text(wrapped, margin, y);
+      y += wrapped.length * 4.5;
+      if (y > 285) {
+        doc.addPage();
+        y = margin;
+      }
+    });
+    if (qs.length > 60) {
+      doc.text(`… and ${qs.length - 60} more (truncated in this PDF)`, margin, y);
+      addLine(6);
+    }
+    addLine(6);
+  }
+
+  if (Array.isArray(diagramPages) && diagramPages.length > 0) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text("Diagram / page analysis", margin, y);
+    addLine(8);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    diagramPages.slice(0, 40).forEach((p) => {
+      const pageNo = p.page_no ?? p.Page_No ?? "?";
+      const hasD = p.has_diagram ? "yes" : "no";
+      const clar = p.clarity_score ?? p.Clarity_Score ?? "—";
+      const review = p.manual_review_recommended ? "review recommended" : "ok";
+      const line = `Page ${pageNo}: diagram ${hasD}, clarity ${clar}/10, ${review}`;
+      const wrapped = doc.splitTextToSize(line, maxW);
+      doc.text(wrapped, margin, y);
+      y += wrapped.length * 4.5;
+      if (y > 285) {
+        doc.addPage();
+        y = margin;
+      }
+    });
+    if (diagramPages.length > 40) {
+      doc.text(`… and ${diagramPages.length - 40} more pages (truncated)`, margin, y);
+      addLine(6);
+    }
+    addLine(6);
+  }
+
+  doc.setFontSize(8);
+  doc.setTextColor(120);
+  const foot = doc.splitTextToSize(
+    "Structal Q — automated AI analysis export. For official marks, use published results and lecturer workflows.",
+    maxW
+  );
+  doc.text(foot, margin, y);
+
+  const safeSub = String(subId).replace(/[^\w.-]+/g, "_");
+  const safeAr = String(arId).replace(/[^\w.-]+/g, "_");
+  doc.save(`analysis_report_submission_${safeSub}_result_${safeAr}.pdf`);
+}
 
 /* ─────────────────────────────────────────
    STYLE INJECTION  (shared with MLAnalysisResult)
@@ -242,7 +420,8 @@ const Skeleton = ({ h = 20, w = "100%", r = 8 }) => (
    MAIN COMPONENT
 ───────────────────────────────────────── */
 const ViewAnalysisResults = () => {
-  const { submissionId } = useParams();
+  /** Route is `/analysis/:submissionId` but value may be analysis_result_id or submission_id (server resolves via lookup). */
+  const { submissionId: lookupId } = useParams();
   const navigate         = useNavigate();
   const [data, setData]  = useState(null);
   const [diagramPages, setDiagramPages] = useState([]);
@@ -252,46 +431,73 @@ const ViewAnalysisResults = () => {
 
   useEffect(() => {
     injectStyles();
-    fetch(`${API_BASE}/api/ai-analysis/results/${submissionId}`, { headers: getAuthHeaders() })
-      .then((res) => res.json())
-      .then((res) => {
-        if (res.success) setData(res.data);
-        else setError(true);
-        setLoading(false);
-      })
-      .catch(() => { setError(true); setLoading(false); });
+    if (!lookupId) {
+      setLoading(false);
+      setError(true);
+      return;
+    }
 
-    fetch(`${API_BASE}/api/marks/ai-scores/${submissionId}`, { headers: getAuthHeaders() })
-      .then((res) => res.json())
-      .then((res) => {
-        if (res.success && Array.isArray(res.data)) setDiagramPages(res.data);
-      })
-      .catch(() => {});
-  }, [submissionId]);
+    let cancelled = false;
 
-  const handleDownloadReport = async () => {
-    if (!submissionId) return;
+    const run = async () => {
+      setLoading(true);
+      setError(false);
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/ai-analysis/lookup/${encodeURIComponent(lookupId)}`,
+          { headers: getAuthHeaders() }
+        );
+        const body = await res.json();
+        if (cancelled) return;
+        if (!res.ok || !body.success || !body.data) {
+          setData(null);
+          setDiagramPages([]);
+          setError(true);
+          setLoading(false);
+          return;
+        }
+        setData(body.data);
+        const sid = body.data.submission_id;
+        if (sid != null && sid !== "") {
+          try {
+            const r2 = await fetch(`${API_BASE}/api/marks/ai-scores/${sid}`, {
+              headers: getAuthHeaders(),
+            });
+            const j2 = await r2.json();
+            if (!cancelled && j2.success && Array.isArray(j2.data)) {
+              setDiagramPages(j2.data);
+            }
+          } catch {
+            if (!cancelled) setDiagramPages([]);
+          }
+        } else if (!cancelled) {
+          setDiagramPages([]);
+        }
+      } catch {
+        if (!cancelled) {
+          setData(null);
+          setDiagramPages([]);
+          setError(true);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [lookupId]);
+
+  const handleDownloadReport = () => {
+    if (!data) return;
     try {
       setReportLoading(true);
-      const res = await fetch(`${API_BASE}/api/ai-analysis/report/${submissionId}`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) throw new Error("Failed to generate report");
-      const report = await res.json();
-
-      const blob = new Blob([JSON.stringify(report, null, 2)], {
-        type: "application/json",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `analysis_report_submission_${submissionId}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      buildSavedAnalysisPdf(data, diagramPages);
+      appToast("PDF report downloaded.", "success");
     } catch (e) {
-      appToast(e?.message || "Report download failed", "error");
+      appToast(e?.message || "Could not generate PDF.", "error");
     } finally {
       setReportLoading(false);
     }
@@ -348,7 +554,7 @@ const ViewAnalysisResults = () => {
           Failed to load analysis result
         </h3>
         <p style={{ fontSize: 13, color: "#6b7280", margin: "0 0 20px", fontFamily: "'Inter',sans-serif" }}>
-          Submission ID: {submissionId}
+          Lookup ID: {lookupId} (analysis result or submission)
         </p>
         <button onClick={() => navigate(-1)} style={{ background: "#2e3bbf", color: "#fff", border: "none", borderRadius: 9, padding: "10px 24px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>
           Go Back
@@ -379,9 +585,9 @@ const ViewAnalysisResults = () => {
               onClick={handleDownloadReport}
               disabled={reportLoading || loading}
               style={{ opacity: reportLoading || loading ? 0.6 : 1 }}
-              title="Download generated analysis report"
+              title="Download report as PDF"
             >
-              {reportLoading ? "Generating..." : "Download Report"}
+              {reportLoading ? "Generating PDF…" : "Download PDF"}
             </button>
             <button className="mr-back-btn" onClick={() => navigate(-1)}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">

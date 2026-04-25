@@ -320,6 +320,38 @@ const styles = `
 
   /* Responsive action row */
   .action-row { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+
+  .action-menu-wrap { position: relative; display: inline-flex; align-items: center; }
+  .action-menu-panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 148px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 10px 40px rgba(15,23,42,0.12);
+    z-index: 50;
+    padding: 6px 0;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .action-menu-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #334155;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .action-menu-item:hover:not(:disabled) { background: #f8fafc; }
+  .action-menu-item:disabled { opacity: 0.45; cursor: not-allowed; }
+  .action-menu-item-danger { color: #b91c1c; }
+  .action-menu-item-danger:hover:not(:disabled) { background: #fef2f2; }
 `;
 
 /* ─────────────────────────── Helpers ─────────────────────────── */
@@ -354,24 +386,24 @@ const SuccessPopup = ({ isVisible, onClose, message, title, details }) => {
       <div className="popup-box" onClick={e => e.stopPropagation()}>
         <div className="popup-icon-wrap">
           <i className="fa-solid fa-check" />
-        </div>
+            </div>
         <h2 className="popup-title">{title || "Success!"}</h2>
         <p className="popup-msg">{message}</p>
-        {details && Object.keys(details).length > 0 && (
+          {details && Object.keys(details).length > 0 && (
           <div className="popup-details">
             {Object.entries(details).map(([k,v]) => (
               <div key={k} className="popup-row">
                 <span className="popup-key">{k}</span>
                 <span className="popup-val">{v}</span>
-              </div>
-            ))}
-          </div>
-        )}
+                </div>
+              ))}
+            </div>
+          )}
         <button className="btn btn-primary" onClick={onClose} style={{ width: "100%", justifyContent: "center", padding: "11px 0", fontSize: 14 }}>
-          Continue
-        </button>
-      </div>
-    </div>
+              Continue
+            </button>
+          </div>
+        </div>
   );
 };
 
@@ -391,7 +423,7 @@ const StepProgress = ({ currentStep }) => {
                   {done
                     ? <i className="fa-solid fa-check" style={{ fontSize: 13 }} />
                     : <i className={s.icon} style={{ fontSize: 13 }} />}
-                </div>
+      </div>
                 <span className={`step-label ${done ? "done" : active ? "active" : ""}`}>{s.label}</span>
               </div>
               {i < EVAL_STEPS.length - 1 && (
@@ -527,6 +559,8 @@ const LecturerSubmissions = () => {
   const [evaluatedResults, setEvaluatedResults] = useState([]);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [fileActionKey, setFileActionKey] = useState("");
+  /** Submissions table row “⋯” menu (Preview / Download). */
+  const [openActionsMenuSubmissionId, setOpenActionsMenuSubmissionId] = useState(null);
   const [currentStep, setCurrentStep] = useState(-1);
   const [manualMarks, setManualMarks] = useState({});
   const [finalMarks, setFinalMarks] = useState({});
@@ -656,6 +690,18 @@ const LecturerSubmissions = () => {
   useEffect(() => { fetchSubmissions(); fetchEvaluatedResults(); }, [fetchSubmissions, fetchEvaluatedResults]);
 
   useEffect(() => {
+    if (openActionsMenuSubmissionId == null) return;
+    const onDoc = (e) => {
+      const wrap = e.target.closest("[data-submissions-row-action-menu]");
+      const sidAttr = wrap?.getAttribute("data-submissions-row-action-menu");
+      const sid = sidAttr != null && sidAttr !== "" ? Number(sidAttr) : null;
+      if (sid !== openActionsMenuSubmissionId) setOpenActionsMenuSubmissionId(null);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [openActionsMenuSubmissionId]);
+
+  useEffect(() => {
     const intervalMs = 45_000;
     const tick = () => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
@@ -735,7 +781,7 @@ const LecturerSubmissions = () => {
         setCurrentStep(p => { if (p < EVAL_STEPS.length - 1) return p + 1; clearInterval(iv); return p; });
       }, 900);
       const res = await fetch(`${API_BASE}/api/ai-analysis/evaluate-all/${batchAssessmentId}`, {
-        method: "POST",
+          method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ marking_guide_id: Number(batchMarkingGuideId), submission_ids: batchSelectedSubmissionIds }),
       });
@@ -818,7 +864,7 @@ const LecturerSubmissions = () => {
           previewWin.document.close();
         }
         setTimeout(() => window.URL.revokeObjectURL(objectUrl), 600000);
-      } catch (err) {
+    } catch (err) {
         try {
           previewWin.document.body.innerHTML = "";
           const errP = previewWin.document.createElement("p");
@@ -829,7 +875,7 @@ const LecturerSubmissions = () => {
           previewWin.close();
         }
         appToast(err?.message || "Preview failed", "error");
-      } finally {
+    } finally {
         setFileActionKey("");
       }
     })();
@@ -858,6 +904,36 @@ const LecturerSubmissions = () => {
       appToast(err?.message || "Download failed", "error");
     } finally {
       setFileActionKey("");
+    }
+  };
+
+  const deleteSubmission = async (row) => {
+    const sid = Number(row?.submission_id);
+    if (!Number.isFinite(sid) || sid <= 0) {
+      appToast("Invalid submission id.", "error");
+      return;
+    }
+
+    const label = row?.original_file_name || `submission #${sid}`;
+    const ok = window.confirm(`Delete ${label}?\n\nThis will remove it from lecturer submissions.`);
+    if (!ok) return;
+
+    const key = `delete-${sid}`;
+    try {
+      setFileActionKey(key);
+      const res = await fetch(`${API_BASE}/api/submissions/lecturer/${sid}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || body?.message || "Delete failed");
+      appToast("Submission deleted.", "success");
+      await Promise.all([fetchSubmissions(), fetchEvaluatedResults({ silent: true })]);
+    } catch (err) {
+      appToast(err?.message || "Failed to delete submission", "error");
+    } finally {
+      setFileActionKey("");
+      setOpenActionsMenuSubmissionId(null);
     }
   };
 
@@ -921,12 +997,12 @@ const LecturerSubmissions = () => {
             <div className="stat-label">Total Submissions</div>
             <div className="stat-value">{loading ? "–" : stats.total}</div>
             <div className="stat-sub">All groups</div>
-          </div>
+                </div>
           <div className="stat-card">
             <div className="stat-label">Evaluated</div>
             <div className="stat-value" style={{ color: "#3b5bdb" }}>{stats.evaluated}</div>
             <div className="stat-sub">AI processed</div>
-          </div>
+            </div>
           <div className="stat-card">
             <div className="stat-label">High Risk</div>
             <div className="stat-value" style={{ color: stats.highRisk > 0 ? "#ef4444" : "#0f172a" }}>{loading ? "–" : stats.highRisk}</div>
@@ -968,7 +1044,7 @@ const LecturerSubmissions = () => {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
+          {loading ? (
                   [1,2,3].map(i => (
                     <tr key={i} className="tbl-row">
                       {[...Array(7)].map((_, j) => (
@@ -976,28 +1052,28 @@ const LecturerSubmissions = () => {
                       ))}
                     </tr>
                   ))
-                ) : data.length === 0 ? (
+          ) : data.length === 0 ? (
                   <tr><td colSpan={7}><div className="empty-state"><div className="empty-icon"><i className="fa-regular fa-folder-open" /></div><div className="empty-text">No submissions found</div></div></td></tr>
-                ) : (
+          ) : (
                   data.map((row, i) => {
-                    const sim = getSimilarity(row.similarity_avg);
-                    const risk = getRisk(row.risk_score);
-                    return (
+              const sim = getSimilarity(row.similarity_avg);
+              const risk = getRisk(row.risk_score);
+              return (
                       <tr key={row.submission_id} className="tbl-row">
                         <td>
                           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                             <div className={`avatar ${avatarClass(i)}`}>G{i + 1}</div>
-                            <div>
+                    <div>
                               <div style={{ fontWeight: 600, fontSize: 13, color: "#0f172a" }}>Group {i + 1}</div>
                               <div className="mono" style={{ fontSize: 11, color: "#94a3b8" }}>#{row.submission_id}</div>
-                            </div>
-                          </div>
+                    </div>
+                  </div>
                         </td>
                         <td>
                           <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                             <i className="fa-regular fa-file-pdf" style={{ color: "#ef4444", fontSize: 13 }} />
                             <span style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13 }}>{row.original_file_name}</span>
-                          </div>
+                  </div>
                         </td>
                         <td><span className="badge badge-gray">v{row.attempt_no || 1}</span></td>
                         <td>
@@ -1009,17 +1085,71 @@ const LecturerSubmissions = () => {
                         <td><span className={`badge ${risk.cls}`}>{risk.text}</span></td>
                         <td>
                           <div className="action-row">
-                            <button onClick={() => previewSubmissionDocument(row)} title="Preview" disabled={fileActionKey === `preview-${row.submission_id}`} className="icon-btn icon-btn-teal"><i className="fa-regular fa-file-lines" /></button>
-                            <button onClick={() => downloadSubmissionDocument(row)} title="Download" disabled={fileActionKey === `download-${row.submission_id}`} className="icon-btn icon-btn-sky"><i className="fa-solid fa-download" /></button>
-                            <button onClick={() => handleView(row.submission_id)} title="Open workspace" className="icon-btn icon-btn-purple"><i className="fa-solid fa-wand-magic-sparkles" /></button>
-                            <button onClick={() => handleAnalyze(row)} title="AI Analysis" className="icon-btn icon-btn-blue"><i className="fa-solid fa-code-compare" /></button>
-                            <button onClick={() => handleCompare(row)} title="Compare" className="icon-btn icon-btn-gray"><i className="fa-regular fa-eye" /></button>
+                            <button type="button" onClick={() => handleView(row.submission_id)} title="CompareWithGuide" className="icon-btn icon-btn-purple"><i className="fa-solid fa-wand-magic-sparkles" aria-hidden /></button>
+                            <button type="button" onClick={() => handleAnalyze(row)} title="Compare with student" className="icon-btn icon-btn-blue"><i className="fa-solid fa-code-compare" aria-hidden /></button>
+                            <button type="button" onClick={() => handleCompare(row)} title="View analysis result" className="icon-btn icon-btn-gray"><i className="fa-regular fa-eye" aria-hidden /></button>
+                            <div className="action-menu-wrap" data-submissions-row-action-menu={row.submission_id}>
+                    <button
+                                type="button"
+                                className="icon-btn icon-btn-gray"
+                                title="More: preview & download"
+                                aria-expanded={openActionsMenuSubmissionId === row.submission_id}
+                                aria-haspopup="menu"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenActionsMenuSubmissionId((cur) =>
+                                    cur === row.submission_id ? null : row.submission_id
+                                  );
+                                }}
+                              >
+                                <i className="fa-solid fa-ellipsis-vertical" aria-hidden />
+                    </button>
+                              {openActionsMenuSubmissionId === row.submission_id && (
+                                <div className="action-menu-panel" role="menu">
+                    <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="action-menu-item"
+                                    disabled={fileActionKey === `preview-${row.submission_id}`}
+                                    onClick={() => {
+                                      previewSubmissionDocument(row);
+                                      setOpenActionsMenuSubmissionId(null);
+                                    }}
+                                  >
+                                    Preview
+                    </button>
+                    <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="action-menu-item"
+                                    disabled={fileActionKey === `download-${row.submission_id}`}
+                                    onClick={() => {
+                                      downloadSubmissionDocument(row);
+                                      setOpenActionsMenuSubmissionId(null);
+                                    }}
+                                  >
+                                    Download
+                    </button>
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="action-menu-item action-menu-item-danger"
+                                    disabled={fileActionKey === `delete-${row.submission_id}`}
+                                    onClick={() => {
+                                      deleteSubmission(row);
+                                    }}
+                                  >
+                                    Delete
+                                  </button>
+                  </div>
+                              )}
+                </div>
                           </div>
                         </td>
                       </tr>
-                    );
-                  })
-                )}
+              );
+            })
+          )}
               </tbody>
             </table>
           </div>
@@ -1032,7 +1162,7 @@ const LecturerSubmissions = () => {
               <div className="card-title">
                 <i className="fa-solid fa-chart-bar" style={{ color: "#12b981", marginRight: 8, fontSize: 14 }} />
                 Evaluated Results
-              </div>
+            </div>
               <div className="card-sub">AI scores + manual marks for diagrams</div>
             </div>
             {evaluatedResults.length > 0 && !resultsLoading && (
@@ -1058,7 +1188,7 @@ const LecturerSubmissions = () => {
                 </tr>
               </thead>
               <tbody>
-                {resultsLoading ? (
+          {resultsLoading ? (
                   [1,2,3].map(i => (
                     <tr key={i} className="tbl-row">
                       {[...Array(9)].map((_, j) => (
@@ -1066,12 +1196,12 @@ const LecturerSubmissions = () => {
                       ))}
                     </tr>
                   ))
-                ) : evaluatedResults.length === 0 ? (
+          ) : evaluatedResults.length === 0 ? (
                   <tr><td colSpan={9}>
                     <div className="empty-state">
                       <div className="empty-icon"><i className="fa-solid fa-chart-bar" /></div>
                       <div className="empty-text">No evaluated results yet — click "Load Results" to fetch</div>
-                    </div>
+              </div>
                   </td></tr>
                 ) : (
                   evaluatedResults.map((row, i) => {
@@ -1083,7 +1213,7 @@ const LecturerSubmissions = () => {
                     const hasManualMark = manualMarks[arId] !== "" && manualMarks[arId] !== undefined && manualMarks[arId] !== null;
                     const riskLevel = row.risk_level ?? "LOW";
                     const riskCls = riskLevel === "HIGH" ? "badge-red" : riskLevel === "MEDIUM" ? "badge-yellow" : "badge-green";
-                    return (
+              return (
                       <tr key={String(arId ?? submissionId ?? i)} className="tbl-row">
                         <td>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1116,20 +1246,20 @@ const LecturerSubmissions = () => {
                           </button>
                         </td>
                         <td>
-                          <input
-                            type="number"
+                    <input
+                      type="number"
                             className="mark-input"
                             placeholder="0.00"
                             value={manualMarks[arId] !== undefined ? manualMarks[arId] : ""}
                             onChange={handleManualMarkChange(arId, row.final_score ?? row.Final_Score, 100)}
-                            disabled={isSaved}
+                      disabled={isSaved}
                             step="0.01" min="0" max="100"
                           />
                         </td>
                         <td>
                           <span style={{ fontFamily: "Space Mono, monospace", fontWeight: 700, fontSize: 14, color: "#12b981" }}>
                             {finalMarks[arId] !== undefined ? finalMarks[arId].toFixed(2) : (row.final_score ?? row.Final_Score ?? 0)}
-                          </span>
+                    </span>
                         </td>
                         <td><span className={`badge ${riskCls}`}>{riskLevel}</span></td>
                         <td style={{ textAlign: "center" }}>
@@ -1140,9 +1270,9 @@ const LecturerSubmissions = () => {
                               : <span className="badge badge-gray">Pending</span>}
                         </td>
                       </tr>
-                    );
-                  })
-                )}
+              );
+            })
+          )}
               </tbody>
             </table>
           </div>

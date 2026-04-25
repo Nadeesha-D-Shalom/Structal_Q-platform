@@ -2,9 +2,18 @@ import { useState, useEffect, useMemo } from "react";
 import StudentNavbar from "./StudentNavbar";
 import { useNavigate } from "react-router-dom";
 import { appToast } from "../../components/UIFeedback/appNotify";
+import { getApiBaseUrl } from "../../utils/apiBase";
 
 const PER_PAGE = 5;
-const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
+const API_BASE = getApiBaseUrl();
+
+function getAuthHeaders(json = false) {
+  const token = localStorage.getItem("auth_token");
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (json) headers["Content-Type"] = "application/json";
+  return headers;
+}
 
 export default function StudentMarksList() {
   const navigate = useNavigate();
@@ -67,7 +76,8 @@ export default function StudentMarksList() {
       setFetchError(false);
       try {
         const response = await fetch(`${API_BASE}/api/student/marks/${session?.student_id}`, { 
-          credentials: "include" 
+          credentials: "include",
+          headers: getAuthHeaders(false),
         });
         if (!response.ok) throw new Error("Failed to fetch");
         
@@ -130,7 +140,8 @@ export default function StudentMarksList() {
     try {
       // Fetch detailed submission data for the concern form
       const response = await fetch(`${API_BASE}/api/student/marks/details/${submission.submission_id}`, {
-        credentials: "include"
+        credentials: "include",
+        headers: getAuthHeaders(false),
       });
       
       const result = await response.json();
@@ -161,9 +172,8 @@ export default function StudentMarksList() {
     try {
       const response = await fetch(`${API_BASE}/api/student/marks/export-pdf`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        credentials: "include",
+        headers: getAuthHeaders(true),
         body: JSON.stringify({
           marks: filtered,
           student: {
