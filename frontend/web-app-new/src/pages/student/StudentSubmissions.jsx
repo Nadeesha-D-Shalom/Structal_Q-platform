@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import StudentNavbar from "./StudentNavbar";
 import { getApiBaseUrl } from "../../utils/apiBase";
@@ -253,7 +253,7 @@ function ScoreRing({ value }) {
 function Toast({ msg, type, onClose }) {
   useEffect(() => {
     if (msg) { const t = setTimeout(onClose, 4500); return () => clearTimeout(t); }
-  }, [msg]);
+  }, [msg, onClose]);
   if (!msg) return null;
   return (
     <div style={{
@@ -381,10 +381,10 @@ export default function StudentSubmissions() {
   const [activeTab, setActiveTab] = useState("labs");
   const [filterStatus, setFilterStatus] = useState("all");
 
-  const showToast = (msg, type = "success") => setToast({ msg, type });
-  const clearToast = () => setToast({ msg: "", type: "success" });
+  const showToast = useCallback((msg, type = "success") => setToast({ msg, type }), []);
+  const clearToast = useCallback(() => setToast({ msg: "", type: "success" }), []);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [labsRes, sRes] = await Promise.all([
@@ -399,9 +399,9 @@ export default function StudentSubmissions() {
       setRows(Array.isArray(list) ? list : []);
     } catch (e) { showToast(e.message || "Failed to load data", "error"); }
     finally { setLoading(false); }
-  };
+  }, [showToast]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -713,7 +713,6 @@ export default function StudentSubmissions() {
                 {rows.map((r) => {
                   const manageable = canManage(r.due_date);
                   const isOpen = openPopover === r.submission_id;
-                  const action = rowActions[r.submission_id] || "";
 
                   return (
                     <div key={r.submission_id} className="ss-history-row">

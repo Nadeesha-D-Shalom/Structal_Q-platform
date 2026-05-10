@@ -321,37 +321,6 @@ const styles = `
   /* Responsive action row */
   .action-row { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
 
-  .action-menu-wrap { position: relative; display: inline-flex; align-items: center; }
-  .action-menu-panel {
-    position: absolute;
-    top: calc(100% + 6px);
-    right: 0;
-    min-width: 148px;
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    box-shadow: 0 10px 40px rgba(15,23,42,0.12);
-    z-index: 50;
-    padding: 6px 0;
-    font-family: 'DM Sans', sans-serif;
-  }
-  .action-menu-item {
-    display: block;
-    width: 100%;
-    text-align: left;
-    padding: 10px 16px;
-    font-size: 13px;
-    font-weight: 500;
-    color: #334155;
-    border: none;
-    background: none;
-    cursor: pointer;
-    font-family: inherit;
-  }
-  .action-menu-item:hover:not(:disabled) { background: #f8fafc; }
-  .action-menu-item:disabled { opacity: 0.45; cursor: not-allowed; }
-  .action-menu-item-danger { color: #b91c1c; }
-  .action-menu-item-danger:hover:not(:disabled) { background: #fef2f2; }
 `;
 
 /* ─────────────────────────── Helpers ─────────────────────────── */
@@ -559,8 +528,6 @@ const LecturerSubmissions = () => {
   const [evaluatedResults, setEvaluatedResults] = useState([]);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [fileActionKey, setFileActionKey] = useState("");
-  /** Submissions table row “⋯” menu (Preview / Download). */
-  const [openActionsMenuSubmissionId, setOpenActionsMenuSubmissionId] = useState(null);
   const [currentStep, setCurrentStep] = useState(-1);
   const [manualMarks, setManualMarks] = useState({});
   const [finalMarks, setFinalMarks] = useState({});
@@ -690,18 +657,6 @@ const LecturerSubmissions = () => {
   useEffect(() => { fetchSubmissions(); fetchEvaluatedResults(); }, [fetchSubmissions, fetchEvaluatedResults]);
 
   useEffect(() => {
-    if (openActionsMenuSubmissionId == null) return;
-    const onDoc = (e) => {
-      const wrap = e.target.closest("[data-submissions-row-action-menu]");
-      const sidAttr = wrap?.getAttribute("data-submissions-row-action-menu");
-      const sid = sidAttr != null && sidAttr !== "" ? Number(sidAttr) : null;
-      if (sid !== openActionsMenuSubmissionId) setOpenActionsMenuSubmissionId(null);
-    };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [openActionsMenuSubmissionId]);
-
-  useEffect(() => {
     const intervalMs = 45_000;
     const tick = () => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
@@ -809,7 +764,10 @@ const LecturerSubmissions = () => {
     if (!id || !Number.isFinite(id) || id <= 0) throw new Error("Submission file is not available.");
     const q = download ? "?download=1" : "";
     const url = `${API_BASE}/api/submissions/file/${id}${q}`;
-    const res = await fetch(url, { headers: getAuthHeaders() });
+    const res = await fetch(url, {
+      headers: getAuthHeaders(),
+      credentials: "include",
+    });
     if (!res.ok) {
       const t = await res.text().catch(() => "");
       throw new Error(t?.trim() || `Unable to access file (${res.status})`);
@@ -847,22 +805,9 @@ const LecturerSubmissions = () => {
           download: false,
           filename: row?.original_file_name || "",
         });
-        const ext = String(row?.original_file_name || "").toLowerCase();
-        const isPdf = ext.endsWith(".pdf") || (blob.type && blob.type.includes("pdf"));
         const objectUrl = window.URL.createObjectURL(blob);
-        if (isPdf) {
-          previewWin.location.replace(objectUrl);
-        } else {
-          const safeName = (row?.original_file_name || "submission").replace(/"/g, "");
-          previewWin.document.open();
-          previewWin.document.write(
-            `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Preview</title></head><body style="font-family:system-ui,sans-serif;padding:24px">` +
-              `<p>Inline preview is only available for PDF. Use the link below to open or save this file.</p>` +
-              `<p><a href="${objectUrl}" download="${safeName}" style="color:#2563eb;font-weight:600">Download file</a></p>` +
-              `</body></html>`
-          );
-          previewWin.document.close();
-        }
+        // Always show preview in a new tab. Browser decides whether to render or download.
+        previewWin.location.replace(objectUrl);
         setTimeout(() => window.URL.revokeObjectURL(objectUrl), 600000);
     } catch (err) {
         try {
@@ -917,13 +862,20 @@ const LecturerSubmissions = () => {
     const label = row?.original_file_name || `submission #${sid}`;
     const ok = window.confirm(`Delete ${label}?\n\nThis will remove it from lecturer submissions.`);
     if (!ok) return;
+    const password = window.prompt("Enter your password to confirm deletion:");
+    if (password == null) return;
+    if (!String(password).trim()) {
+      appToast("Password is required to delete.", "warning");
+      return;
+    }
 
     const key = `delete-${sid}`;
     try {
       setFileActionKey(key);
       const res = await fetch(`${API_BASE}/api/submissions/lecturer/${sid}`, {
         method: "DELETE",
-        headers: getAuthHeaders(),
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ password: String(password) }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body?.error || body?.message || "Delete failed");
@@ -933,7 +885,6 @@ const LecturerSubmissions = () => {
       appToast(err?.message || "Failed to delete submission", "error");
     } finally {
       setFileActionKey("");
-      setOpenActionsMenuSubmissionId(null);
     }
   };
 
@@ -1085,65 +1036,12 @@ const LecturerSubmissions = () => {
                         <td><span className={`badge ${risk.cls}`}>{risk.text}</span></td>
                         <td>
                           <div className="action-row">
+                            <button type="button" onClick={() => previewSubmissionDocument(row)} title="Preview in new tab" disabled={fileActionKey === `preview-${row.submission_id}`} className="icon-btn icon-btn-teal"><i className="fa-regular fa-file-lines" aria-hidden /></button>
+                            <button type="button" onClick={() => downloadSubmissionDocument(row)} title="Download file" disabled={fileActionKey === `download-${row.submission_id}`} className="icon-btn icon-btn-sky"><i className="fa-solid fa-download" aria-hidden /></button>
+                            <button type="button" onClick={() => deleteSubmission(row)} title="Delete submission" disabled={fileActionKey === `delete-${row.submission_id}`} className="icon-btn icon-btn-red"><i className="fa-solid fa-trash" aria-hidden /></button>
                             <button type="button" onClick={() => handleView(row.submission_id)} title="CompareWithGuide" className="icon-btn icon-btn-purple"><i className="fa-solid fa-wand-magic-sparkles" aria-hidden /></button>
                             <button type="button" onClick={() => handleAnalyze(row)} title="Compare with student" className="icon-btn icon-btn-blue"><i className="fa-solid fa-code-compare" aria-hidden /></button>
                             <button type="button" onClick={() => handleCompare(row)} title="View analysis result" className="icon-btn icon-btn-gray"><i className="fa-regular fa-eye" aria-hidden /></button>
-                            <div className="action-menu-wrap" data-submissions-row-action-menu={row.submission_id}>
-                    <button
-                                type="button"
-                                className="icon-btn icon-btn-gray"
-                                title="More: preview & download"
-                                aria-expanded={openActionsMenuSubmissionId === row.submission_id}
-                                aria-haspopup="menu"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setOpenActionsMenuSubmissionId((cur) =>
-                                    cur === row.submission_id ? null : row.submission_id
-                                  );
-                                }}
-                              >
-                                <i className="fa-solid fa-ellipsis-vertical" aria-hidden />
-                    </button>
-                              {openActionsMenuSubmissionId === row.submission_id && (
-                                <div className="action-menu-panel" role="menu">
-                    <button
-                                    type="button"
-                                    role="menuitem"
-                                    className="action-menu-item"
-                                    disabled={fileActionKey === `preview-${row.submission_id}`}
-                                    onClick={() => {
-                                      previewSubmissionDocument(row);
-                                      setOpenActionsMenuSubmissionId(null);
-                                    }}
-                                  >
-                                    Preview
-                    </button>
-                    <button
-                                    type="button"
-                                    role="menuitem"
-                                    className="action-menu-item"
-                                    disabled={fileActionKey === `download-${row.submission_id}`}
-                                    onClick={() => {
-                                      downloadSubmissionDocument(row);
-                                      setOpenActionsMenuSubmissionId(null);
-                                    }}
-                                  >
-                                    Download
-                    </button>
-                                  <button
-                                    type="button"
-                                    role="menuitem"
-                                    className="action-menu-item action-menu-item-danger"
-                                    disabled={fileActionKey === `delete-${row.submission_id}`}
-                                    onClick={() => {
-                                      deleteSubmission(row);
-                                    }}
-                                  >
-                                    Delete
-                                  </button>
-                  </div>
-                              )}
-                </div>
                           </div>
                         </td>
                       </tr>

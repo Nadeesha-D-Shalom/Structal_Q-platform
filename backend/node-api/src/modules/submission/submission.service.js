@@ -1,6 +1,7 @@
 const { pool, poolConnect, sql } = require('../../config/db');
 const fs = require('fs');
 const path = require("path");
+const bcrypt = require("bcrypt");
 
 function createBadRequest(message) {
     const error = new Error(message);
@@ -51,6 +52,18 @@ function ensureBeforeDeadline(dueDate, actionName) {
     if (Date.now() > dueMs) {
         throw createBadRequest(`Cannot ${actionName}: deadline has passed`);
     }
+}
+
+async function comparePassword(password, storedHash) {
+    if (!storedHash) return false;
+    if (
+        storedHash.startsWith("$2a$") ||
+        storedHash.startsWith("$2b$") ||
+        storedHash.startsWith("$2y$")
+    ) {
+        return bcrypt.compare(password, storedHash);
+    }
+    return password === storedHash;
 }
 
 async function insertUploadedFile({ file, uploadUserId }) {
@@ -688,5 +701,33 @@ exports.deleteOwnSubmission = async ({ submissionId, userId }) => {
             SET is_deleted = 1
             WHERE file_id = @fid;
         `);
+    return { success: true, message: "Submission deleted successfully" };
+};
+
+exports.deleteSubmissionByLecturerWithPassword = async ({
+    submissionId,
+    lecturerUserId,
+    password,
+}) => {
+    await poolConnect;
+    const sid = parseNumericId(submissionId, "submission_id");
+    const lid = parseNumericId(lecturerUserId, "lecturer_user_id");
+    const pw = String(password || "");
+    if (!pw.trim()) throw createBadRequest("Password is required");
+
+    const userRes = await pool.request()
+        .input("id", sql.BigInt, lid)
+        .query(`SELECT password_hash FROM users WHERE user_id = @id`);
+    if (!userRes.recordset?.length) {
+        const err = new Error("Lecturer account not found");
+        err.statusCode = 404;
+        throw err;
+    }
+
+    const stored = userRes.recordset[0].password_hash;
+    const ok = await comparePassword(pw, String(stored || ""));
+    if (!ok) throw createBadRequest("Incorrect password");
+
+    await exports.softDelete(sid);
     return { success: true, message: "Submission deleted successfully" };
 };

@@ -364,7 +364,7 @@ export default function UserProfilePage() {
                   />
                   {!isStudentShell && (
                     <>
-                      <DetailRow
+                      {/* <DetailRow
                         label="Program ID"
                         value={profile.program_id != null ? String(profile.program_id) : null}
                         iconClass="fa-solid fa-layer-group"
@@ -382,7 +382,7 @@ export default function UserProfilePage() {
                             : null
                         }
                         iconClass="fa-solid fa-right-to-bracket"
-                      />
+                      /> */}
                       <DetailRow
                         label="Account status"
                         value={profile.status}

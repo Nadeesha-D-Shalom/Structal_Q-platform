@@ -88,10 +88,17 @@ exports.softDeleteSubmission = async (req, res) => {
 /* DELETE (LECTURER) */
 exports.softDeleteSubmissionByLecturer = async (req, res) => {
     try {
-        await service.softDelete(req.params.id);
-        res.json({ success: true, message: "Submission deleted successfully" });
+        const uid = req.user?.user_id;
+        if (!uid) return res.status(401).json({ success: false, error: "Not authenticated" });
+        const result = await service.deleteSubmissionByLecturerWithPassword({
+            submissionId: req.params.id,
+            lecturerUserId: uid,
+            password: req.body?.password,
+        });
+        res.json(result);
     } catch (err) {
-        res.status(500).json({ success: false, error: err.message });
+        const status = Number(err.statusCode || err.status) || 500;
+        res.status(status).json({ success: false, error: err.message });
     }
 };
 
